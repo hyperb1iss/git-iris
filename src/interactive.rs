@@ -23,7 +23,7 @@ impl InteractiveCommit {
 
     pub async fn run<F, Fut>(&mut self, generate_message: F) -> Result<bool>
     where
-        F: Fn(&[String]) -> Fut,
+        F: Fn(&[String], Option<String>) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut term = Term::stdout();
@@ -98,7 +98,7 @@ impl InteractiveCommit {
 
     async fn navigate_right<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn(&[String]) -> Fut,
+        F: Fn(&[String], Option<String>) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         if self.current_index == self.messages.len() - 1 {
@@ -110,7 +110,7 @@ impl InteractiveCommit {
             );
             spinner.enable_steady_tick(Duration::from_millis(100));
 
-            let new_message = generate_message(&self.inpaint_context).await?;
+            let new_message = generate_message(&self.inpaint_context, None).await?;
             spinner.finish_and_clear();
 
             self.messages.push(new_message);
@@ -139,7 +139,7 @@ impl InteractiveCommit {
 
     async fn regenerate_message<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn(&[String]) -> Fut,
+        F: Fn(&[String], Option<String>) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let spinner = ProgressBar::new_spinner();
@@ -150,7 +150,8 @@ impl InteractiveCommit {
         );
         spinner.enable_steady_tick(Duration::from_millis(100));
 
-        let new_message = generate_message(&self.inpaint_context).await?;
+        let existing_message = self.messages[self.current_index].clone();
+        let new_message = generate_message(&self.inpaint_context, Some(existing_message)).await?;
         self.messages[self.current_index] = new_message;
 
         spinner.finish_and_clear();

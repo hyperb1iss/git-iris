@@ -31,7 +31,7 @@ fn test_create_prompt_basic() {
     let git_info = create_mock_git_info();
     let config = Config::default();
 
-    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[], None).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("abcdef1 Initial commit"));
@@ -45,7 +45,7 @@ fn test_create_prompt_with_staged_files() {
     let git_info = create_mock_git_info();
     let config = Config::default();
 
-    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[], None).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("file1.rs (Modified"));
@@ -58,7 +58,7 @@ fn test_create_prompt_with_gitmoji() {
     let mut config = Config::default();
     config.use_gitmoji = true;
 
-    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[], None).unwrap();
 
     println!("{}", prompt);
     assert!(prompt.contains("Use a single gitmoji at the start of the commit message"));
@@ -71,7 +71,7 @@ fn test_create_prompt_with_custom_instructions() {
     let mut config = Config::default();
     config.custom_instructions = "Always mention the ticket number".to_string();
 
-    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[], None).unwrap();
 
     assert!(prompt.contains("Always mention the ticket number"));
 }
@@ -86,7 +86,7 @@ fn test_create_prompt_with_inpaint_context() {
         "The bug was causing performance issues".to_string(),
     ];
 
-    let prompt = create_prompt(&git_info, &config, false, &inpaint_context).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &inpaint_context, None).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("abcdef1 Initial commit"));
@@ -100,7 +100,7 @@ fn test_create_prompt_verbose() {
     let git_info = create_mock_git_info();
     let config = Config::default();
 
-    let prompt = create_prompt(&git_info, &config, true, &[]).unwrap();
+    let prompt = create_prompt(&git_info, &config, true, &[], None).unwrap();
 
     assert!(prompt.contains("Detailed changes:"));
     assert!(prompt.contains("File: file1.rs (Modified"));
@@ -118,7 +118,7 @@ fn test_create_prompt_with_multiple_commits() {
 
     let config = Config::default();
 
-    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[], None).unwrap();
 
     assert!(prompt.contains("abcdef1 Initial commit"));
     assert!(prompt.contains("123456 Add new feature"));
@@ -159,7 +159,7 @@ fn test_create_user_prompt() -> Result<()> {
         project_root: "/project".to_string(),
     };
 
-    let prompt = create_user_prompt(&git_info, false, &[])?;
+    let prompt = create_user_prompt(&git_info, false, &[], None)?;
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("abc123 Initial commit"));
     assert!(prompt.contains("file1.rs (Modified)"));

@@ -44,6 +44,8 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
         ));
     }
 
+    prompt.push_str("\n\nWhen given an existing commit message and inpainting instructions, refine the existing message based on the instructions. Maintain the overall structure and intent of the original message while incorporating the new information or changes requested in the inpainting instructions.");
+
     prompt
 }
 
@@ -51,6 +53,7 @@ pub fn create_user_prompt(
     git_info: &GitInfo,
     verbose: bool,
     inpaint_context: &[String],
+    existing_message: Option<&str>,
 ) -> Result<String> {
     let mut prompt = format!(
         "Based on the following context, generate a Git commit message:\n\n\
@@ -66,11 +69,15 @@ pub fn create_user_prompt(
         format_detailed_changes(&git_info.staged_files, &git_info.project_root)?
     );
 
-    if !inpaint_context.is_empty() {
+    if let Some(message) = existing_message {
+        prompt.push_str(&format!("\n\nExisting commit message:\n{}\n", message));
+        prompt.push_str("\nPlease refine the existing commit message based on the following inpainting instructions:\n");
+    } else {
         prompt.push_str("\n\nAdditional context provided by the user:\n");
-        for context in inpaint_context {
-            prompt.push_str(&format!("- {}\n", context));
-        }
+    }
+
+    for context in inpaint_context {
+        prompt.push_str(&format!("- {}\n", context));
     }
 
     if verbose {
@@ -85,9 +92,10 @@ pub fn create_prompt(
     config: &Config,
     verbose: bool,
     inpaint_context: &[String],
+    existing_message: Option<&str>,
 ) -> Result<String> {
     let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
-    let user_prompt = create_user_prompt(git_info, verbose, inpaint_context)?;
+    let user_prompt = create_user_prompt(git_info, verbose, inpaint_context, existing_message)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
 

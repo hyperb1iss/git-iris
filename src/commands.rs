@@ -56,19 +56,29 @@ pub async fn handle_gen_command(
     );
     spinner.enable_steady_tick(Duration::from_millis(100));
 
-    let initial_message =
-        get_refined_message(&git_info, &config, &provider, use_gitmoji, verbose, &[]).await?;
+    let initial_message = get_refined_message(
+        &git_info,
+        &config,
+        &provider,
+        use_gitmoji,
+        verbose,
+        &[],
+        None,
+    )
+    .await?;
 
     spinner.finish_and_clear();
 
     let mut interactive_commit = InteractiveCommit::new(initial_message);
 
     let commit_performed = interactive_commit
-        .run(move |inpaint_context| {
-            let inpaint_context = inpaint_context.to_vec(); // Clone the inpaint context
+        .run(move |inpaint_context, existing_message| {
+            let inpaint_context = inpaint_context.to_vec();
             let config = Arc::clone(&config);
             let provider = Arc::clone(&provider);
             let current_dir = Arc::clone(&current_dir);
+            let use_gitmoji = use_gitmoji;
+            let verbose = verbose;
             async move {
                 let git_info = get_git_info(current_dir.as_path())?;
                 get_refined_message(
@@ -78,6 +88,7 @@ pub async fn handle_gen_command(
                     use_gitmoji,
                     verbose,
                     &inpaint_context,
+                    existing_message.as_deref(),
                 )
                 .await
             }
