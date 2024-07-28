@@ -32,16 +32,22 @@ async fn main() -> Result<()> {
 
             let use_gitmoji = gitmoji.unwrap_or(config.use_gitmoji);
 
-            loop {
-                let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
-                let generated_message =
-                    llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
+            let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
+            let initial_message = llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
 
-                let commit_performed = interactive::interactive_commit(&generated_message)?;
+            let mut interactive_commit = interactive::InteractiveCommit::new(initial_message);
 
-                if commit_performed {
-                    break;
-                }
+            let commit_performed = interactive_commit
+                .run(|| async {
+                    let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
+                    llm::get_refined_message(&prompt, use_gitmoji, verbose).await
+                })
+                .await?;
+
+            if commit_performed {
+                cli::print_success("Commit successfully created and applied.");
+            } else {
+                cli::print_info("Commit process cancelled.");
             }
         }
         cli::Commands::Config {
