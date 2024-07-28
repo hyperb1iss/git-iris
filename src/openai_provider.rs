@@ -1,8 +1,12 @@
-use crate::llm_provider::{LLMProvider, OpenAIProvider, LLMProviderConfig};
+use crate::llm_provider::{LLMProvider, LLMProviderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
+
+pub struct OpenAIProvider {
+    config: LLMProviderConfig,
+}
 
 impl OpenAIProvider {
     pub fn new(config: LLMProviderConfig) -> Self {

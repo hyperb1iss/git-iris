@@ -1,4 +1,5 @@
-use crate::llm_provider::{LLMProviderConfig, OpenAIProvider, ClaudeProvider};
+use crate::llm_provider::LLMProviderConfig;
+use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -16,7 +17,7 @@ pub struct Config {
     pub custom_instructions: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ProviderConfig {
     pub api_key: String,
     pub model: String,
@@ -129,22 +130,19 @@ impl Default for Config {
 
 impl ProviderConfig {
     pub fn default_for(provider: &str) -> Self {
-        match provider {
-            "openai" => ProviderConfig {
-                api_key: String::new(),
-                model: OpenAIProvider::default_model().to_string(),
-                additional_params: HashMap::new(),
-            },
-            "claude" => ProviderConfig {
-                api_key: String::new(),
-                model: ClaudeProvider::default_model().to_string(),
-                additional_params: HashMap::new(),
-            },
-            _ => ProviderConfig {
-                api_key: String::new(),
-                model: String::new(),
-                additional_params: HashMap::new(),
-            },
+        let default_model = ProviderRegistry::default()
+            .get_default_model(provider)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Default model for provider '{}' not found in registry",
+                    provider
+                );
+            });
+
+        ProviderConfig {
+            api_key: String::new(),
+            model: default_model.to_string(),
+            additional_params: HashMap::new(),
         }
     }
 

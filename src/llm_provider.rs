@@ -13,6 +13,30 @@ pub trait LLMProvider: Send + Sync {
     fn provider_name(&self) -> &str;
 }
 
+pub struct LLMProviderManager {
+    providers: HashMap<String, Arc<dyn LLMProvider>>,
+}
+
+impl LLMProviderManager {
+    pub fn new() -> Self {
+        LLMProviderManager {
+            providers: HashMap::new(),
+        }
+    }
+
+    pub fn register_provider(&mut self, name: String, provider: Arc<dyn LLMProvider>) {
+        self.providers.insert(name, provider);
+    }
+
+    pub fn get_provider(&self, name: &str) -> Option<&Arc<dyn LLMProvider>> {
+        self.providers.get(name)
+    }
+
+    pub fn clear_providers(&mut self) {
+        self.providers.clear();
+    }
+}
+
 impl fmt::Display for dyn LLMProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.provider_name())
@@ -26,11 +50,11 @@ pub struct LLMProviderConfig {
 }
 
 pub struct OpenAIProvider {
-    pub(crate) config: LLMProviderConfig,
+    pub(crate) _config: LLMProviderConfig,
 }
 
 pub struct ClaudeProvider {
-    pub(crate) config: LLMProviderConfig,
+    pub(crate) _config: LLMProviderConfig,
 }
 
 pub type ProviderMap = HashMap<String, Arc<dyn LLMProvider>>;

@@ -8,6 +8,7 @@ pub mod llm;
 pub mod llm_provider;
 pub mod openai_provider;
 pub mod prompt;
+pub mod provider_registry;
 
 // Re-export important structs and functions for easier testing
 pub use config::Config;

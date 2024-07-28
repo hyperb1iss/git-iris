@@ -1,7 +1,8 @@
 use crate::config::Config;
 use crate::git::GitInfo;
-use crate::llm_provider::{ClaudeProvider, LLMProvider, OpenAIProvider};
+use crate::llm_provider::{LLMProvider, LLMProviderManager};
 use crate::prompt;
+use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::cell::RefCell;
@@ -9,7 +10,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 thread_local! {
-    pub static PROVIDERS: RefCell<HashMap<String, Arc<dyn LLMProvider>>> = RefCell::new(HashMap::new());
+    pub static PROVIDER_MANAGER: RefCell<LLMProviderManager> = RefCell::new(LLMProviderManager::new());
+    pub static PROVIDER_REGISTRY: ProviderRegistry = ProviderRegistry::default();
 }
 
 pub async fn get_refined_message(
@@ -23,18 +25,22 @@ pub async fn get_refined_message(
         .get_provider_config(provider)
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
 
-    let provider: Arc<dyn LLMProvider> = PROVIDERS
-        .with(|providers| providers.borrow().get(provider).cloned())
-        .unwrap_or_else(|| match provider {
-            "openai" => {
-                let config = provider_config.to_llm_provider_config();
-                Arc::new(OpenAIProvider::new(config))
-            }
-            "claude" => {
-                let config = provider_config.to_llm_provider_config();
-                Arc::new(ClaudeProvider::new(config))
-            }
-            _ => Arc::new(UnsupportedProvider(provider.to_string())),
+    let provider: Arc<dyn LLMProvider> = PROVIDER_MANAGER
+        .with(|manager| manager.borrow().get_provider(provider).cloned())
+        .unwrap_or_else(|| {
+            PROVIDER_REGISTRY.with(|registry| {
+                let provider_arc = registry
+                    .create_provider(provider, provider_config.clone())
+                    .unwrap_or_else(|e| {
+                        panic!("Failed to create provider {}: {}", provider, e);
+                    });
+                PROVIDER_MANAGER.with(|manager| {
+                    manager
+                        .borrow_mut()
+                        .register_provider(provider.to_string(), provider_arc.clone());
+                });
+                provider_arc
+            })
         });
 
     if provider.is_unsupported() {
@@ -83,13 +89,16 @@ impl LLMProvider for UnsupportedProvider {
 
 // This function can be used to initialize providers for testing
 pub fn init_providers(providers: HashMap<String, Arc<dyn LLMProvider>>) {
-    PROVIDERS.with(|p| {
-        *p.borrow_mut() = providers;
+    PROVIDER_MANAGER.with(|manager| {
+        let mut manager = manager.borrow_mut();
+        for (name, provider) in providers {
+            manager.register_provider(name, provider);
+        }
     });
 }
 
 pub fn clear_providers() {
-    PROVIDERS.with(|p| {
-        p.borrow_mut().clear();
+    PROVIDER_MANAGER.with(|manager| {
+        manager.borrow_mut().clear_providers();
     });
 }
