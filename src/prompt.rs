@@ -49,16 +49,21 @@ fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String 
         11. Focus on the impact and purpose of the changes, not just what files were modified.
         12. If the changes are part of a larger feature or fix, provide that context.
         13. For non-trivial changes, include a brief explanation of the motivation behind the change.
+        14. Do not include a conclusion or end summary section in the commit message.
+        15. Keep the message concise and to the point, avoiding unnecessary elaboration.
+        16. Do not include any section labels (e.g., 'Commit Message:', 'Commit Body:') in your response.
+        17. Format your response as follows: subject line, blank line, then the commit body.
 
         Remember, a good commit message should complete the following sentence:
-        If applied, this commit will... <your subject line here>"
+        If applied, this commit will... <your subject line here>
+
+        Generate only the commit message, without any explanations or additional text."
     );
 
     if use_gitmoji {
         prompt.push_str(
-            "\n\n14. Use appropriate gitmoji at the start of the commit message. \
-        Choose the most relevant emoji and do not use more than one. \
-        Some common gitmoji include:
+            "\n\n18. If appropriate, use a single gitmoji at the start of the commit message. \
+        Choose the most relevant emoji. Some common gitmoji include:
         - ✨ (sparkles) for new features
         - 🐛 (bug) for bug fixes
         - 📚 (books) for documentation changes
