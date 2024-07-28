@@ -31,6 +31,13 @@ pub enum Commands {
 
         #[arg(short, long, help = "Set use_gitmoji preference")]
         gitmoji: Option<bool>,
+
+        #[arg(
+            short,
+            long,
+            help = "Set custom instructions (separate multiple instructions with newlines)"
+        )]
+        custom_instructions: Option<String>,
     },
 }
 

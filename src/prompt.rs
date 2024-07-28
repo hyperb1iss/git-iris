@@ -16,27 +16,11 @@ pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Resu
         format_detailed_changes(&git_info.staged_files, &git_info.project_root)?
     );
 
-    let prompt = format!(
-        "Generate a Git commit message {} based on the following context:\n\n{}
+    let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
 
-Guidelines:
-1. Use imperative mood in subject
-2. 50 char subject line, 72 char body wrap
-3. Explain what and why, not how
-4. Focus on significant changes and their purpose
-5. No backticks for filenames
-6. Don't list modified functions without explaining their purpose or impact
-7. Provide meaningful context for changes, not just what was changed
-8. Consider the full file contents when explaining changes
-9. Use bullet points for multiple changes or aspects, not 'firstly', 'secondly', etc.
-10. Don't end bullet points with a period
-11. Use a blank line before starting bullet points in the commit body",
-        if config.use_gitmoji {
-            "with appropriate gitmoji"
-        } else {
-            ""
-        },
-        context
+    let prompt = format!(
+        "{}\n\nBased on the following context, generate a Git commit message:\n\n{}",
+        system_prompt, context
     );
 
     if verbose {
@@ -44,6 +28,55 @@ Guidelines:
     }
 
     Ok(prompt)
+}
+
+fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
+    let mut prompt = String::from(
+        "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
+        Your task is to generate clear, concise, and informative commit messages based on the provided context. \
+        Aim for a tone that is professional yet approachable. Follow these guidelines:
+
+        1. Use the imperative mood in the subject line (e.g., 'Add feature' not 'Added feature').
+        2. Limit the subject line to 50 characters if possible, but never exceed 72 characters.
+        3. Capitalize the subject line.
+        4. Do not end the subject line with a period.
+        5. Separate subject from body with a blank line.
+        6. Wrap the body at 72 characters.
+        7. Use the body to explain what changes you made and why, not how.
+        8. If applicable, use conventional commit types (e.g., feat:, fix:, docs:, style:, refactor:, test:, chore:).
+        9. When multiple files or changes are involved, summarize the overall change in the subject line and use bullet points in the body for details.
+        10. Be specific and avoid vague commit messages.
+        11. Focus on the impact and purpose of the changes, not just what files were modified.
+        12. If the changes are part of a larger feature or fix, provide that context.
+        13. For non-trivial changes, include a brief explanation of the motivation behind the change.
+
+        Remember, a good commit message should complete the following sentence:
+        If applied, this commit will... <your subject line here>"
+    );
+
+    if use_gitmoji {
+        prompt.push_str(
+            "\n\n14. Use appropriate gitmoji at the start of the commit message. \
+        Choose the most relevant emoji and do not use more than one. \
+        Some common gitmoji include:
+        - ✨ (sparkles) for new features
+        - 🐛 (bug) for bug fixes
+        - 📚 (books) for documentation changes
+        - 💄 (lipstick) for UI and style changes
+        - ♻️ (recycle) for code refactoring
+        - ✅ (white check mark) for adding tests
+        - 🔧 (wrench) for configuration changes",
+        );
+    }
+
+    if !custom_instructions.is_empty() {
+        prompt.push_str("\n\nAdditional instructions:\n");
+        for instruction in custom_instructions.split('\n') {
+            prompt.push_str(&format!("- {}\n", instruction.trim()));
+        }
+    }
+
+    prompt
 }
 
 fn format_recent_commits(commits: &[String]) -> String {

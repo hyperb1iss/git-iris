@@ -48,18 +48,27 @@ async fn main() -> Result<()> {
                 );
             }
         }
-        cli::Commands::Config { api_key, gitmoji } => {
-            config.update(api_key, gitmoji);
+        cli::Commands::Config {
+            api_key,
+            gitmoji,
+            custom_instructions,
+        } => {
+            config.update(api_key, gitmoji, custom_instructions);
             config.save()?;
             cli::print_success("Configuration updated successfully.");
             cli::print_info(&format!(
-                "Current configuration:\nAPI Key: {}\nUse Gitmoji: {}",
+                "Current configuration:\nAPI Key: {}\nUse Gitmoji: {}\nCustom Instructions: {}",
                 if config.api_key.is_empty() {
                     "Not set"
                 } else {
                     "Set"
                 },
-                config.use_gitmoji
+                config.use_gitmoji,
+                if config.custom_instructions.is_empty() {
+                    "None".to_string()
+                } else {
+                    config.custom_instructions.replace('\n', ", ")
+                }
             ));
         }
     }

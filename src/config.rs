@@ -9,6 +9,8 @@ pub struct Config {
     pub api_key: String,
     #[serde(default)]
     pub use_gitmoji: bool,
+    #[serde(default)]
+    pub custom_instructions: String,
 }
 
 impl Config {
@@ -58,12 +60,20 @@ impl Config {
         Ok(())
     }
 
-    pub fn update(&mut self, api_key: Option<String>, use_gitmoji: Option<bool>) {
+    pub fn update(
+        &mut self,
+        api_key: Option<String>,
+        use_gitmoji: Option<bool>,
+        custom_instructions: Option<String>,
+    ) {
         if let Some(key) = api_key {
             self.api_key = key;
         }
         if let Some(gitmoji) = use_gitmoji {
             self.use_gitmoji = gitmoji;
+        }
+        if let Some(instructions) = custom_instructions {
+            self.custom_instructions = instructions;
         }
     }
 }
@@ -73,6 +83,7 @@ impl Default for Config {
         Config {
             api_key: String::new(),
             use_gitmoji: false,
+            custom_instructions: String::new(),
         }
     }
 }
