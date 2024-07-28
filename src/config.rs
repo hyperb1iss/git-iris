@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Config {
     pub api_key: String,
+    #[serde(default)]
     pub use_gitmoji: bool,
 }
 
@@ -14,17 +15,18 @@ impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Config::get_config_path()?;
         if !config_path.exists() {
-            return Err(anyhow!("Configuration file not found. Please create a .gitiris file in your home directory."));
+            return Ok(Config::default());
         }
         let config_content = fs::read_to_string(config_path)?;
-        let mut config: Config = toml::from_str(&config_content)?;
-
-        // Set default value for use_gitmoji if not specified
-        if !config_content.contains("use_gitmoji") {
-            config.use_gitmoji = false;
-        }
-
+        let config: Config = toml::from_str(&config_content)?;
         Ok(config)
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let config_path = Config::get_config_path()?;
+        let config_content = toml::to_string(self)?;
+        fs::write(config_path, config_content)?;
+        Ok(())
     }
 
     fn get_config_path() -> Result<PathBuf> {
@@ -53,14 +55,24 @@ impl Config {
             ));
         }
 
-        // Load config (this will check for the .gitiris file)
-        let config = Self::load()?;
-
-        // Check if API key is set
-        if config.api_key.is_empty() {
-            return Err(anyhow!("API key is not set in .gitiris. Please add your OpenAI API key to the configuration file."));
-        }
-
         Ok(())
+    }
+
+    pub fn update(&mut self, api_key: Option<String>, use_gitmoji: Option<bool>) {
+        if let Some(key) = api_key {
+            self.api_key = key;
+        }
+        if let Some(gitmoji) = use_gitmoji {
+            self.use_gitmoji = gitmoji;
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            api_key: String::new(),
+            use_gitmoji: false,
+        }
     }
 }

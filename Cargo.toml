@@ -13,4 +13,5 @@ anyhow = "1.0"
 toml = "0.7"
 dirs = "5.0"
 regex = "1.5"
+colored = "2.0"
 

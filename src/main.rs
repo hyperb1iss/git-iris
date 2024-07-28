@@ -1,50 +1,68 @@
-use git_iris::{cli, git, prompt, llm, config, file_analyzers};
-
 use anyhow::Result;
-use config::Config;
+use git_iris::{cli, config, git, llm, prompt};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Check environment and configuration
-    if let Err(e) = Config::check_environment() {
-        eprintln!("Error: {}", e);
-        eprintln!("\nPlease ensure the following:");
-        eprintln!("1. Git is installed and accessible from the command line.");
-        eprintln!("2. You are running this command from within a Git repository.");
-        eprintln!("3. You have created a .gitiris file in your home directory with your OpenAI API key.");
-        eprintln!("\nExample .gitiris content:");
-        eprintln!("api_key = \"your_openai_api_key_here\"");
-        eprintln!("use_gitmoji = true  # Optional: set to false if you don't want to use gitmoji");
-        return Ok(());
-    }
-
-    let config = Config::load()?;
     let args = cli::parse_args();
+    let mut config = config::Config::load()?;
 
     match args.command {
-        cli::Commands::Gen { verbose } => {
-            let git_info = git::get_git_info()?;
-            
-            if git_info.staged_files.is_empty() {
-                println!("No staged changes. Please stage your changes before generating a commit message.");
-                println!("You can stage changes using 'git add <file>' or 'git add .'");
+        cli::Commands::Gen { verbose, gitmoji } => {
+            if let Err(e) = config::Config::check_environment() {
+                cli::print_error(&format!("Error: {}", e));
+                cli::print_info("\nPlease ensure the following:");
+                cli::print_info("1. Git is installed and accessible from the command line.");
+                cli::print_info("2. You are running this command from within a Git repository.");
+                cli::print_info("3. You have set up your configuration using 'git-iris config'.");
                 return Ok(());
             }
 
+            if config.api_key.is_empty() {
+                cli::print_error("API key is not set. Please run 'git-iris config --api-key YOUR_API_KEY' to set it.");
+                return Ok(());
+            }
+
+            let git_info = git::get_git_info()?;
+
+            if git_info.staged_files.is_empty() {
+                cli::print_warning("No staged changes. Please stage your changes before generating a commit message.");
+                cli::print_info("You can stage changes using 'git add <file>' or 'git add .'");
+                return Ok(());
+            }
+
+            let use_gitmoji = gitmoji.unwrap_or(config.use_gitmoji);
             let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
-            let generated_message = llm::get_refined_message(&prompt, config.use_gitmoji, verbose).await?;
-            
-            println!("Generated commit message:\n{}", generated_message);
-            
+            let generated_message = llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
+
+            cli::print_success("Generated commit message:");
+            println!("{}", generated_message);
+
             if args.auto_commit {
                 git::commit(&generated_message)?;
-                println!("Changes committed successfully.");
+                cli::print_success("Changes committed successfully.");
             } else {
-                println!("\nTo commit with this message, run:");
-                println!("git commit -m \"{}\"", generated_message.replace("\"", "\\\""));
+                cli::print_info("\nTo commit with this message, run:");
+                println!(
+                    "git commit -m \"{}\"",
+                    generated_message.replace("\"", "\\\"")
+                );
             }
         }
+        cli::Commands::Config { api_key, gitmoji } => {
+            config.update(api_key, gitmoji);
+            config.save()?;
+            cli::print_success("Configuration updated successfully.");
+            cli::print_info(&format!(
+                "Current configuration:\nAPI Key: {}\nUse Gitmoji: {}",
+                if config.api_key.is_empty() {
+                    "Not set"
+                } else {
+                    "Set"
+                },
+                config.use_gitmoji
+            ));
+        }
     }
-    
+
     Ok(())
 }
