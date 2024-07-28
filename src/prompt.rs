@@ -1,10 +1,13 @@
 use anyhow::Result;
 use crate::git::{GitInfo, FileChange};
+use crate::config::Config;
 
-pub fn create_prompt(git_info: &GitInfo) -> Result<String> {
-    let base_prompt = "You are an AI assistant helping to generate Git commit messages. 
-    Your task is to create a clear, concise, and informative commit message based on 
-    the provided information. Follow the conventional commit format if applicable.";
+pub fn create_prompt(git_info: &GitInfo, config: &Config) -> Result<String> {
+    let base_prompt = if config.use_gitmoji {
+        "Generate a Git commit message using gitmoji based on the following information:"
+    } else {
+        "Generate a Git commit message based on the following information:"
+    };
 
     let context_prompt = format!(
         "Project root: {}\n
@@ -26,6 +29,7 @@ Unstaged files:\n{}",
 
     Ok(full_prompt)
 }
+
 
 fn format_staged_files(staged_files: &std::collections::HashMap<String, FileChange>) -> String {
     staged_files

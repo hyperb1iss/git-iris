@@ -3,20 +3,22 @@ use reqwest::Client;
 use serde_json::json;
 use crate::config::Config;
 
-pub async fn get_refined_message(prompt: &str) -> Result<String> {
+pub async fn get_refined_message(prompt: &str, use_gitmoji: bool) -> Result<String> {
     let config = Config::load()?;
     let client = Client::new();
+
+    let system_prompt = create_system_prompt(use_gitmoji);
 
     let response = client
         .post("https://api.openai.com/v1/chat/completions")
         .header("Authorization", format!("Bearer {}", config.api_key))
         .json(&json!({
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-4o",
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant that refines Git commit messages."},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 100
+            "max_tokens": 150
         }))
         .send()
         .await
@@ -38,4 +40,41 @@ pub async fn get_refined_message(prompt: &str) -> Result<String> {
         .to_string();
 
     Ok(refined_message)
+}
+
+fn create_system_prompt(use_gitmoji: bool) -> String {
+    let mut prompt = String::from(
+        "You are an AI assistant specialized in creating high-quality Git commit messages. \
+        Your task is to generate clear, concise, and informative commit messages based on \
+        the provided context. Follow these guidelines:
+
+        1. Use the imperative mood in the subject line (e.g., 'Add feature' not 'Added feature').
+        2. Limit the subject line to 50 characters if possible, but never exceed 72 characters.
+        3. Capitalize the subject line.
+        4. Do not end the subject line with a period.
+        5. Separate subject from body with a blank line.
+        6. Wrap the body at 72 characters.
+        7. Use the body to explain what and why vs. how.
+        8. If applicable, use semantic commit messages (e.g., feat:, fix:, docs:, style:, refactor:, test:, chore:).
+        9. When multiple files or changes are involved, summarize the overall change in the subject line and use bullet points in the body for details.
+        10. Be specific and avoid vague commit messages like 'Update file.txt' or 'Fix bug'.
+
+        Remember, a good commit message should complete the following sentence:
+        If applied, this commit will... <your subject line here>"
+    );
+
+    if use_gitmoji {
+        prompt.push_str("\n\n11. Use appropriate gitmoji at the start of the commit message. \
+        Choose the most relevant emoji and do not use more than one. \
+        Some common gitmoji include:
+        - ✨ (sparkles) for new features
+        - 🐛 (bug) for bug fixes
+        - 📚 (books) for documentation changes
+        - 💄 (lipstick) for UI and style changes
+        - ♻️ (recycle) for code refactoring
+        - ✅ (white check mark) for adding tests
+        - 🔧 (wrench) for configuration changes");
+    }
+
+    prompt
 }

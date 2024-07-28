@@ -18,9 +18,11 @@ async fn main() -> Result<()> {
         eprintln!("3. You have created a .gitllmconfig file in your home directory with your OpenAI API key.");
         eprintln!("\nExample .gitllmconfig content:");
         eprintln!("api_key = \"your_openai_api_key_here\"");
+        eprintln!("use_gitmoji = true  # Optional: set to false if you don't want to use gitmoji");
         return Ok(());
     }
 
+    let config = Config::load()?;
     let args = cli::parse_args();
 
     match args.command {
@@ -33,8 +35,8 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
 
-            let prompt = prompt::create_prompt(&git_info)?;
-            let generated_message = llm::get_refined_message(&prompt).await?;
+            let prompt = prompt::create_prompt(&git_info, &config)?;
+            let generated_message = llm::get_refined_message(&prompt, config.use_gitmoji).await?;
             
             println!("Generated commit message:\n{}", generated_message);
             
