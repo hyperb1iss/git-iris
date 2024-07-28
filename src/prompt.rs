@@ -4,6 +4,7 @@ use crate::git::{FileChange, GitInfo};
 use anyhow::Result;
 use regex::Regex;
 use std::fs;
+use std::process::Command;
 
 pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Result<String> {
     let context = format!(
@@ -25,7 +26,8 @@ Guidelines:
 4. Focus on significant changes and their purpose
 5. No backticks for filenames
 6. Don't list modified functions without explaining their purpose or impact
-7. Provide meaningful context for changes, not just what was changed",
+7. Provide meaningful context for changes, not just what was changed
+8. Consider the full file contents when explaining changes",
         if config.use_gitmoji {
             "with appropriate gitmoji"
         } else {
@@ -83,32 +85,36 @@ fn format_detailed_changes(
         let file_type = analyzer.get_file_type();
         let file_analysis = analyzer.analyze(file, change);
 
-        let file_content = if change.status != "D" {
-            fs::read_to_string(file)?
-        } else {
-            String::new()
-        };
+        let (file_content_before, file_content_after) =
+            if change.status != "D" && change.status != "A" {
+                (get_file_content_before(file)?, fs::read_to_string(file)?)
+            } else if change.status == "A" {
+                (String::new(), fs::read_to_string(file)?)
+            } else {
+                (get_file_content_before(file)?, String::new())
+            };
 
         detailed_changes.push(format!(
-            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}\n\nFull content:\n{}",
+            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}\n\nFile content before changes:\n{}\n\nFile content after changes:\n{}",
             relative_path,
             format_file_status(&change.status),
             file_type,
-            if file_analysis.is_empty() {
-                "No significant patterns detected.".to_string()
-            } else {
-                file_analysis.join(", ")
-            },
+            if file_analysis.is_empty() { "No significant patterns detected.".to_string() } else { file_analysis.join(", ") },
             change.diff,
-            if change.status == "D" {
-                "File deleted".to_string()
-            } else {
-                file_content
-            }
+            if change.status == "A" { "New file".to_string() } else { file_content_before },
+            if change.status == "D" { "File deleted".to_string() } else { file_content_after }
         ));
     }
 
     Ok(detailed_changes.join("\n\n---\n\n"))
+}
+
+fn get_file_content_before(file: &str) -> Result<String> {
+    let output = Command::new("git")
+        .args(&["show", &format!("HEAD:{}", file)])
+        .output()?;
+
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 fn format_file_status(status: &str) -> &str {
