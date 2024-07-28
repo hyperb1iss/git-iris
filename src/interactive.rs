@@ -1,8 +1,9 @@
 use anyhow::Result;
-use console::{Key, Term};
-use std::future::Future;
+use console::{Key, Style, Term};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Write;
 use std::process::Command;
+use std::time::Duration;
 
 pub struct InteractiveCommit {
     messages: Vec<String>,
@@ -20,7 +21,7 @@ impl InteractiveCommit {
     pub async fn run<F, Fut>(&mut self, generate_message: F) -> Result<bool>
     where
         F: Fn() -> Fut,
-        Fut: Future<Output = Result<String>>,
+        Fut: std::future::Future<Output = Result<String>>,
     {
         let mut term = Term::stdout();
         loop {
@@ -35,11 +36,10 @@ impl InteractiveCommit {
                         self.messages[self.current_index] = edited_message;
                     }
                 }
-                Key::Char('c') | Key::Char('C') => {
+                Key::Enter => {
                     return self.perform_commit();
                 }
                 Key::Escape => {
-                    println!("Commit cancelled.");
                     return Ok(false);
                 }
                 _ => {}
@@ -48,14 +48,30 @@ impl InteractiveCommit {
     }
 
     fn display_current_message(&self, term: &mut Term) -> Result<()> {
+        let title_style = Style::new().cyan().bold();
+        let prompt_style = Style::new().yellow();
+        let value_style = Style::new().green();
+
         writeln!(
             term,
-            "📝 Commit Message ({}/{}):\n",
+            "{} ({}/{})",
+            title_style.apply_to("📝 Commit Message"),
             self.current_index + 1,
             self.messages.len()
         )?;
-        writeln!(term, "{}\n", self.messages[self.current_index])?;
-        writeln!(term, "Navigation: ←/→ | e: Edit | c: Commit | Esc: Cancel")?;
+        writeln!(term)?;
+        writeln!(
+            term,
+            "{}",
+            value_style.apply_to(&self.messages[self.current_index])
+        )?;
+        writeln!(term)?;
+        writeln!(
+            term,
+            "{}",
+            prompt_style.apply_to(format!("← → Navigate | e Edit | Enter Commit | Esc Cancel"))
+        )?;
+
         Ok(())
     }
 
@@ -68,10 +84,20 @@ impl InteractiveCommit {
     async fn navigate_right<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
         F: Fn() -> Fut,
-        Fut: Future<Output = Result<String>>,
+        Fut: std::future::Future<Output = Result<String>>,
     {
         if self.current_index == self.messages.len() - 1 {
+            let spinner = ProgressBar::new_spinner();
+            spinner.set_style(
+                ProgressStyle::default_spinner()
+                    .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+                    .template("{spinner} Generating commit message...")?,
+            );
+            spinner.enable_steady_tick(Duration::from_millis(100));
+
             let new_message = generate_message().await?;
+            spinner.finish_and_clear();
+
             self.messages.push(new_message);
         }
         self.current_index += 1;
@@ -97,16 +123,30 @@ impl InteractiveCommit {
     }
 
     fn perform_commit(&self) -> Result<bool> {
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+                .template("{spinner} Committing changes...")?,
+        );
+        spinner.enable_steady_tick(Duration::from_millis(100));
+
         let output = Command::new("git")
             .args(&["commit", "-m", &self.messages[self.current_index]])
             .output()?;
 
+        spinner.finish_and_clear();
+
+        let success_style = Style::new().green().bold();
+        let error_style = Style::new().red().bold();
+
         if output.status.success() {
-            println!("✅ Commit successful!");
+            println!("{}", success_style.apply_to("✅ Commit successful!"));
             Ok(true)
         } else {
             println!(
-                "❌ Commit failed: {}",
+                "{} {}",
+                error_style.apply_to("❌ Commit failed:"),
                 String::from_utf8_lossy(&output.stderr)
             );
             Ok(false)

@@ -1,5 +1,7 @@
 use anyhow::Result;
 use git_iris::{cli, config, git, interactive, llm, prompt};
+use indicatif::{ProgressBar, ProgressStyle};
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,8 +34,18 @@ async fn main() -> Result<()> {
 
             let use_gitmoji = gitmoji.unwrap_or(config.use_gitmoji);
 
+            let spinner = ProgressBar::new_spinner();
+            spinner.set_style(
+                ProgressStyle::default_spinner()
+                    .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+                    .template("{spinner} Generating initial commit message...")?,
+            );
+            spinner.enable_steady_tick(Duration::from_millis(100));
+
             let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
             let initial_message = llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
+
+            spinner.finish_and_clear();
 
             let mut interactive_commit = interactive::InteractiveCommit::new(initial_message);
 
@@ -44,9 +56,7 @@ async fn main() -> Result<()> {
                 })
                 .await?;
 
-            if commit_performed {
-                cli::print_success("Commit successfully created and applied.");
-            } else {
+            if !commit_performed {
                 cli::print_info("Commit process cancelled.");
             }
         }
