@@ -6,16 +6,13 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
 
-    #[arg(short, long, global = true, help = "Automatically commit with the refined message")]
+    #[arg(short, long, global = true, help = "Automatically commit with the generated message")]
     pub auto_commit: bool,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Gen {
-        #[arg(help = "Initial commit message")]
-        message: String,
-    },
+    Gen,
 }
 
 pub fn parse_args() -> Cli {
