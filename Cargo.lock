@@ -462,6 +462,7 @@ dependencies = [
  "enum-map",
  "git2",
  "indicatif",
+ "lazy_static",
  "mockall",
  "regex",
  "reqwest",

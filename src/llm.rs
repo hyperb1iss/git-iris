@@ -20,6 +20,7 @@ pub async fn get_refined_message(
     provider: &str,
     use_gitmoji: bool,
     verbose: bool,
+    inpaint_context: &[String],
 ) -> Result<String> {
     let provider_config = config
         .get_provider_config(provider)
@@ -51,7 +52,7 @@ pub async fn get_refined_message(
     }
 
     let system_prompt = prompt::create_system_prompt(use_gitmoji, &config.custom_instructions);
-    let user_prompt = prompt::create_user_prompt(git_info, verbose)?;
+    let user_prompt = prompt::create_user_prompt(git_info, verbose, inpaint_context)?;
 
     if verbose {
         println!("Using LLM provider: {}", provider.provider_name());

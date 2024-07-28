@@ -9,6 +9,7 @@ use std::time::Duration;
 pub struct InteractiveCommit {
     messages: Vec<String>,
     current_index: usize,
+    inpaint_context: Vec<String>,
 }
 
 impl InteractiveCommit {
@@ -16,12 +17,13 @@ impl InteractiveCommit {
         InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
+            inpaint_context: Vec::new(),
         }
     }
 
     pub async fn run<F, Fut>(&mut self, generate_message: F) -> Result<bool>
     where
-        F: Fn() -> Fut,
+        F: Fn(&[String]) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut term = Term::stdout();
@@ -36,6 +38,10 @@ impl InteractiveCommit {
                     if let Some(edited_message) = self.edit_message()? {
                         self.messages[self.current_index] = edited_message;
                     }
+                }
+                Key::Char('i') | Key::Char('I') => {
+                    self.add_inpaint_context(&mut term)?;
+                    self.regenerate_message(&generate_message).await?;
                 }
                 Key::Enter => {
                     return self.perform_commit();
@@ -52,6 +58,7 @@ impl InteractiveCommit {
         let title_style = Style::new().cyan().bold();
         let prompt_style = Style::new().yellow();
         let value_style = Style::new().green();
+        let inpaint_style = Style::new().magenta();
 
         writeln!(
             term,
@@ -67,10 +74,17 @@ impl InteractiveCommit {
             value_style.apply_to(&self.messages[self.current_index])
         )?;
         writeln!(term)?;
+        if !self.inpaint_context.is_empty() {
+            writeln!(term, "{}", inpaint_style.apply_to("Inpaint Context:"))?;
+            for context in &self.inpaint_context {
+                writeln!(term, "- {}", inpaint_style.apply_to(context))?;
+            }
+            writeln!(term)?;
+        }
         writeln!(
             term,
             "{}",
-            prompt_style.apply_to(format!("← → Navigate | e Edit | Enter Commit | Esc Cancel"))
+            prompt_style.apply_to("← → Navigate | e Edit | i Inpaint | Enter Commit | Esc Cancel")
         )?;
 
         Ok(())
@@ -84,7 +98,7 @@ impl InteractiveCommit {
 
     async fn navigate_right<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn() -> Fut,
+        F: Fn(&[String]) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         if self.current_index == self.messages.len() - 1 {
@@ -96,7 +110,7 @@ impl InteractiveCommit {
             );
             spinner.enable_steady_tick(Duration::from_millis(100));
 
-            let new_message = generate_message().await?;
+            let new_message = generate_message(&self.inpaint_context).await?;
             spinner.finish_and_clear();
 
             self.messages.push(new_message);
@@ -121,6 +135,48 @@ impl InteractiveCommit {
             println!("Message editing cancelled.");
             Ok(None)
         }
+    }
+
+    async fn regenerate_message<F, Fut>(&mut self, generate_message: &F) -> Result<()>
+    where
+        F: Fn(&[String]) -> Fut,
+        Fut: std::future::Future<Output = Result<String>>,
+    {
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+                .template("{spinner} Regenerating commit message...")?,
+        );
+        spinner.enable_steady_tick(Duration::from_millis(100));
+
+        let new_message = generate_message(&self.inpaint_context).await?;
+        self.messages[self.current_index] = new_message;
+
+        spinner.finish_and_clear();
+        Ok(())
+    }
+
+    fn add_inpaint_context(&mut self, term: &mut Term) -> Result<()> {
+        let prompt_style = Style::new().yellow();
+        writeln!(
+            term,
+            "{}",
+            prompt_style.apply_to("Enter additional context (empty line to finish):")
+        )?;
+
+        loop {
+            let input = term.read_line()?;
+            let input = input.trim();
+
+            if input.is_empty() {
+                break;
+            }
+
+            self.inpaint_context.push(input.to_string());
+        }
+
+        Ok(())
     }
 
     fn perform_commit(&self) -> Result<bool> {

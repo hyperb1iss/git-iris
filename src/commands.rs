@@ -5,6 +5,7 @@ use crate::llm::get_refined_message;
 use anyhow::{anyhow, Result};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 pub async fn handle_gen_command(
@@ -13,7 +14,7 @@ pub async fn handle_gen_command(
     provider: Option<String>,
     _auto_commit: bool,
 ) -> Result<()> {
-    let config = Config::load()?;
+    let config = Arc::new(Config::load()?);
 
     if let Err(e) = Config::check_environment() {
         println!("Error: {}", e);
@@ -24,9 +25,7 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let provider = provider
-        .map(|p| p.to_string())
-        .unwrap_or(config.default_provider.clone());
+    let provider = Arc::new(provider.unwrap_or_else(|| config.default_provider.clone()));
     let provider_config = config
         .get_provider_config(&provider)
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
@@ -36,7 +35,7 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let current_dir = std::env::current_dir()?;
+    let current_dir = Arc::new(std::env::current_dir()?);
     let git_info = get_git_info(current_dir.as_path())?;
 
     if git_info.staged_files.is_empty() {
@@ -58,16 +57,30 @@ pub async fn handle_gen_command(
     spinner.enable_steady_tick(Duration::from_millis(100));
 
     let initial_message =
-        get_refined_message(&git_info, &config, &provider, use_gitmoji, verbose).await?;
+        get_refined_message(&git_info, &config, &provider, use_gitmoji, verbose, &[]).await?;
 
     spinner.finish_and_clear();
 
     let mut interactive_commit = InteractiveCommit::new(initial_message);
 
     let commit_performed = interactive_commit
-        .run(|| async {
-            let git_info = get_git_info(current_dir.as_path())?;
-            get_refined_message(&git_info, &config, &provider, use_gitmoji, verbose).await
+        .run(move |inpaint_context| {
+            let inpaint_context = inpaint_context.to_vec(); // Clone the inpaint context
+            let config = Arc::clone(&config);
+            let provider = Arc::clone(&provider);
+            let current_dir = Arc::clone(&current_dir);
+            async move {
+                let git_info = get_git_info(current_dir.as_path())?;
+                get_refined_message(
+                    &git_info,
+                    &config,
+                    &provider,
+                    use_gitmoji,
+                    verbose,
+                    &inpaint_context,
+                )
+                .await
+            }
         })
         .await?;
 

@@ -4,6 +4,7 @@ pub mod commands;
 pub mod config;
 pub mod file_analyzers;
 pub mod git;
+pub mod gitmoji;
 pub mod interactive;
 pub mod llm;
 pub mod llm_provider;

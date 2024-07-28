@@ -1,18 +1,19 @@
-use git_iris::config::ProviderConfig; // Import ProviderConfig explicitly
-use git_iris::{create_prompt, Config, FileChange, GitInfo};
+use anyhow::Result;
+use git_iris::config::Config;
+use git_iris::git::{FileChange, GitInfo};
+use git_iris::prompt::{
+    create_prompt, create_system_prompt, create_user_prompt, process_commit_message,
+};
 use std::collections::HashMap;
 
-fn create_dummy_git_info() -> GitInfo {
+fn create_mock_git_info() -> GitInfo {
     GitInfo {
         branch: "main".to_string(),
-        recent_commits: vec![
-            "abc1234 Initial commit".to_string(),
-            "def5678 Add feature X".to_string(),
-        ],
+        recent_commits: vec!["abcdef1 Initial commit".to_string()],
         staged_files: {
             let mut map = HashMap::new();
             map.insert(
-                "src/main.rs".to_string(),
+                "file1.rs".to_string(),
                 FileChange {
                     status: "M".to_string(),
                     diff: "- old line\n+ new line".to_string(),
@@ -20,90 +21,161 @@ fn create_dummy_git_info() -> GitInfo {
             );
             map
         },
-        unstaged_files: vec!["README.md".to_string()],
-        project_root: "/path/to/project".to_string(),
-    }
-}
-
-fn create_dummy_config() -> Config {
-    let mut providers = HashMap::new();
-    providers.insert(
-        "openai".to_string(),
-        ProviderConfig {
-            api_key: "dummy_api_key".to_string(),
-            model: "gpt-3.5-turbo".to_string(),
-            additional_params: HashMap::new(),
-        },
-    );
-
-    Config {
-        default_provider: "openai".to_string(),
-        providers,
-        use_gitmoji: false,
-        custom_instructions: String::new(),
+        unstaged_files: vec!["unstaged_file.txt".to_string()],
+        project_root: "/mock/path/to/project".to_string(),
     }
 }
 
 #[test]
-fn test_create_prompt() {
-    let git_info = create_dummy_git_info();
-    let config = create_dummy_config();
+fn test_create_prompt_basic() {
+    let git_info = create_mock_git_info();
+    let config = Config::default();
 
-    let prompt = create_prompt(&git_info, &config, false).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
 
-    assert!(prompt.contains("main"));
-    assert!(prompt.contains("Initial commit"));
-    assert!(prompt.contains("Add feature X"));
-    assert!(prompt.contains("src/main.rs"));
-    assert!(prompt.contains("- old line"));
-    assert!(prompt.contains("+ new line"));
-    assert!(prompt.contains("README.md"));
+    assert!(prompt.contains("Branch: main"));
+    assert!(prompt.contains("abcdef1 Initial commit"));
+    assert!(prompt.contains("file1.rs (Modified"));
+    assert!(prompt.contains("- old line\n+ new line"));
+    assert!(prompt.contains("unstaged_file.txt"));
+}
+
+#[test]
+fn test_create_prompt_with_staged_files() {
+    let git_info = create_mock_git_info();
+    let config = Config::default();
+
+    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+
+    assert!(prompt.contains("Branch: main"));
+    assert!(prompt.contains("file1.rs (Modified"));
+    assert!(prompt.contains("- old line\n+ new line"));
 }
 
 #[test]
 fn test_create_prompt_with_gitmoji() {
-    let git_info = create_dummy_git_info();
-    let mut config = create_dummy_config();
+    let git_info = create_mock_git_info();
+    let mut config = Config::default();
     config.use_gitmoji = true;
 
-    let prompt = create_prompt(&git_info, &config, false).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
 
-    assert!(prompt.contains("gitmoji"));
+    println!("{}", prompt);
+    assert!(prompt.contains("Use a single gitmoji at the start of the commit message"));
+    assert!(prompt.contains("🎨 - :art: - Improve structure / format of the code"));
 }
 
 #[test]
 fn test_create_prompt_with_custom_instructions() {
-    let git_info = create_dummy_git_info();
-    let mut config = create_dummy_config();
+    let git_info = create_mock_git_info();
+    let mut config = Config::default();
     config.custom_instructions = "Always mention the ticket number".to_string();
 
-    let prompt = create_prompt(&git_info, &config, false).unwrap();
+    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
 
     assert!(prompt.contains("Always mention the ticket number"));
 }
 
 #[test]
-fn test_create_prompt_with_different_provider() {
-    let git_info = create_dummy_git_info();
-    let mut config = create_dummy_config();
-    config.providers.insert(
-        "claude".to_string(),
-        ProviderConfig {
-            api_key: "dummy_claude_api_key".to_string(),
-            model: "claude-v1".to_string(),
-            additional_params: HashMap::new(),
+fn test_create_prompt_with_inpaint_context() {
+    let git_info = create_mock_git_info();
+    let config = Config::default();
+
+    let inpaint_context = vec![
+        "This commit fixes a critical bug".to_string(),
+        "The bug was causing performance issues".to_string(),
+    ];
+
+    let prompt = create_prompt(&git_info, &config, false, &inpaint_context).unwrap();
+
+    assert!(prompt.contains("Branch: main"));
+    assert!(prompt.contains("abcdef1 Initial commit"));
+    assert!(prompt.contains("Additional context provided by the user:"));
+    assert!(prompt.contains("This commit fixes a critical bug"));
+    assert!(prompt.contains("The bug was causing performance issues"));
+}
+
+#[test]
+fn test_create_prompt_verbose() {
+    let git_info = create_mock_git_info();
+    let config = Config::default();
+
+    let prompt = create_prompt(&git_info, &config, true, &[]).unwrap();
+
+    assert!(prompt.contains("Detailed changes:"));
+    assert!(prompt.contains("File: file1.rs (Modified"));
+    assert!(prompt.contains("Diff:\n- old line\n+ new line"));
+}
+
+#[test]
+fn test_create_prompt_with_multiple_commits() {
+    let mut git_info = create_mock_git_info();
+    git_info.recent_commits = vec![
+        "abcdef1 Initial commit".to_string(),
+        "123456 Add new feature".to_string(),
+        "789012 Fix bug".to_string(),
+    ];
+
+    let config = Config::default();
+
+    let prompt = create_prompt(&git_info, &config, false, &[]).unwrap();
+
+    assert!(prompt.contains("abcdef1 Initial commit"));
+    assert!(prompt.contains("123456 Add new feature"));
+    assert!(prompt.contains("789012 Fix bug"));
+}
+
+#[test]
+fn test_create_system_prompt() {
+    let prompt = create_system_prompt(false, "");
+    assert!(prompt.contains("You are an AI assistant"));
+    assert!(!prompt.contains("Use a single gitmoji"));
+
+    let prompt_with_gitmoji = create_system_prompt(true, "");
+    assert!(prompt_with_gitmoji.contains("Use a single gitmoji"));
+    assert!(prompt_with_gitmoji.contains("🎨 - :art: - Improve structure / format of the code"));
+
+    let prompt_with_custom = create_system_prompt(false, "Always mention the ticket number");
+    assert!(prompt_with_custom.contains("Always mention the ticket number"));
+}
+
+#[test]
+fn test_create_user_prompt() -> Result<()> {
+    let git_info = GitInfo {
+        branch: "main".to_string(),
+        recent_commits: vec!["abc123 Initial commit".to_string()],
+        staged_files: {
+            let mut map = HashMap::new();
+            map.insert(
+                "file1.rs".to_string(),
+                FileChange {
+                    status: "M".to_string(),
+                    diff: "- old\n+ new".to_string(),
+                },
+            );
+            map
         },
+        unstaged_files: vec!["file2.rs".to_string()],
+        project_root: "/project".to_string(),
+    };
+
+    let prompt = create_user_prompt(&git_info, false, &[])?;
+    assert!(prompt.contains("Branch: main"));
+    assert!(prompt.contains("abc123 Initial commit"));
+    assert!(prompt.contains("file1.rs (Modified)"));
+    assert!(prompt.contains("file2.rs"));
+
+    Ok(())
+}
+
+#[test]
+fn test_process_commit_message() {
+    assert_eq!(
+        process_commit_message("feat: new feature".to_string(), true),
+        "✨ feat: new feature"
     );
-    config.default_provider = "claude".to_string();
-
-    let prompt = create_prompt(&git_info, &config, false).unwrap();
-
-    // The prompt content should be the same regardless of the provider
-    assert!(prompt.contains("main"));
-    assert!(prompt.contains("Initial commit"));
-    assert!(prompt.contains("Add feature X"));
-    assert!(prompt.contains("src/main.rs"));
-    assert!(prompt.contains("- old line"));
-    assert!(prompt.contains("+ new line"));
-    assert!(prompt.contains("README.md"));
+    assert_eq!(
+        process_commit_message("feat: new feature".to_string(), false),
+        "feat: new feature"
+    );
 }
