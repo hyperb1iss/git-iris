@@ -1,8 +1,4 @@
-mod cli;
-mod git;
-mod prompt;
-mod llm;
-mod config;
+use git_llm::{cli, git, prompt, llm, config, file_analyzers};
 
 use anyhow::Result;
 use config::Config;
