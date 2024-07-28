@@ -22,8 +22,10 @@ Guidelines:
 1. Use imperative mood in subject
 2. 50 char subject line, 72 char body wrap
 3. Explain what and why, not how
-4. Focus on significant changes
-5. No backticks for filenames",
+4. Focus on significant changes and their purpose
+5. No backticks for filenames
+6. Don't list modified functions without explaining their purpose or impact
+7. Provide meaningful context for changes, not just what was changed",
         if config.use_gitmoji {
             "with appropriate gitmoji"
         } else {
