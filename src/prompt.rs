@@ -1,6 +1,5 @@
 use anyhow::Result;
 use crate::git::{GitInfo, FileChange};
-use std::path::Path;
 
 pub fn create_prompt(git_info: &GitInfo) -> Result<String> {
     let base_prompt = "You are an AI assistant helping to generate Git commit messages. 
