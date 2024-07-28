@@ -1,17 +1,14 @@
-use crate::llm_provider::LLMProvider;
+use crate::llm_provider::{LLMProvider, ClaudeProvider, LLMProviderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
-use std::collections::HashMap;
-
-pub struct ClaudeProvider {
-    pub api_key: String,
-    pub model: String,
-    pub additional_params: HashMap<String, String>,
-}
 
 impl ClaudeProvider {
+    pub fn new(config: LLMProviderConfig) -> Self {
+        Self { config }
+    }
+
     pub fn default_model() -> &'static str {
         "claude-3-5-sonnet-20240620"
     }
@@ -23,7 +20,7 @@ impl LLMProvider for ClaudeProvider {
         let client = Client::new();
 
         let mut request_body = json!({
-            "model": self.model,
+            "model": self.config.model,
             "system": system_prompt, // Top-level system parameter
             "messages": [
                 {"role": "user", "content": user_prompt}
@@ -32,13 +29,13 @@ impl LLMProvider for ClaudeProvider {
         });
 
         // Add additional parameters
-        for (key, value) in &self.additional_params {
+        for (key, value) in &self.config.additional_params {
             request_body[key] = serde_json::Value::String(value.clone());
         }
 
         let response = client
             .post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", &self.api_key)
+            .header("x-api-key", &self.config.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
             .json(&request_body)

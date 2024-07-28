@@ -19,40 +19,18 @@ impl fmt::Display for dyn LLMProvider {
     }
 }
 
-pub struct OpenAIProvider {
+pub struct LLMProviderConfig {
     pub api_key: String,
     pub model: String,
     pub additional_params: HashMap<String, String>,
 }
 
-#[async_trait]
-impl LLMProvider for OpenAIProvider {
-    async fn generate_message(&self, _system_prompt: &str, _user_prompt: &str) -> Result<String> {
-        // Implementation for OpenAI
-        todo!("Implement OpenAI message generation")
-    }
-
-    fn provider_name(&self) -> &str {
-        "OpenAI"
-    }
+pub struct OpenAIProvider {
+    pub(crate) config: LLMProviderConfig,
 }
 
 pub struct ClaudeProvider {
-    pub api_key: String,
-    pub model: String,
-    pub additional_params: HashMap<String, String>,
-}
-
-#[async_trait]
-impl LLMProvider for ClaudeProvider {
-    async fn generate_message(&self, _system_prompt: &str, _user_prompt: &str) -> Result<String> {
-        // Implementation for Claude
-        todo!("Implement Claude message generation")
-    }
-
-    fn provider_name(&self) -> &str {
-        "Claude"
-    }
+    pub(crate) config: LLMProviderConfig,
 }
 
 pub type ProviderMap = HashMap<String, Arc<dyn LLMProvider>>;

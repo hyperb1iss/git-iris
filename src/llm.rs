@@ -1,8 +1,6 @@
-use crate::claude_provider::ClaudeProvider;
 use crate::config::Config;
 use crate::git::GitInfo;
-use crate::llm_provider::LLMProvider;
-use crate::openai_provider::OpenAIProvider;
+use crate::llm_provider::{ClaudeProvider, LLMProvider, OpenAIProvider};
 use crate::prompt;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -28,16 +26,14 @@ pub async fn get_refined_message(
     let provider: Arc<dyn LLMProvider> = PROVIDERS
         .with(|providers| providers.borrow().get(provider).cloned())
         .unwrap_or_else(|| match provider {
-            "openai" => Arc::new(OpenAIProvider {
-                api_key: provider_config.api_key.clone(),
-                model: provider_config.model.clone(),
-                additional_params: provider_config.additional_params.clone(),
-            }),
-            "claude" => Arc::new(ClaudeProvider {
-                api_key: provider_config.api_key.clone(),
-                model: provider_config.model.clone(),
-                additional_params: provider_config.additional_params.clone(),
-            }),
+            "openai" => {
+                let config = provider_config.to_llm_provider_config();
+                Arc::new(OpenAIProvider::new(config))
+            }
+            "claude" => {
+                let config = provider_config.to_llm_provider_config();
+                Arc::new(ClaudeProvider::new(config))
+            }
             _ => Arc::new(UnsupportedProvider(provider.to_string())),
         });
 

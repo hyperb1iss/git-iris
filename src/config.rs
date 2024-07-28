@@ -1,5 +1,4 @@
-use crate::claude_provider::ClaudeProvider;
-use crate::openai_provider::OpenAIProvider;
+use crate::llm_provider::{LLMProviderConfig, OpenAIProvider, ClaudeProvider};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -127,6 +126,7 @@ impl Default for Config {
         }
     }
 }
+
 impl ProviderConfig {
     pub fn default_for(provider: &str) -> Self {
         match provider {
@@ -145,6 +145,14 @@ impl ProviderConfig {
                 model: String::new(),
                 additional_params: HashMap::new(),
             },
+        }
+    }
+
+    pub fn to_llm_provider_config(&self) -> LLMProviderConfig {
+        LLMProviderConfig {
+            api_key: self.api_key.clone(),
+            model: self.model.clone(),
+            additional_params: self.additional_params.clone(),
         }
     }
 }

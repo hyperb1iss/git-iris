@@ -1,17 +1,14 @@
-use crate::llm_provider::LLMProvider;
+use crate::llm_provider::{LLMProvider, OpenAIProvider, LLMProviderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
-use std::collections::HashMap;
-
-pub struct OpenAIProvider {
-    pub api_key: String,
-    pub model: String,
-    pub additional_params: HashMap<String, String>,
-}
 
 impl OpenAIProvider {
+    pub fn new(config: LLMProviderConfig) -> Self {
+        Self { config }
+    }
+
     pub fn default_model() -> &'static str {
         "gpt-4o"
     }
@@ -23,7 +20,7 @@ impl LLMProvider for OpenAIProvider {
         let client = Client::new();
 
         let mut request_body = json!({
-            "model": self.model,
+            "model": self.config.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -31,13 +28,13 @@ impl LLMProvider for OpenAIProvider {
         });
 
         // Add additional parameters
-        for (key, value) in &self.additional_params {
+        for (key, value) in &self.config.additional_params {
             request_body[key] = serde_json::Value::String(value.clone());
         }
 
         let response = client
             .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
             .json(&request_body)
             .send()
             .await?;
