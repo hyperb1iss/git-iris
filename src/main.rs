@@ -1,4 +1,4 @@
-use git_llm::{cli, git, prompt, llm, config, file_analyzers};
+use git_iris::{cli, git, prompt, llm, config, file_analyzers};
 
 use anyhow::Result;
 use config::Config;
@@ -11,8 +11,8 @@ async fn main() -> Result<()> {
         eprintln!("\nPlease ensure the following:");
         eprintln!("1. Git is installed and accessible from the command line.");
         eprintln!("2. You are running this command from within a Git repository.");
-        eprintln!("3. You have created a .gitllmconfig file in your home directory with your OpenAI API key.");
-        eprintln!("\nExample .gitllmconfig content:");
+        eprintln!("3. You have created a .gitiris file in your home directory with your OpenAI API key.");
+        eprintln!("\nExample .gitiris content:");
         eprintln!("api_key = \"your_openai_api_key_here\"");
         eprintln!("use_gitmoji = true  # Optional: set to false if you don't want to use gitmoji");
         return Ok(());

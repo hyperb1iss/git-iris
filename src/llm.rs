@@ -10,7 +10,7 @@ pub async fn get_refined_message(prompt: &str, use_gitmoji: bool, verbose: bool)
     let system_prompt = create_system_prompt(use_gitmoji);
 
     let request_body = json!({
-        "model": "gpt-4",
+        "model": "gpt-4o",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}

@@ -14,7 +14,7 @@ impl Config {
     pub fn load() -> Result<Self> {
         let config_path = Config::get_config_path()?;
         if !config_path.exists() {
-            return Err(anyhow!("Configuration file not found. Please create a .gitllmconfig file in your home directory."));
+            return Err(anyhow!("Configuration file not found. Please create a .gitiris file in your home directory."));
         }
         let config_content = fs::read_to_string(config_path)?;
         let mut config: Config = toml::from_str(&config_content)?;
@@ -30,7 +30,7 @@ impl Config {
     fn get_config_path() -> Result<PathBuf> {
         dirs::home_dir()
             .ok_or_else(|| anyhow!("Unable to determine home directory"))
-            .map(|path| path.join(".gitllmconfig"))
+            .map(|path| path.join(".gitiris"))
     }
 
     pub fn check_environment() -> Result<()> {
@@ -53,12 +53,12 @@ impl Config {
             ));
         }
 
-        // Load config (this will check for the .gitllmconfig file)
+        // Load config (this will check for the .gitiris file)
         let config = Self::load()?;
 
         // Check if API key is set
         if config.api_key.is_empty() {
-            return Err(anyhow!("API key is not set in .gitllmconfig. Please add your OpenAI API key to the configuration file."));
+            return Err(anyhow!("API key is not set in .gitiris. Please add your OpenAI API key to the configuration file."));
         }
 
         Ok(())
