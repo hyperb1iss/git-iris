@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use git2::{Repository, Status, StatusOptions, DiffOptions};
 use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct GitInfo {
@@ -17,8 +18,8 @@ pub struct FileChange {
     pub diff: String,
 }
 
-pub fn get_git_info() -> Result<GitInfo> {
-    let repo = Repository::open(".")?;
+pub fn get_git_info(repo_path: &Path) -> Result<GitInfo> {
+    let repo = Repository::open(repo_path)?;
     let branch = get_current_branch(&repo)?;
     let recent_commits = get_recent_commits(&repo, 5)?;
     let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
@@ -109,13 +110,16 @@ fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<Stri
     Ok(diff_string)
 }
 
-pub fn commit(message: &str) -> Result<()> {
-    let repo = Repository::open(".")?;
+pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
+    let repo = Repository::open(repo_path)?;
     let signature = repo.signature()?;
-    let tree_id = repo.index()?.write_tree()?;
+    let mut index = repo.index()?;
+    let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
-    let parent = repo.head()?.peel_to_commit()?;
     
-    repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[&parent])?;
+    let head = repo.head()?;
+    let parent_commit = head.peel_to_commit()?;
+    
+    repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[&parent_commit])?;
     Ok(())
 }

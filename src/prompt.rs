@@ -62,15 +62,15 @@ fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String 
 
     if use_gitmoji {
         prompt.push_str(
-            "\n\n18. If appropriate, use a single gitmoji at the start of the commit message. \
-        Choose the most relevant emoji. Some common gitmoji include:
-        - ✨ (sparkles) for new features
-        - 🐛 (bug) for bug fixes
-        - 📚 (books) for documentation changes
-        - 💄 (lipstick) for UI and style changes
-        - ♻️ (recycle) for code refactoring
-        - ✅ (white check mark) for adding tests
-        - 🔧 (wrench) for configuration changes",
+            "\n\n18. Use a single gitmoji at the start of the commit message. \
+            Choose the most relevant emoji. Some common gitmoji include:
+            - ✨ (sparkles) for new features
+            - 🐛 (bug) for bug fixes
+            - 📚 (books) for documentation changes
+            - 💄 (lipstick) for UI and style changes
+            - ♻️ (recycle) for code refactoring
+            - ✅ (white check mark) for adding tests
+            - 🔧 (wrench) for configuration changes",
         );
     }
 

@@ -24,7 +24,8 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
 
-            let git_info = git::get_git_info()?;
+            let current_dir = std::env::current_dir()?;
+            let git_info = git::get_git_info(current_dir.as_path())?;
 
             if git_info.staged_files.is_empty() {
                 cli::print_warning("No staged changes. Please stage your changes before generating a commit message.");
@@ -51,6 +52,7 @@ async fn main() -> Result<()> {
 
             let commit_performed = interactive_commit
                 .run(|| async {
+                    let git_info = git::get_git_info(current_dir.as_path())?;
                     let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
                     llm::get_refined_message(&prompt, use_gitmoji, verbose).await
                 })
