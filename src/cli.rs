@@ -1,7 +1,6 @@
+use crate::commands;
 use clap::{Parser, Subcommand};
 use colored::*;
-use std::collections::HashMap;
-use std::path::Path;
 
 #[derive(Parser)]
 #[command(author, version, about = "AI-assisted Git commit message generator", long_about = None)]
@@ -89,111 +88,6 @@ pub fn print_warning(message: &str) {
     println!("{}", message.yellow());
 }
 
-pub fn parse_additional_params(params: &[String]) -> HashMap<String, String> {
-    params
-        .iter()
-        .filter_map(|param| {
-            let parts: Vec<&str> = param.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                Some((parts[0].to_string(), parts[1].to_string()))
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
-    match cli.command {
-        Commands::Gen {
-            verbose,
-            gitmoji,
-            provider,
-        } => {
-            let config = crate::config::Config::load()?;
-            let provider_name = provider.unwrap_or(config.default_provider.clone());
-            let provider_config = config.get_provider_config(&provider_name).ok_or_else(|| {
-                anyhow::anyhow!("Provider '{}' not found in configuration", provider_name)
-            })?;
-
-            let provider_arc = crate::provider_registry::ProviderRegistry::default()
-                .create_provider(&provider_name, provider_config.clone())
-                .unwrap_or_else(|e| {
-                    panic!("Failed to create provider {}: {}", provider_name, e);
-                });
-
-            // Use the provider to generate a commit message
-            let system_prompt = crate::prompt::create_system_prompt(
-                gitmoji.unwrap_or(config.use_gitmoji),
-                &config.custom_instructions,
-            );
-            let git_info = crate::git::get_git_info(Path::new("."))?;
-            let user_prompt = crate::prompt::create_user_prompt(&git_info, verbose)?;
-
-            if verbose {
-                println!("Using LLM provider: {}", provider_arc.provider_name());
-                println!("System prompt:\n{}", system_prompt);
-                println!("User prompt:\n{}", user_prompt);
-            }
-
-            let refined_message = provider_arc
-                .generate_message(&system_prompt, &user_prompt)
-                .await?;
-
-            if verbose {
-                println!("Generated message:\n{}", refined_message);
-            }
-
-            if cli.auto_commit {
-                crate::git::commit(Path::new("."), &refined_message)?;
-                print_success("Commit created successfully.");
-            } else {
-                print_success("Commit message generated successfully.");
-            }
-        }
-        Commands::Config {
-            provider,
-            api_key,
-            model,
-            param,
-            gitmoji,
-            custom_instructions,
-        } => {
-            let mut config = crate::config::Config::load()?;
-
-            if let Some(provider) = provider {
-                config.update(Some(provider), None, None, None, None, None);
-            }
-
-            if let Some(api_key) = api_key {
-                config.update(None, Some(api_key), None, None, None, None);
-            }
-
-            if let Some(model) = model {
-                config.update(None, None, Some(model), None, None, None);
-            }
-
-            if let Some(params) = param {
-                let additional_params = parse_additional_params(&params);
-                config.update(None, None, None, Some(additional_params), None, None);
-            }
-
-            if let Some(gitmoji) = gitmoji {
-                config.update(None, None, None, None, Some(gitmoji), None);
-            }
-
-            if let Some(instructions) = custom_instructions {
-                config.update(None, None, None, None, None, Some(instructions));
-            }
-
-            config.save()?;
-            print_success("Configuration updated successfully.");
-        }
-    }
-
-    Ok(())
-}
-
 pub fn list_providers() -> Vec<String> {
     // Query the provider registry to get the list of available providers
     crate::provider_registry::ProviderRegistry::default().list_providers()
@@ -203,4 +97,40 @@ pub fn print_dynamic_help() {
     let providers = list_providers();
     let provider_list = providers.join(", ");
     println!("Available providers: {}", provider_list);
+}
+
+pub async fn main() -> anyhow::Result<()> {
+    let cli = parse_args();
+    handle_command(cli).await
+}
+
+pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
+    match cli.command {
+        Commands::Gen {
+            verbose,
+            gitmoji,
+            provider,
+        } => {
+            commands::handle_gen_command(verbose, gitmoji, provider, cli.auto_commit).await?;
+        }
+        Commands::Config {
+            provider,
+            api_key,
+            model,
+            param,
+            gitmoji,
+            custom_instructions,
+        } => {
+            commands::handle_config_command(
+                provider,
+                api_key,
+                model,
+                param,
+                gitmoji,
+                custom_instructions,
+            )?;
+        }
+    }
+
+    Ok(())
 }

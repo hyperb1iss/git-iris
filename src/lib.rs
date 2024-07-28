@@ -1,5 +1,6 @@
 pub mod claude_provider;
 pub mod cli;
+pub mod commands;
 pub mod config;
 pub mod file_analyzers;
 pub mod git;
