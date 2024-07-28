@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::file_analyzers::{self, FileAnalyzer};
+use crate::file_analyzers::{self};
 use crate::git::{FileChange, GitInfo};
 use anyhow::Result;
 use regex::Regex;
