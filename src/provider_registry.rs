@@ -1,4 +1,3 @@
-// src/provider_registry.rs
 use crate::claude_provider::ClaudeProvider;
 use crate::config::ProviderConfig;
 use crate::llm_provider::LLMProvider;
@@ -44,10 +43,6 @@ impl ProviderRegistry {
         self.default_models.insert(provider.to_string(), model);
     }
 
-    pub fn get_default_model(&self, provider: &str) -> Option<&'static str> {
-        self.default_models.get(provider).copied()
-    }
-
     pub fn create_provider(
         &self,
         name: &str,
@@ -58,6 +53,14 @@ impl ProviderRegistry {
         } else {
             Err(anyhow!("Provider '{}' not found in registry", name))
         }
+    }
+
+    pub fn list_providers(&self) -> Vec<String> {
+        self.providers.keys().cloned().collect()
+    }
+
+    pub fn get_default_model(&self, provider: &str) -> Option<&'static str> {
+        self.default_models.get(provider).copied()
     }
 }
 
