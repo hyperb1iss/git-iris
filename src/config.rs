@@ -1,17 +1,26 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
-    pub api_key: String,
-    pub llm_provider: String,
+    pub default_provider: String,
+    pub providers: HashMap<String, ProviderConfig>,
     #[serde(default)]
     pub use_gitmoji: bool,
     #[serde(default)]
     pub custom_instructions: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ProviderConfig {
+    pub api_key: String,
+    pub model: String,
+    #[serde(default)]
+    pub additional_params: HashMap<String, String>,
 }
 
 impl Config {
@@ -63,16 +72,30 @@ impl Config {
 
     pub fn update(
         &mut self,
+        provider: Option<String>,
         api_key: Option<String>,
-        llm_provider: Option<String>,
+        model: Option<String>,
+        additional_params: Option<HashMap<String, String>>,
         use_gitmoji: Option<bool>,
         custom_instructions: Option<String>,
     ) {
-        if let Some(key) = api_key {
-            self.api_key = key;
+        if let Some(provider) = provider {
+            self.default_provider = provider.clone();
+            if !self.providers.contains_key(&provider) {
+                self.providers.insert(provider, ProviderConfig::default());
+            }
         }
-        if let Some(provider) = llm_provider {
-            self.llm_provider = provider;
+
+        let provider_config = self.providers.get_mut(&self.default_provider).unwrap();
+
+        if let Some(key) = api_key {
+            provider_config.api_key = key;
+        }
+        if let Some(model) = model {
+            provider_config.model = model;
+        }
+        if let Some(params) = additional_params {
+            provider_config.additional_params.extend(params);
         }
         if let Some(gitmoji) = use_gitmoji {
             self.use_gitmoji = gitmoji;
@@ -81,15 +104,33 @@ impl Config {
             self.custom_instructions = instructions;
         }
     }
+
+    pub fn get_provider_config(&self, provider: &str) -> Option<&ProviderConfig> {
+        self.providers.get(provider)
+    }
 }
 
 impl Default for Config {
     fn default() -> Self {
+        let mut providers = HashMap::new();
+        providers.insert("openai".to_string(), ProviderConfig::default());
+        providers.insert("claude".to_string(), ProviderConfig::default());
+
         Config {
-            api_key: String::new(),
-            llm_provider: "openai".to_string(),
+            default_provider: "openai".to_string(),
+            providers,
             use_gitmoji: false,
             custom_instructions: String::new(),
+        }
+    }
+}
+
+impl Default for ProviderConfig {
+    fn default() -> Self {
+        ProviderConfig {
+            api_key: String::new(),
+            model: String::new(),
+            additional_params: HashMap::new(),
         }
     }
 }

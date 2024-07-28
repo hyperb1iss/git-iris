@@ -11,5 +11,6 @@ pub mod prompt;
 
 // Re-export important structs and functions for easier testing
 pub use config::Config;
+pub use config::ProviderConfig;
 pub use git::{FileChange, GitInfo};
 pub use prompt::create_prompt;

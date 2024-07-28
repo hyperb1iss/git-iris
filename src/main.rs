@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
     let mut config = config::Config::load()?;
 
     match args.command {
-        cli::Commands::Gen { verbose, gitmoji } => {
+        cli::Commands::Gen { verbose, gitmoji, provider } => {
             if let Err(e) = config::Config::check_environment() {
                 cli::print_error(&format!("Error: {}", e));
                 cli::print_info("\nPlease ensure the following:");
@@ -19,8 +19,12 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
 
-            if config.api_key.is_empty() {
-                cli::print_error("API key is not set. Please run 'git-iris config --api-key YOUR_API_KEY' to set it.");
+            let provider = provider.map(|p| p.to_string()).unwrap_or(config.default_provider.clone());
+            let provider_config = config.get_provider_config(&provider)
+                .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in configuration", provider))?;
+
+            if provider_config.api_key.is_empty() {
+                cli::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider));
                 return Ok(());
             }
 
@@ -43,7 +47,7 @@ async fn main() -> Result<()> {
             );
             spinner.enable_steady_tick(Duration::from_millis(100));
 
-            let initial_message = llm::get_refined_message(&git_info, &config, use_gitmoji, verbose).await?;
+            let initial_message = llm::get_refined_message(&git_info, &config, &provider, use_gitmoji, verbose).await?;
 
             spinner.finish_and_clear();
 
@@ -52,7 +56,7 @@ async fn main() -> Result<()> {
             let commit_performed = interactive_commit
                 .run(|| async {
                     let git_info = git::get_git_info(current_dir.as_path())?;
-                    llm::get_refined_message(&git_info, &config, use_gitmoji, verbose).await
+                    llm::get_refined_message(&git_info, &config, &provider, use_gitmoji, verbose).await
                 })
                 .await?;
 
@@ -63,22 +67,22 @@ async fn main() -> Result<()> {
             }
         }
         cli::Commands::Config {
+            provider,
             api_key,
-            llm_provider,
+            model,
+            param,
             gitmoji,
             custom_instructions,
         } => {
-            config.update(api_key, llm_provider.map(|l| l.to_string()), gitmoji, custom_instructions);
+            let provider = provider.map(|p| p.to_string());
+            let additional_params = param.map(|p| cli::parse_additional_params(&p));
+
+            config.update(provider, api_key, model, additional_params, gitmoji, custom_instructions);
             config.save()?;
             cli::print_success("Configuration updated successfully.");
             cli::print_info(&format!(
-                "Current configuration:\nAPI Key: {}\nLLM Provider: {}\nUse Gitmoji: {}\nCustom Instructions: {}",
-                if config.api_key.is_empty() {
-                    "Not set"
-                } else {
-                    "Set"
-                },
-                config.llm_provider,
+                "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nCustom Instructions: {}",
+                config.default_provider,
                 config.use_gitmoji,
                 if config.custom_instructions.is_empty() {
                     "None".to_string()
@@ -86,6 +90,15 @@ async fn main() -> Result<()> {
                     config.custom_instructions.replace('\n', ", ")
                 }
             ));
+            for (provider, provider_config) in &config.providers {
+                cli::print_info(&format!(
+                    "\nProvider: {}\nAPI Key: {}\nModel: {}\nAdditional Parameters: {:?}",
+                    provider,
+                    if provider_config.api_key.is_empty() { "Not set" } else { "Set" },
+                    provider_config.model,
+                    provider_config.additional_params
+                ));
+            }
         }
     }
 
