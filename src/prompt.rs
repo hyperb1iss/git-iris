@@ -4,7 +4,7 @@ use crate::config::Config;
 use std::path::Path;
 use regex::Regex;
 
-pub fn create_prompt(git_info: &GitInfo, config: &Config) -> Result<String> {
+pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Result<String> {
     let base_prompt = if config.use_gitmoji {
         "Generate a Git commit message using gitmoji based on the following information:"
     } else {
@@ -27,9 +27,13 @@ Change analysis:\n{}",
     );
 
     let full_prompt = format!(
-        "{}\n\nContext:\n{}\n\nBased on this information, generate an appropriate commit message. Focus on the overall purpose of the changes, and include specific details only if they are significant.",
+        "{}\n\nContext:\n{}\n\nBased on this information, generate an appropriate commit message. Focus on the overall purpose of the changes, and include specific details only if they are significant. Do not use backticks around filenames, and avoid mentioning minor changes like individual import additions.",
         base_prompt, context_prompt
     );
+
+    if verbose {
+        println!("Prompt being sent to LLM:\n{}", full_prompt);
+    }
 
     Ok(full_prompt)
 }
@@ -111,9 +115,6 @@ fn analyze_changes(staged_files: &std::collections::HashMap<String, FileChange>,
             if let Some(functions) = extract_modified_functions(&change.diff) {
                 analysis.push(format!("Modified functions in {}: {}", relative_path, functions.join(", ")));
             }
-            if has_new_imports(&change.diff) {
-                analysis.push(format!("New imports added in {}", relative_path));
-            }
         } else if file_type == "TOML configuration file" && file.ends_with("Cargo.toml") {
             if has_dependency_changes(&change.diff) {
                 analysis.push(format!("Dependencies updated in {}", relative_path));
@@ -141,11 +142,6 @@ fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
     } else {
         Some(functions)
     }
-}
-
-fn has_new_imports(diff: &str) -> bool {
-    let re = Regex::new(r"\+\s*(use|import)").unwrap();
-    re.is_match(diff)
 }
 
 fn has_dependency_changes(diff: &str) -> bool {

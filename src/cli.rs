@@ -12,7 +12,10 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Gen,
+    Gen {
+        #[arg(short, long, help = "Enable verbose mode")]
+        verbose: bool,
+    },
 }
 
 pub fn parse_args() -> Cli {

@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
     let args = cli::parse_args();
 
     match args.command {
-        cli::Commands::Gen => {
+        cli::Commands::Gen { verbose } => {
             let git_info = git::get_git_info()?;
             
             if git_info.staged_files.is_empty() {
@@ -35,8 +35,8 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
 
-            let prompt = prompt::create_prompt(&git_info, &config)?;
-            let generated_message = llm::get_refined_message(&prompt, config.use_gitmoji).await?;
+            let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
+            let generated_message = llm::get_refined_message(&prompt, config.use_gitmoji, verbose).await?;
             
             println!("Generated commit message:\n{}", generated_message);
             
