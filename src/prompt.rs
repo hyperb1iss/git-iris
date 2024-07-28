@@ -27,7 +27,10 @@ Guidelines:
 5. No backticks for filenames
 6. Don't list modified functions without explaining their purpose or impact
 7. Provide meaningful context for changes, not just what was changed
-8. Consider the full file contents when explaining changes",
+8. Consider the full file contents when explaining changes
+9. Use bullet points for multiple changes or aspects, not 'firstly', 'secondly', etc.
+10. Don't end bullet points with a period
+11. Use a blank line before starting bullet points in the commit body",
         if config.use_gitmoji {
             "with appropriate gitmoji"
         } else {
