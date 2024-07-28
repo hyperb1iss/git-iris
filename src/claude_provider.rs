@@ -60,4 +60,8 @@ impl LLMProvider for ClaudeProvider {
 
         Ok(message)
     }
+
+    fn default_model(&self) -> &'static str {
+        "claude-3-sonnet"
+    }
 }

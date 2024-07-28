@@ -4,6 +4,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use crate::openai_provider::OpenAIProvider;
+use crate::claude_provider::ClaudeProvider;
+use crate::llm_provider::LLMProvider;
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
@@ -82,7 +85,7 @@ impl Config {
         if let Some(provider) = provider {
             self.default_provider = provider.clone();
             if !self.providers.contains_key(&provider) {
-                self.providers.insert(provider, ProviderConfig::default());
+                self.providers.insert(provider.clone(), ProviderConfig::default_for(&provider));
             }
         }
 
@@ -113,8 +116,8 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         let mut providers = HashMap::new();
-        providers.insert("openai".to_string(), ProviderConfig::default());
-        providers.insert("claude".to_string(), ProviderConfig::default());
+        providers.insert("openai".to_string(), ProviderConfig::default_for("openai"));
+        providers.insert("claude".to_string(), ProviderConfig::default_for("claude"));
 
         Config {
             default_provider: "openai".to_string(),
@@ -124,13 +127,38 @@ impl Default for Config {
         }
     }
 }
-
-impl Default for ProviderConfig {
-    fn default() -> Self {
-        ProviderConfig {
-            api_key: String::new(),
-            model: String::new(),
-            additional_params: HashMap::new(),
+impl ProviderConfig {
+    pub fn default_for(provider: &str) -> Self {
+        match provider {
+            "openai" => {
+                let openai = OpenAIProvider {
+                    api_key: String::new(),
+                    model: String::new(),
+                    additional_params: HashMap::new(),
+                };
+                ProviderConfig {
+                    api_key: String::new(),
+                    model: openai.default_model().to_string(),
+                    additional_params: HashMap::new(),
+                }
+            },
+            "claude" => {
+                let claude = ClaudeProvider {
+                    api_key: String::new(),
+                    model: String::new(),
+                    additional_params: HashMap::new(),
+                };
+                ProviderConfig {
+                    api_key: String::new(),
+                    model: claude.default_model().to_string(),
+                    additional_params: HashMap::new(),
+                }
+            },
+            _ => ProviderConfig {
+                api_key: String::new(),
+                model: String::new(),
+                additional_params: HashMap::new(),
+            },
         }
     }
 }

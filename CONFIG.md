@@ -16,16 +16,19 @@ The configuration file is organized into several sections:
 
 - `use_gitmoji`: Boolean (optional)
   - Description: Whether to include gitmoji in commit messages.
+  - Default: `false`
   - Example: `use_gitmoji = true`
 
 - `custom_instructions`: String (optional)
   - Description: Custom instructions to be included in the prompt for all LLMs.
+  - Default: `""`
   - Example: `custom_instructions = "Always mention the ticket number if applicable."`
 
 ### Default Provider
 
 - `default_provider`: String (required)
   - Description: The default LLM provider to use.
+  - Default: `"openai"`
   - Example: `default_provider = "openai"`
 
 ### Provider-Specific Configurations
@@ -34,12 +37,25 @@ Provider configurations are stored under the `[providers]` table. Each provider 
 
 - `api_key`: String (required)
   - Description: The API key for the provider.
+  - Example: `api_key = "sk-1234567890abcdef"`
 
-- `model`: String (required)
+- `model`: String (optional)
   - Description: The specific model to use for this provider.
+  - If not specified, a default model will be used as determined by the provider.
+  - Example: `model = "gpt-4o"`
 
 - `additional_params`: Table (optional)
   - Description: Additional parameters specific to the provider or model.
+  - Example: `additional_params = { temperature = "0.7", max_tokens = "150" }`
+
+## Supported Providers and Default Models
+
+Git-Iris currently supports the following providers:
+
+1. OpenAI
+   - Default model: "gpt-4o"
+2. Claude
+   - Default model: "claude-3-sonnet"
 
 ## Example Configuration File
 
@@ -53,12 +69,12 @@ default_provider = "openai"
 
 [providers.openai]
 api_key = "sk-1234567890abcdef"
-model = "gpt-3.5-turbo"
+# model is optional and will use the provider's default if not specified
 additional_params = { temperature = "0.7", max_tokens = "150" }
 
 [providers.claude]
 api_key = "sk-abcdef1234567890"
-model = "claude-v1"
+# model is optional and will use the provider's default if not specified
 additional_params = { temperature = "0.8" }
 ```
 
@@ -68,7 +84,7 @@ You can change the configuration using the `git-iris config` command:
 
 ```
 git-iris config --provider openai --api-key YOUR_API_KEY
-git-iris config --provider openai --model gpt-3.5-turbo
+git-iris config --provider openai --model gpt-4o
 git-iris config --provider openai --param temperature=0.7 --param max_tokens=150
 git-iris config --gitmoji true
 git-iris config --custom-instructions "Your custom instructions here"
@@ -94,3 +110,12 @@ default_provider = "new_provider"
 ```
 
 Remember to update the application code to support the new provider's API if it's not already implemented.
+
+## Notes
+
+- If a configuration option is not specified in the file, Git-Iris will use the default value.
+- The `model` field for each provider is optional. If not specified, Git-Iris will use the default model as determined by the provider.
+- Always keep your API keys secret and never share your configuration file containing API keys.
+- When adding custom instructions, be mindful of the token limits of the LLM models you're using.
+
+For any issues or further questions about configuration, please refer to the Git-Iris documentation or open an issue on the project's GitHub repository.

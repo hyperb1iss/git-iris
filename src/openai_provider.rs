@@ -62,4 +62,8 @@ impl LLMProvider for OpenAIProvider {
 
         Ok(message)
     }
+
+    fn default_model(&self) -> &'static str {
+        "gpt-4o"
+    }
 }
