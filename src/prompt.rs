@@ -6,31 +6,7 @@ use regex::Regex;
 use std::fs;
 use std::process::Command;
 
-pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Result<String> {
-    let context = format!(
-        "Branch: {}\n\nRecent commits:\n{}\n\nStaged changes:\n{}\n\nUnstaged files:\n{}\n\nDetailed changes:\n{}",
-        git_info.branch,
-        format_recent_commits(&git_info.recent_commits),
-        format_staged_files(&git_info.staged_files),
-        git_info.unstaged_files.join(", "),
-        format_detailed_changes(&git_info.staged_files, &git_info.project_root)?
-    );
-
-    let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
-
-    let prompt = format!(
-        "{}\n\nBased on the following context, generate a Git commit message:\n\n{}",
-        system_prompt, context
-    );
-
-    if verbose {
-        println!("Prompt:\n{}", prompt);
-    }
-
-    Ok(prompt)
-}
-
-fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
+pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
         Your task is to generate clear, concise, and informative commit messages based on the provided context. \
@@ -84,6 +60,40 @@ fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String 
     prompt
 }
 
+pub fn create_user_prompt(git_info: &GitInfo, verbose: bool) -> Result<String> {
+    let context = format!(
+        "Branch: {}\n\nRecent commits:\n{}\n\nStaged changes:\n{}\n\nUnstaged files:\n{}\n\nDetailed changes:\n{}",
+        git_info.branch,
+        format_recent_commits(&git_info.recent_commits),
+        format_staged_files(&git_info.staged_files),
+        git_info.unstaged_files.join(", "),
+        format_detailed_changes(&git_info.staged_files, &git_info.project_root)?
+    );
+
+    let prompt = format!(
+        "Based on the following context, generate a Git commit message:\n\n{}",
+        context
+    );
+
+    if verbose {
+        println!("User Prompt:\n{}", prompt);
+    }
+
+    Ok(prompt)
+}
+
+pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Result<String> {
+    let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
+    let user_prompt = create_user_prompt(git_info, verbose)?;
+
+    let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
+
+    if verbose {
+        println!("Full Prompt:\n{}", full_prompt);
+    }
+
+    Ok(full_prompt)
+}
 fn format_recent_commits(commits: &[String]) -> String {
     commits
         .iter()

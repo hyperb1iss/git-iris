@@ -1,5 +1,6 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum}; // Added ValueEnum
 use colored::*;
+use std::fmt; // Added import for fmt
 
 #[derive(Parser)]
 #[command(author, version, about = "AI-assisted Git commit message generator")]
@@ -16,6 +17,19 @@ pub struct Cli {
     pub auto_commit: bool,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)] // Added Debug
+pub enum LLMImplementation {
+    OpenAI,
+    Claude,
+}
+
+// Implementing Display trait for LLMImplementation
+impl fmt::Display for LLMImplementation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self) // This uses the Debug representation, you can customize it if needed
+    }
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     Gen {
@@ -26,8 +40,11 @@ pub enum Commands {
         gitmoji: Option<bool>,
     },
     Config {
-        #[arg(short, long, help = "Set OpenAI API key")]
+        #[arg(short, long, help = "Set API key")]
         api_key: Option<String>,
+
+        #[arg(long, help = "Set LLM provider", value_enum)]
+        llm_provider: Option<LLMImplementation>,
 
         #[arg(short, long, help = "Set use_gitmoji preference")]
         gitmoji: Option<bool>,

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use git_iris::{cli, config, git, interactive, llm, prompt};
+use git_iris::{cli, config, git, interactive, llm};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
@@ -43,8 +43,7 @@ async fn main() -> Result<()> {
             );
             spinner.enable_steady_tick(Duration::from_millis(100));
 
-            let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
-            let initial_message = llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
+            let initial_message = llm::get_refined_message(&git_info, &config, use_gitmoji, verbose).await?;
 
             spinner.finish_and_clear();
 
@@ -53,30 +52,33 @@ async fn main() -> Result<()> {
             let commit_performed = interactive_commit
                 .run(|| async {
                     let git_info = git::get_git_info(current_dir.as_path())?;
-                    let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
-                    llm::get_refined_message(&prompt, use_gitmoji, verbose).await
+                    llm::get_refined_message(&git_info, &config, use_gitmoji, verbose).await
                 })
                 .await?;
 
-            if !commit_performed {
+            if commit_performed {
+                cli::print_success("Commit successfully created and applied.");
+            } else {
                 cli::print_info("Commit process cancelled.");
             }
         }
         cli::Commands::Config {
             api_key,
+            llm_provider,
             gitmoji,
             custom_instructions,
         } => {
-            config.update(api_key, gitmoji, custom_instructions);
+            config.update(api_key, llm_provider.map(|l| l.to_string()), gitmoji, custom_instructions);
             config.save()?;
             cli::print_success("Configuration updated successfully.");
             cli::print_info(&format!(
-                "Current configuration:\nAPI Key: {}\nUse Gitmoji: {}\nCustom Instructions: {}",
+                "Current configuration:\nAPI Key: {}\nLLM Provider: {}\nUse Gitmoji: {}\nCustom Instructions: {}",
                 if config.api_key.is_empty() {
                     "Not set"
                 } else {
                     "Set"
                 },
+                config.llm_provider,
                 config.use_gitmoji,
                 if config.custom_instructions.is_empty() {
                     "None".to_string()

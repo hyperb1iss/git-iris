@@ -29,6 +29,7 @@ fn create_mock_git_info() -> GitInfo {
 fn create_mock_config() -> Config {
     Config {
         api_key: "dummy_api_key".to_string(),
+        llm_provider: "openai".to_string(),
         use_gitmoji: false,
         custom_instructions: "Always include a brief summary of changes.".to_string(),
     }
@@ -103,4 +104,21 @@ fn test_create_prompt_with_custom_instructions() {
     let prompt = create_prompt(&git_info, &config, verbose).unwrap();
 
     assert!(prompt.contains("Use imperative mood. Mention ticket numbers if applicable."));
+}
+
+#[test]
+fn test_create_prompt_with_different_llm_provider() {
+    let git_info = create_mock_git_info();
+    let mut config = create_mock_config();
+    config.llm_provider = "claude".to_string();
+    let verbose = false;
+
+    let prompt = create_prompt(&git_info, &config, verbose).unwrap();
+
+    // The prompt content should be the same regardless of the LLM provider
+    assert!(prompt.contains("Branch: feature/new-feature"));
+    assert!(prompt.contains("abc1234 Add user authentication"));
+    assert!(prompt.contains("def5678 Update README.md"));
+    assert!(prompt.contains("src/main.rs (Modified, Rust source file)"));
+    assert!(prompt.contains("README.md"));
 }

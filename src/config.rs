@@ -7,6 +7,7 @@ use std::process::Command;
 #[derive(Deserialize, Serialize)]
 pub struct Config {
     pub api_key: String,
+    pub llm_provider: String,
     #[serde(default)]
     pub use_gitmoji: bool,
     #[serde(default)]
@@ -34,7 +35,7 @@ impl Config {
     fn get_config_path() -> Result<PathBuf> {
         dirs::home_dir()
             .ok_or_else(|| anyhow!("Unable to determine home directory"))
-            .map(|path| path.join(".gitiris"))
+            .map(|path| path.join(".git-iris"))
     }
 
     pub fn check_environment() -> Result<()> {
@@ -63,11 +64,15 @@ impl Config {
     pub fn update(
         &mut self,
         api_key: Option<String>,
+        llm_provider: Option<String>,
         use_gitmoji: Option<bool>,
         custom_instructions: Option<String>,
     ) {
         if let Some(key) = api_key {
             self.api_key = key;
+        }
+        if let Some(provider) = llm_provider {
+            self.llm_provider = provider;
         }
         if let Some(gitmoji) = use_gitmoji {
             self.use_gitmoji = gitmoji;
@@ -82,6 +87,7 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             api_key: String::new(),
+            llm_provider: "openai".to_string(),
             use_gitmoji: false,
             custom_instructions: String::new(),
         }
