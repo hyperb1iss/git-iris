@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
-use std::fmt;
 
 pub struct OpenAIProvider {
     pub api_key: String,
@@ -12,9 +11,9 @@ pub struct OpenAIProvider {
     pub additional_params: HashMap<String, String>,
 }
 
-impl fmt::Display for OpenAIProvider {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "OpenAI")
+impl OpenAIProvider {
+    pub fn default_model() -> &'static str {
+        "gpt-4o"
     }
 }
 
@@ -63,7 +62,7 @@ impl LLMProvider for OpenAIProvider {
         Ok(message)
     }
 
-    fn default_model(&self) -> &'static str {
-        "gpt-4o"
+    fn provider_name(&self) -> &str {
+        "OpenAI"
     }
 }

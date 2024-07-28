@@ -1,12 +1,11 @@
+use crate::claude_provider::ClaudeProvider;
+use crate::openai_provider::OpenAIProvider;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use crate::openai_provider::OpenAIProvider;
-use crate::claude_provider::ClaudeProvider;
-use crate::llm_provider::LLMProvider;
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
@@ -85,7 +84,8 @@ impl Config {
         if let Some(provider) = provider {
             self.default_provider = provider.clone();
             if !self.providers.contains_key(&provider) {
-                self.providers.insert(provider.clone(), ProviderConfig::default_for(&provider));
+                self.providers
+                    .insert(provider.clone(), ProviderConfig::default_for(&provider));
             }
         }
 
@@ -130,29 +130,15 @@ impl Default for Config {
 impl ProviderConfig {
     pub fn default_for(provider: &str) -> Self {
         match provider {
-            "openai" => {
-                let openai = OpenAIProvider {
-                    api_key: String::new(),
-                    model: String::new(),
-                    additional_params: HashMap::new(),
-                };
-                ProviderConfig {
-                    api_key: String::new(),
-                    model: openai.default_model().to_string(),
-                    additional_params: HashMap::new(),
-                }
+            "openai" => ProviderConfig {
+                api_key: String::new(),
+                model: OpenAIProvider::default_model().to_string(),
+                additional_params: HashMap::new(),
             },
-            "claude" => {
-                let claude = ClaudeProvider {
-                    api_key: String::new(),
-                    model: String::new(),
-                    additional_params: HashMap::new(),
-                };
-                ProviderConfig {
-                    api_key: String::new(),
-                    model: claude.default_model().to_string(),
-                    additional_params: HashMap::new(),
-                }
+            "claude" => ProviderConfig {
+                api_key: String::new(),
+                model: ClaudeProvider::default_model().to_string(),
+                additional_params: HashMap::new(),
             },
             _ => ProviderConfig {
                 api_key: String::new(),

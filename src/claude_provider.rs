@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
-use std::fmt;
 
 pub struct ClaudeProvider {
     pub api_key: String,
@@ -12,9 +11,9 @@ pub struct ClaudeProvider {
     pub additional_params: HashMap<String, String>,
 }
 
-impl fmt::Display for ClaudeProvider {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Claude")
+impl ClaudeProvider {
+    pub fn default_model() -> &'static str {
+        "claude-3-5-sonnet-20240620"
     }
 }
 
@@ -25,7 +24,11 @@ impl LLMProvider for ClaudeProvider {
 
         let mut request_body = json!({
             "model": self.model,
-            "prompt": format!("Human: {}\n\nHuman: {}\n\nAssistant:", system_prompt, user_prompt),
+            "system": system_prompt, // Top-level system parameter
+            "messages": [
+                {"role": "user", "content": user_prompt}
+            ],
+            "max_tokens": 4096,
         });
 
         // Add additional parameters
@@ -34,8 +37,9 @@ impl LLMProvider for ClaudeProvider {
         }
 
         let response = client
-            .post("https://api.anthropic.com/v1/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -52,16 +56,20 @@ impl LLMProvider for ClaudeProvider {
         }
 
         let response_body: serde_json::Value = response.json().await?;
-        let message = response_body["completion"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Failed to extract message from Claude API response"))?
-            .trim()
-            .to_string();
+        let content_array = response_body["content"].as_array().ok_or_else(|| {
+            anyhow::anyhow!("Failed to extract content array from Claude API response")
+        })?;
+
+        let message = content_array
+            .iter()
+            .filter_map(|item| item["text"].as_str())
+            .collect::<Vec<&str>>()
+            .join("\n");
 
         Ok(message)
     }
 
-    fn default_model(&self) -> &'static str {
-        "claude-3-sonnet"
+    fn provider_name(&self) -> &str {
+        "Claude"
     }
 }
