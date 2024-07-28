@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
@@ -50,20 +49,10 @@ impl Config {
     }
 
     pub fn check_environment() -> Result<()> {
-        // Check if git is installed
-        if !Command::new("git").arg("--version").output().is_ok() {
-            return Err(anyhow!(
-                "Git is not installed or not in PATH. Please install Git and try again."
-            ));
-        }
+        crate::git::check_environment()?;
 
         // Check if we're in a git repository
-        if !Command::new("git")
-            .args(&["rev-parse", "--is-inside-work-tree"])
-            .output()?
-            .status
-            .success()
-        {
+        if !crate::git::is_inside_work_tree()? {
             return Err(anyhow!(
                 "Not in a Git repository. Please run this command from within a Git repository."
             ));

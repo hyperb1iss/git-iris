@@ -1,3 +1,4 @@
+use crate::git;
 use anyhow::Result;
 use console::{Key, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -131,25 +132,24 @@ impl InteractiveCommit {
         );
         spinner.enable_steady_tick(Duration::from_millis(100));
 
-        let output = Command::new("git")
-            .args(&["commit", "-m", &self.messages[self.current_index]])
-            .output()?;
+        let commit_message = &self.messages[self.current_index];
+        let repo_path = std::env::current_dir()?;
+        let result = git::commit(&repo_path, commit_message);
 
         spinner.finish_and_clear();
 
         let success_style = Style::new().green().bold();
         let error_style = Style::new().red().bold();
 
-        if output.status.success() {
-            println!("{}", success_style.apply_to("✅ Commit successful!"));
-            Ok(true)
-        } else {
-            println!(
-                "{} {}",
-                error_style.apply_to("❌ Commit failed:"),
-                String::from_utf8_lossy(&output.stderr)
-            );
-            Ok(false)
+        match result {
+            Ok(_) => {
+                println!("{}", success_style.apply_to("✅ Commit successful!"));
+                Ok(true)
+            }
+            Err(e) => {
+                println!("{} {}", error_style.apply_to("❌ Commit failed:"), e);
+                Ok(false)
+            }
         }
     }
 }

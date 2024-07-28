@@ -110,6 +110,22 @@ fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<Stri
     Ok(diff_string)
 }
 
+pub fn check_environment() -> Result<()> {
+    if let Err(_) = std::process::Command::new("git").arg("--version").output() {
+        return Err(anyhow!("Git is not installed or not in the PATH"));
+    }
+
+    Ok(())
+}
+
+pub fn is_inside_work_tree() -> Result<bool> {
+    // Example: Check if we're inside a Git repository
+    match Repository::discover(".") {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
     let repo = Repository::open(repo_path)?;
     let signature = repo.signature()?;
