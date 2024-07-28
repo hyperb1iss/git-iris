@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
-use std::process::Command;
+use anyhow::{anyhow, Result};
+use git2::{Repository, Status, StatusOptions, DiffOptions};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -18,11 +18,11 @@ pub struct FileChange {
 }
 
 pub fn get_git_info() -> Result<GitInfo> {
-    let branch = get_current_branch()?;
-    let recent_commits = get_recent_commits(5)?;
-    let staged_files = get_staged_files_with_diff()?;
-    let unstaged_files = get_unstaged_files()?;
-    let project_root = get_project_root()?;
+    let repo = Repository::open(".")?;
+    let branch = get_current_branch(&repo)?;
+    let recent_commits = get_recent_commits(&repo, 5)?;
+    let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
+    let project_root = repo.path().parent().unwrap().to_str().unwrap().to_string();
 
     Ok(GitInfo {
         branch,
@@ -33,80 +33,89 @@ pub fn get_git_info() -> Result<GitInfo> {
     })
 }
 
-fn get_current_branch() -> Result<String> {
-    let output = Command::new("git")
-        .args(&["rev-parse", "--abbrev-ref", "HEAD"])
-        .output()?;
-
-    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+fn get_current_branch(repo: &Repository) -> Result<String> {
+    let head = repo.head()?;
+    let branch_name = head.shorthand().ok_or_else(|| anyhow!("Failed to get branch name"))?;
+    Ok(branch_name.to_string())
 }
 
-fn get_recent_commits(count: usize) -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .args(&["log", &format!("-{}", count), "--oneline"])
-        .output()?;
+fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<String>> {
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push_head()?;
+    
+    let commits: Result<Vec<_>> = revwalk
+        .take(count)
+        .map(|oid| {
+            let oid = oid?;
+            let commit = repo.find_commit(oid)?;
+            Ok(format!("{} {}", oid.to_string()[..7].to_string(), commit.summary().unwrap_or_default()))
+        })
+        .collect();
 
-    Ok(String::from_utf8(output.stdout)?
-        .lines()
-        .map(|s| s.to_string())
-        .collect())
+    commits
 }
 
-fn get_staged_files_with_diff() -> Result<HashMap<String, FileChange>> {
-    let status_output = Command::new("git")
-        .args(&["status", "--porcelain"])
-        .output()?;
+fn get_file_statuses(repo: &Repository) -> Result<(HashMap<String, FileChange>, Vec<String>)> {
+    let mut staged_files = HashMap::new();
+    let mut unstaged_files = Vec::new();
+    
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true);
+    let statuses = repo.statuses(Some(&mut opts))?;
 
-    let status_lines = String::from_utf8(status_output.stdout)?;
-    let mut staged_files_with_diff = HashMap::new();
+    for entry in statuses.iter() {
+        let path = entry.path().unwrap();
+        let status = entry.status();
 
-    for line in status_lines.lines() {
-        let status = &line[0..2];
-        let file = &line[3..];
-
-        if status.starts_with('A') || status.starts_with('M') || status.starts_with('D') {
-            let diff_output = Command::new("git")
-                .args(&["diff", "--cached", file])
-                .output()?;
-
-            let diff = String::from_utf8(diff_output.stdout)?;
-            staged_files_with_diff.insert(file.to_string(), FileChange {
-                status: status.to_string(),
+        if status.is_index_new() || status.is_index_modified() || status.is_index_deleted() {
+            let diff = get_diff_for_file(repo, path, true)?;
+            staged_files.insert(path.to_string(), FileChange {
+                status: status_to_string(status),
                 diff,
             });
+        } else if status.is_wt_modified() || status.is_wt_new() || status.is_wt_deleted() {
+            unstaged_files.push(path.to_string());
         }
     }
 
-    Ok(staged_files_with_diff)
+    Ok((staged_files, unstaged_files))
 }
 
-fn get_unstaged_files() -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .args(&["ls-files", "--others", "--exclude-standard"])
-        .output()?;
-
-    Ok(String::from_utf8(output.stdout)?
-        .lines()
-        .map(|s| s.to_string())
-        .collect())
+fn status_to_string(status: Status) -> String {
+    if status.is_index_new() { "A".to_string() }
+    else if status.is_index_modified() { "M".to_string() }
+    else if status.is_index_deleted() { "D".to_string() }
+    else { "?".to_string() }
 }
 
-fn get_project_root() -> Result<String> {
-    let output = Command::new("git")
-        .args(&["rev-parse", "--show-toplevel"])
-        .output()?;
+fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<String> {
+    let mut diff_options = DiffOptions::new();
+    diff_options.pathspec(path);
+    
+    let tree = if staged {
+        Some(repo.head()?.peel_to_tree()?)
+    } else {
+        None
+    };
 
-    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+    let diff = repo.diff_tree_to_workdir_with_index(tree.as_ref(), Some(&mut diff_options))?;
+    
+    let mut diff_string = String::new();
+    diff.print(git2::DiffFormat::Patch, |_, _, line| {
+        diff_string.push_str(&String::from_utf8_lossy(line.content()));
+        true
+    })?;
+
+    Ok(diff_string)
 }
 
 pub fn commit(message: &str) -> Result<()> {
-    let status = Command::new("git")
-        .args(&["commit", "-m", message])
-        .status()?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(anyhow!("Failed to commit changes"))
-    }
+    let repo = Repository::open(".")?;
+    let signature = repo.signature()?;
+    let tree_id = repo.index()?.write_tree()?;
+    let tree = repo.find_tree(tree_id)?;
+    let parent = repo.head()?.peel_to_commit()?;
+    
+    repo.commit(Some("HEAD"), &signature, &signature, message, &tree, &[&parent])?;
+    Ok(())
 }
