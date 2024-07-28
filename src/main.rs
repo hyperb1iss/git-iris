@@ -1,5 +1,5 @@
 use anyhow::Result;
-use git_iris::{cli, config, git, llm, prompt};
+use git_iris::{cli, config, git, interactive, llm, prompt};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -31,21 +31,17 @@ async fn main() -> Result<()> {
             }
 
             let use_gitmoji = gitmoji.unwrap_or(config.use_gitmoji);
-            let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
-            let generated_message = llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
 
-            cli::print_success("Generated commit message:");
-            println!("{}", generated_message);
+            loop {
+                let prompt = prompt::create_prompt(&git_info, &config, verbose)?;
+                let generated_message =
+                    llm::get_refined_message(&prompt, use_gitmoji, verbose).await?;
 
-            if args.auto_commit {
-                git::commit(&generated_message)?;
-                cli::print_success("Changes committed successfully.");
-            } else {
-                cli::print_info("\nTo commit with this message, run:");
-                println!(
-                    "git commit -m \"{}\"",
-                    generated_message.replace("\"", "\\\"")
-                );
+                let commit_performed = interactive::interactive_commit(&generated_message)?;
+
+                if commit_performed {
+                    break;
+                }
             }
         }
         cli::Commands::Config {
