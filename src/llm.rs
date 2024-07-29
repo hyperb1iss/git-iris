@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::git::GitInfo;
-use crate::llm_provider::{LLMProvider, LLMProviderManager};
+use crate::log_debug;
 use crate::prompt;
 use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
@@ -8,6 +8,8 @@ use async_trait::async_trait;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
+
+pub use crate::llm_provider::{LLMProvider, LLMProviderConfig, LLMProviderManager};
 
 thread_local! {
     pub static PROVIDER_MANAGER: RefCell<LLMProviderManager> = RefCell::new(LLMProviderManager::new());
@@ -20,8 +22,8 @@ pub async fn get_refined_message(
     provider: &str,
     use_gitmoji: bool,
     verbose: bool,
-    inpaint_context: &[String],
     existing_message: Option<&str>,
+    custom_instructions: &str,
 ) -> Result<String> {
     let provider_config = config
         .get_provider_config(provider)
@@ -52,14 +54,13 @@ pub async fn get_refined_message(
         ));
     }
 
-    let system_prompt = prompt::create_system_prompt(use_gitmoji, &config.custom_instructions);
-    let user_prompt =
-        prompt::create_user_prompt(git_info, verbose, inpaint_context, existing_message)?;
+    let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
+    let user_prompt = prompt::create_user_prompt(git_info, verbose, existing_message)?;
 
     if verbose {
-        println!("Using LLM provider: {}", provider.provider_name());
-        println!("System prompt:\n{}", system_prompt);
-        println!("User prompt:\n{}", user_prompt);
+        log_debug!("Using LLM provider: {}", provider.provider_name());
+        log_debug!("System prompt:\n{}", system_prompt);
+        log_debug!("User prompt:\n{}", user_prompt);
     }
 
     let refined_message = provider
@@ -67,7 +68,7 @@ pub async fn get_refined_message(
         .await?;
 
     if verbose {
-        println!("Generated message:\n{}", refined_message);
+        log_debug!("Generated message:\n{}", refined_message);
     }
 
     Ok(refined_message)

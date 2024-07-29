@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::git::{FileChange, GitInfo};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
+use crate::log_debug;
 use anyhow::Result;
 
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
@@ -39,12 +40,10 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
 
     if !custom_instructions.is_empty() {
         prompt.push_str(&format!(
-            "\n\nAdditional instructions:\n{}",
+            "\n\nAdditional user-supplied instructions:\n{}",
             custom_instructions
         ));
     }
-
-    prompt.push_str("\n\nWhen given an existing commit message and inpainting instructions, refine the existing message based on the instructions. Maintain the overall structure and intent of the original message while incorporating the new information or changes requested in the inpainting instructions.");
 
     prompt
 }
@@ -52,7 +51,6 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
 pub fn create_user_prompt(
     git_info: &GitInfo,
     verbose: bool,
-    inpaint_context: &[String],
     existing_message: Option<&str>,
 ) -> Result<String> {
     let mut prompt = format!(
@@ -71,17 +69,13 @@ pub fn create_user_prompt(
 
     if let Some(message) = existing_message {
         prompt.push_str(&format!("\n\nExisting commit message:\n{}\n", message));
-        prompt.push_str("\nPlease refine the existing commit message based on the following inpainting instructions:\n");
+        prompt.push_str("\nPlease refine the existing commit message based on the following instructions:\n");
     } else {
         prompt.push_str("\n\nAdditional context provided by the user:\n");
     }
 
-    for context in inpaint_context {
-        prompt.push_str(&format!("- {}\n", context));
-    }
-
     if verbose {
-        println!("User Prompt:\n{}", prompt);
+        log_debug!("User Prompt:\n{}", prompt);
     }
 
     Ok(prompt)
@@ -91,16 +85,15 @@ pub fn create_prompt(
     git_info: &GitInfo,
     config: &Config,
     verbose: bool,
-    inpaint_context: &[String],
     existing_message: Option<&str>,
 ) -> Result<String> {
     let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
-    let user_prompt = create_user_prompt(git_info, verbose, inpaint_context, existing_message)?;
+    let user_prompt = create_user_prompt(git_info, verbose, existing_message)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
 
     if verbose {
-        println!("Full Prompt:\n{}", full_prompt);
+        log_debug!("Full Prompt:\n{}", full_prompt);
     }
 
     Ok(full_prompt)

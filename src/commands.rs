@@ -56,43 +56,47 @@ pub async fn handle_gen_command(
     );
     spinner.enable_steady_tick(Duration::from_millis(100));
 
+    let custom_instructions = config.custom_instructions.clone(); // Get custom instructions
+
     let initial_message = get_refined_message(
         &git_info,
         &config,
         &provider,
         use_gitmoji,
         verbose,
-        &[],
         None,
+        &custom_instructions, // Pass custom instructions
     )
     .await?;
 
     spinner.finish_and_clear();
 
-    let mut interactive_commit = InteractiveCommit::new(initial_message);
+    let mut interactive_commit = InteractiveCommit::new(initial_message, custom_instructions);
 
     let commit_performed = interactive_commit
-        .run(move |inpaint_context, existing_message| {
-            let inpaint_context = inpaint_context.to_vec();
-            let config = Arc::clone(&config);
-            let provider = Arc::clone(&provider);
-            let current_dir = Arc::clone(&current_dir);
-            let use_gitmoji = use_gitmoji;
-            let verbose = verbose;
-            async move {
-                let git_info = get_git_info(current_dir.as_path())?;
-                get_refined_message(
-                    &git_info,
-                    &config,
-                    &provider,
-                    use_gitmoji,
-                    verbose,
-                    &inpaint_context,
-                    existing_message.as_deref(),
-                )
-                .await
-            }
-        })
+        .run(
+            move |existing_message, custom_instructions| {
+                let config = Arc::clone(&config);
+                let provider = Arc::clone(&provider);
+                let current_dir = Arc::clone(&current_dir);
+                let use_gitmoji = use_gitmoji;
+                let verbose = verbose;
+                let custom_instructions = custom_instructions.to_string(); // Clone custom instructions inside the async block
+                async move {
+                    let git_info = get_git_info(current_dir.as_path())?;
+                    get_refined_message(
+                        &git_info,
+                        &config,
+                        &provider,
+                        use_gitmoji,
+                        verbose,
+                        existing_message.as_deref(),
+                        &custom_instructions, // Pass cloned custom instructions
+                    )
+                    .await
+                }
+            },
+        )
         .await?;
 
     if commit_performed {

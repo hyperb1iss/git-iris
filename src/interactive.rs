@@ -9,23 +9,23 @@ use std::time::Duration;
 pub struct InteractiveCommit {
     messages: Vec<String>,
     current_index: usize,
-    inpaint_context: Vec<String>,
     generating: bool,
+    custom_instructions: String,
 }
 
 impl InteractiveCommit {
-    pub fn new(initial_message: String) -> Self {
+    pub fn new(initial_message: String, custom_instructions: String) -> Self {
         InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
-            inpaint_context: Vec::new(),
             generating: false,
+            custom_instructions,
         }
     }
 
     pub async fn run<F, Fut>(&mut self, generate_message: F) -> Result<bool>
     where
-        F: Fn(&[String], Option<String>) -> Fut,
+        F: Fn(Option<String>, &str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut term = Term::stdout();
@@ -55,10 +55,7 @@ impl InteractiveCommit {
                 }
                 Key::Char('i') | Key::Char('I') => {
                     if !self.generating {
-                        self.add_inpaint_context(&mut term)?;
-                        self.generating = true;
-                        self.regenerate_message(&generate_message).await?;
-                        self.generating = false;
+                        self.edit_custom_instructions(&generate_message).await?;
                     }
                 }
                 Key::Enter => {
@@ -75,7 +72,6 @@ impl InteractiveCommit {
             }
         }
     }
-
 
     fn display_current_message(&self, term: &mut Term) -> Result<()> {
         let title_style = Style::new().cyan().bold();
@@ -97,11 +93,10 @@ impl InteractiveCommit {
             value_style.apply_to(&self.messages[self.current_index])
         )?;
         writeln!(term)?;
-        if !self.inpaint_context.is_empty() {
-            writeln!(term, "{}", inpaint_style.apply_to("Inpaint Context:"))?;
-            for context in &self.inpaint_context {
-                writeln!(term, "- {}", inpaint_style.apply_to(context))?;
-            }
+
+        if !self.custom_instructions.trim().is_empty() {
+            writeln!(term, "{}", inpaint_style.apply_to("Custom Instructions:"))?;
+            writeln!(term, "{}", value_style.apply_to(&self.custom_instructions))?;
             writeln!(term)?;
         }
 
@@ -115,7 +110,9 @@ impl InteractiveCommit {
             writeln!(
                 term,
                 "{}",
-                prompt_style.apply_to("← → Navigate | e Edit | i Inpaint | Enter Commit | Esc Cancel")
+                prompt_style.apply_to(
+                    "← → Navigate | e Edit | i Edit Instructions | Enter Commit | Esc Cancel"
+                )
             )?;
         }
 
@@ -130,7 +127,7 @@ impl InteractiveCommit {
 
     async fn navigate_right<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn(&[String], Option<String>) -> Fut,
+        F: Fn(Option<String>, &str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         if self.current_index == self.messages.len() - 1 {
@@ -142,7 +139,8 @@ impl InteractiveCommit {
             );
             spinner.enable_steady_tick(Duration::from_millis(100));
 
-            let new_message = generate_message(&self.inpaint_context, None).await?;
+            let new_message =
+                generate_message(None, &self.custom_instructions).await?;
             spinner.finish_and_clear();
 
             self.messages.push(new_message);
@@ -171,7 +169,7 @@ impl InteractiveCommit {
 
     async fn regenerate_message<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn(&[String], Option<String>) -> Fut,
+        F: Fn(Option<String>, &str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let spinner = ProgressBar::new_spinner();
@@ -183,30 +181,36 @@ impl InteractiveCommit {
         spinner.enable_steady_tick(Duration::from_millis(100));
 
         let existing_message = self.messages[self.current_index].clone();
-        let new_message = generate_message(&self.inpaint_context, Some(existing_message)).await?;
+        let new_message = generate_message(
+            Some(existing_message),
+            &self.custom_instructions,
+        )
+        .await?;
         self.messages[self.current_index] = new_message;
 
         spinner.finish_and_clear();
         Ok(())
     }
 
-    fn add_inpaint_context(&mut self, term: &mut Term) -> Result<()> {
-        let prompt_style = Style::new().yellow();
-        writeln!(
-            term,
-            "{}",
-            prompt_style.apply_to("Enter additional context (empty line to finish):")
-        )?;
+    async fn edit_custom_instructions<F, Fut>(&mut self, generate_message: &F) -> Result<()>
+    where
+        F: Fn(Option<String>, &str) -> Fut,
+        Fut: std::future::Future<Output = Result<String>>,
+    {
+        let mut file = tempfile::NamedTempFile::new()?;
+        write!(file, "{}", self.custom_instructions)?;
 
-        loop {
-            let input = term.read_line()?;
-            let input = input.trim();
+        let path = file.into_temp_path();
+        let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
 
-            if input.is_empty() {
-                break;
-            }
+        let status = Command::new(editor).arg(&path).status()?;
 
-            self.inpaint_context.push(input.to_string());
+        if status.success() {
+            let edited_instructions = std::fs::read_to_string(&path)?;
+            self.custom_instructions = edited_instructions;
+            self.regenerate_message(generate_message).await?;
+        } else {
+            println!("Editing custom instructions cancelled.");
         }
 
         Ok(())
@@ -227,16 +231,13 @@ impl InteractiveCommit {
 
         spinner.finish_and_clear();
 
-        let success_style = Style::new().green().bold();
-        let error_style = Style::new().red().bold();
-
         match result {
             Ok(_) => {
-                println!("{}", success_style.apply_to("✅ Commit successful!"));
+                println!("✅ Commit successful!");
                 Ok(true)
             }
             Err(e) => {
-                println!("{} {}", error_style.apply_to("❌ Commit failed:"), e);
+                println!("❌ Commit failed: {}", e);
                 Ok(false)
             }
         }
