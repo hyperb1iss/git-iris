@@ -141,7 +141,17 @@ fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<Stri
         true
     })?;
 
-    Ok(diff_string)
+    if is_binary_diff(&diff_string) {
+        log_debug!("Binary file detected: {}", path);
+        Ok("[Binary file changed]".to_string())
+    } else {
+        Ok(diff_string)
+    }
+}
+
+/// Check if the diff string indicates a binary file
+fn is_binary_diff(diff: &str) -> bool {
+    diff.contains("Binary files") || diff.contains("GIT binary patch")
 }
 
 /// Check if Git is installed and accessible

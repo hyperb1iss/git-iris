@@ -1,5 +1,5 @@
 use git2::Repository;
-use git_iris::git::{get_git_info, commit};
+use git_iris::git::{commit, get_git_info};
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
@@ -119,14 +119,18 @@ fn test_multiple_staged_files() {
         fs::write(&file_path, format!("Content {}", i)).unwrap();
         let repo = Repository::open(temp_dir.path()).unwrap();
         let mut index = repo.index().unwrap();
-        index.add_path(Path::new(&format!("file{}.txt", i))).unwrap();
+        index
+            .add_path(Path::new(&format!("file{}.txt", i)))
+            .unwrap();
         index.write().unwrap();
     }
 
     let git_info = get_git_info(temp_dir.path()).unwrap();
     assert_eq!(git_info.staged_files.len(), 3);
     for i in 1..=3 {
-        assert!(git_info.staged_files.contains_key(&format!("file{}.txt", i)));
+        assert!(git_info
+            .staged_files
+            .contains_key(&format!("file{}.txt", i)));
     }
 }
 
@@ -164,4 +168,38 @@ fn test_deleted_file() {
     assert_eq!(git_info.staged_files.len(), 1);
     assert!(git_info.staged_files.contains_key("initial.txt"));
     assert_eq!(git_info.staged_files["initial.txt"].status, "D");
+}
+
+#[test]
+fn test_binary_file() {
+    let temp_dir = setup_git_repo();
+
+    // Create a binary file (a simple PNG file)
+    let binary_file_path = temp_dir.path().join("image.png");
+    let binary_content = [
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F,
+        0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    fs::write(&binary_file_path, &binary_content).unwrap();
+
+    // Stage the binary file
+    let repo = Repository::open(temp_dir.path()).unwrap();
+    let mut index = repo.index().unwrap();
+    index.add_path(Path::new("image.png")).unwrap();
+    index.write().unwrap();
+
+    let git_info = get_git_info(temp_dir.path()).unwrap();
+
+    // Check if the binary file is in staged files
+    assert!(git_info.staged_files.contains_key("image.png"));
+
+    // Check if the diff for the binary file is "[Binary file changed]"
+    let binary_file_change = git_info.staged_files.get("image.png").unwrap();
+    assert_eq!(binary_file_change.diff, "[Binary file changed]");
+
+    // Check if the status is correct
+    assert_eq!(binary_file_change.status, "A");
 }
