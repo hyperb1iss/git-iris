@@ -28,6 +28,8 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
         Remember, a good commit message should complete the following sentence:
         If applied, this commit will... <your subject line here>
 
+        Try to avoid cliche words (like enhance, delve, etc) and phrases in the commit messages. NO YAPPING!
+
         Generate only the commit message, without any explanations or additional text."
     );
 
