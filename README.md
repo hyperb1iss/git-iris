@@ -1,5 +1,5 @@
 
-# 🌟 Git-Iris for Better Commit Messages
+# 🔮 Git-Iris for Better Commit Messages
 
 <div align="center">
 

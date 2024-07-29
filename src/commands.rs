@@ -119,9 +119,9 @@ pub async fn handle_gen_command(
         .await?;
 
     if commit_performed {
-        println!("Commit successfully created and applied.");
+        log_debug!("Commit successfully created and applied.");
     } else {
-        println!("Commit process cancelled.");
+        log_debug!("Commit process cancelled.");
     }
 
     Ok(())
