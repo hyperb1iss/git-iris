@@ -1,6 +1,7 @@
 use crate::git;
 use crate::log_debug;
 use anyhow::Result;
+use colored::*;
 use console::{Key, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Write;
@@ -19,12 +20,7 @@ pub struct InteractiveCommit {
 
 impl InteractiveCommit {
     /// Create a new InteractiveCommit instance
-    pub fn new(
-        initial_message: String,
-        custom_instructions: String,
-        program_name: String,
-        program_version: String,
-    ) -> Self {
+    pub fn new(initial_message: String, custom_instructions: String, program_name: String, program_version: String) -> Self {
         InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
@@ -88,14 +84,14 @@ impl InteractiveCommit {
 
     /// Display the current commit message and instructions
     fn display_current_message(&self, term: &mut Term) -> Result<()> {
-        let title_style = Style::new().cyan().bold();
-        let prompt_style = Style::new().yellow();
-        let value_style = Style::new().green();
-        let inpaint_style = Style::new().magenta();
+        let title_style = Style::new().bold().italic().color256(13); // Magenta-like color
+        let prompt_style = Style::new().bold().color256(226); // Yellow
+        let value_style = Style::new().bold().color256(118); // Green
+        let inpaint_style = Style::new().bold().color256(33); // Blue
 
         // Display program name and version at the top right
         let term_width = term.size().1 as usize;
-        let program_info = format!("{} v{}", self.program_name, self.program_version);
+        let program_info = format!("{} v{}", self.program_name, self.program_version).bright_cyan();
         let padded_info = format!("{:>width$}", program_info, width = term_width);
 
         writeln!(term, "{}", padded_info)?;
