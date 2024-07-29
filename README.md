@@ -1,3 +1,4 @@
+
 # 🌟 Git-Iris for Better Commit Messages
 
 <div align="center">
@@ -14,13 +15,13 @@
 
 ## ✨ Features
 
-- 🤖 AI-powered commit message generation
-- 🔄 Support for multiple AI providers (OpenAI, Claude)
-- 🎨 Optional Gitmoji integration
-- 🔧 Customizable prompts and instructions
-- 📊 Intelligent analysis of your code changes
-- 🖥️ Interactive CLI for reviewing and editing suggestions
-- 🔐 Secure handling of API keys
+- 🤖 **AI-powered commit message generation**
+- 🔄 **Support for multiple AI providers (OpenAI, Claude)**
+- 🎨 **Optional Gitmoji integration**
+- 🔧 **Customizable prompts and instructions**
+- 📊 **Intelligent analysis of your code changes**
+- 🖥️ **Interactive CLI for reviewing and editing suggestions**
+- 🔐 **Secure handling of API keys**
 
 ## 🌈 Screenshots
 <table>
@@ -82,36 +83,54 @@ Additional configuration options:
 git-iris config --gitmoji true
 
 # Set custom instructions
-git-iris config --custom-instructions "Always mention the ticket number"
+git-iris config --custom-instructions "Please ensure all commit messages are professional."
 ```
 
-For more configuration options, see our [Configuration Guide](CONFIG.md).
-
-## 🚀 Usage
+## 📖 Usage
 <a name="usage"></a>
 
-Git-Iris seamlessly integrates into your Git workflow:
+Generate a commit message using AI:
 
-1. Stage your changes:
-   ```bash
-   git add .
-   ```
+```bash
+git-iris gen
+```
 
-2. Generate a commit message:
-   ```bash
-   git-iris gen
-   ```
+Options:
+- `--verbose`: Enable verbose mode.
+- `--gitmoji`: Override use_gitmoji setting.
+- `--provider`: Override default LLM provider.
 
-3. Review, edit if needed, and confirm the commit.
+Example:
+```bash
+git-iris gen --verbose --gitmoji --provider openai
+```
 
-Git-Iris provides an intuitive interface for crafting the perfect commit message:
+### Interactive Commit Process
 
-- **AI Generation**: Automatically analyzes your changes and suggests a commit message.
-- **Interactive Editing**: Easily refine the suggested message through the CLI.
-- **Gitmoji Integration**: Optionally include expressive emojis in your commits (if enabled).
-- **Multiple Suggestions**: Request alternative messages if the initial one doesn't fit.
+The interactive commit process allows you to refine and finalize commit messages step-by-step. Use the arrow keys to navigate, 'e' to edit the message, 'i' to edit instructions, Enter to commit, and Esc to cancel.
 
-The tool adapts to your project's commit style and requirements, ensuring consistency across your repository.
+### Gitmoji
+
+If Gitmoji support is enabled, you can include Gitmojis in your commit messages. Gitmojis add visual representation to your commit messages, making them easier to understand at a glance.
+
+## Examples
+
+### Generating a Commit Message with Custom Instructions
+```bash
+git-iris gen --custom-instructions "Focus on the impact of the changes."
+```
+
+### Configuring OpenAI as the Default Provider
+```bash
+git-iris config --provider openai --api-key YOUR_API_KEY --model gpt-4
+```
+
+### Interactive Commit Process
+```bash
+git-iris gen
+```
+
+Navigate with arrow keys, edit messages and instructions, and finalize your commit.
 
 ## 🤝 Contributing
 <a name="contributing"></a>
