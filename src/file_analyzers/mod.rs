@@ -20,6 +20,12 @@ mod python;
 mod rust;
 /// Module for analyzing YAML files
 mod yaml;
+/// Module for analyzing Java files
+mod java;
+/// Module for analyzing Kotlin files
+mod kotlin;
+/// Module for analyzing Gradle files
+mod gradle;
 
 /// Get the appropriate file analyzer based on the file extension
 pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
@@ -35,6 +41,12 @@ pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
         Box::new(json::JsonAnalyzer)
     } else if file.ends_with(".md") {
         Box::new(markdown::MarkdownAnalyzer)
+    } else if file.ends_with(".java") {
+        Box::new(java::JavaAnalyzer)
+    } else if file.ends_with(".kt") {
+        Box::new(kotlin::KotlinAnalyzer)
+    } else if file.ends_with(".gradle") || file.ends_with(".gradle.kts") {
+        Box::new(gradle::GradleAnalyzer)
     } else {
         Box::new(DefaultAnalyzer)
     }

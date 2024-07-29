@@ -205,3 +205,113 @@ fn test_default_analyzer() {
     );
     assert!(analysis.is_empty());
 }
+
+#[test]
+fn test_java_analyzer() {
+    let analyzer = get_analyzer("test.java");
+    let change = FileChange {
+        status: "M".to_string(),
+        diff: r#"
++public class NewClass {
++    public void newMethod() {
++        System.out.println("Hello, World!");
++    }
++}
+-private class OldClass {
+-    private void oldMethod() {
+-        // Do nothing
+-    }
+-}
++import java.util.List;
+-import java.util.ArrayList;
+        "#
+        .to_string(),
+    };
+
+    let analysis = analyzer.analyze("test.java", &change);
+    println!("Java analysis results: {:?}", analysis); // Debug output
+
+    // Check for modified classes
+    let class_analysis = analysis
+        .iter()
+        .find(|&s| s.starts_with("Modified classes:"))
+        .expect("No class analysis found");
+    assert!(class_analysis.contains("NewClass"), "NewClass not detected");
+    assert!(class_analysis.contains("OldClass"), "OldClass not detected");
+
+    // Check for modified methods
+    let method_analysis = analysis
+        .iter()
+        .find(|&s| s.starts_with("Modified methods:"))
+        .expect("No method analysis found");
+    assert!(
+        method_analysis.contains("newMethod"),
+        "newMethod not detected"
+    );
+    assert!(
+        method_analysis.contains("oldMethod"),
+        "oldMethod not detected"
+    );
+
+    // Check for import changes
+    assert!(
+        analysis.contains(&"Import statements have been modified".to_string()),
+        "Failed to detect import changes. Analysis: {:?}",
+        analysis
+    );
+}
+
+#[test]
+fn test_kotlin_analyzer() {
+    let analyzer = get_analyzer("test.kt");
+    let change = FileChange {
+        status: "M".to_string(),
+        diff: r#"
++class NewClass {
++    fun newFunction() {
++        println("Hello, Kotlin!")
++    }
++}
+-object OldObject {
+-    fun oldFunction() {
+-        // Do nothing
+-    }
+-}
++import kotlin.collections.List
+-import kotlin.collections.ArrayList
+        "#
+        .to_string(),
+    };
+
+    let analysis = analyzer.analyze("test.kt", &change);
+    assert!(analysis.contains(&"Modified classes: NewClass, OldObject".to_string()));
+    assert!(analysis.contains(&"Modified functions: newFunction, oldFunction".to_string()));
+    assert!(analysis.contains(&"Import statements have been modified".to_string()));
+}
+
+#[test]
+fn test_gradle_analyzer() {
+    let analyzer = get_analyzer("build.gradle");
+    let change = FileChange {
+        status: "M".to_string(),
+        diff: r#"
++    implementation 'com.example:new-library:1.0.0'
+-    implementation 'com.example:old-library:0.9.0'
++plugins {
++    id 'com.android.application'
++}
+-apply plugin: 'java'
++task newTask {
++    doLast {
++        println 'Executing new task'
++    }
++}
+        "#
+        .to_string(),
+    };
+
+    let analysis = analyzer.analyze("build.gradle", &change);
+    assert!(analysis.contains(&"Dependencies have been modified".to_string()));
+    assert!(analysis.contains(&"Plugins have been modified".to_string()));
+    assert!(analysis.contains(&"Tasks have been modified".to_string()));
+}
