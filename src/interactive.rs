@@ -1,6 +1,7 @@
 use crate::git;
 use crate::log_debug;
 use anyhow::Result;
+use colored::*;
 use console::{Key, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Write;
@@ -13,16 +14,20 @@ pub struct InteractiveCommit {
     current_index: usize,
     generating: bool,
     custom_instructions: String,
+    program_name: String,
+    program_version: String,
 }
 
 impl InteractiveCommit {
     /// Create a new InteractiveCommit instance
-    pub fn new(initial_message: String, custom_instructions: String) -> Self {
+    pub fn new(initial_message: String, custom_instructions: String, program_name: String, program_version: String) -> Self {
         InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
             generating: false,
             custom_instructions,
+            program_name,
+            program_version,
         }
     }
 
@@ -83,6 +88,14 @@ impl InteractiveCommit {
         let prompt_style = Style::new().yellow();
         let value_style = Style::new().green();
         let inpaint_style = Style::new().magenta();
+
+        // Display program name and version
+        writeln!(
+            term,
+            "{} {}",
+            title_style.apply_to(&self.program_name),
+            self.program_version
+        )?;
 
         writeln!(
             term,

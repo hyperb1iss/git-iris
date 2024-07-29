@@ -1,11 +1,11 @@
 use crate::commands;
 use crate::log_debug;
-use clap::{Parser, Subcommand};
+use clap::{crate_name, crate_version, Parser, Subcommand};
 use colored::*;
 
 /// CLI structure defining the available commands and global arguments
 #[derive(Parser)]
-#[command(author, version, about = "AI-assisted Git commit message generator", long_about = None)]
+#[command(author, version = crate_version!(), about = "AI-assisted Git commit message generator", long_about = None)]
 pub struct Cli {
     /// Subcommands available for the CLI
     #[command(subcommand)]
@@ -63,34 +63,18 @@ pub enum Commands {
         #[arg(
             short,
             long,
-            help = "Set custom instructions (separate multiple instructions with newlines)"
+            help = "Set custom instructions for the commit message generation"
         )]
         custom_instructions: Option<String>,
     },
 }
 
-/// Parse command-line arguments and handle dynamic help for the 'gen' command
+/// Parse the command-line arguments
 pub fn parse_args() -> Cli {
-    let cli = Cli::parse();
-    if let Commands::Gen { .. } = cli.command {
-        if std::env::args().any(|arg| arg == "--help") {
-            print_dynamic_help();
-        }
-    }
-    cli
+    Cli::parse()
 }
 
-/// Print a success message with green color
-pub fn print_success(message: &str) {
-    println!("{}", message.green());
-}
-
-/// Print an error message with red color
-pub fn print_error(message: &str) {
-    eprintln!("{}", message.red());
-}
-
-/// Print an info message with blue color
+/// Print an informational message with blue color
 pub fn print_info(message: &str) {
     println!("{}", message.blue());
 }

@@ -8,6 +8,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use clap::{crate_name, crate_version};
 
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
@@ -84,8 +85,13 @@ pub async fn handle_gen_command(
 
     spinner.finish_and_clear();
 
-    // Initialize interactive commit process
-    let mut interactive_commit = InteractiveCommit::new(initial_message, custom_instructions);
+    // Initialize interactive commit process with program name and version
+    let mut interactive_commit = InteractiveCommit::new(
+        initial_message,
+        custom_instructions,
+        crate_name!().to_string(),
+        crate_version!().to_string(),
+    );
 
     // Run the interactive commit process
     let commit_performed = interactive_commit
