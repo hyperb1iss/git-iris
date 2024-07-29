@@ -20,7 +20,12 @@ pub struct InteractiveCommit {
 
 impl InteractiveCommit {
     /// Create a new InteractiveCommit instance
-    pub fn new(initial_message: String, custom_instructions: String, program_name: String, program_version: String) -> Self {
+    pub fn new(
+        initial_message: String,
+        custom_instructions: String,
+        program_name: String,
+        program_version: String,
+    ) -> Self {
         InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
@@ -89,13 +94,13 @@ impl InteractiveCommit {
         let value_style = Style::new().green();
         let inpaint_style = Style::new().magenta();
 
-        // Display program name and version
-        writeln!(
-            term,
-            "{} {}",
-            title_style.apply_to(&self.program_name),
-            self.program_version
-        )?;
+        // Display program name and version at the top right
+        let term_width = term.size().1 as usize;
+        let program_info = format!("{} v{}", self.program_name, self.program_version);
+        let padding = term_width.saturating_sub(program_info.len() + 1);
+        let padded_info = format!("{:>width$}", program_info, width = term_width);
+
+        writeln!(term, "{}", padded_info)?;
 
         writeln!(
             term,
