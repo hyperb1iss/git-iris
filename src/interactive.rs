@@ -10,6 +10,7 @@ pub struct InteractiveCommit {
     messages: Vec<String>,
     current_index: usize,
     inpaint_context: Vec<String>,
+    generating: bool,
 }
 
 impl InteractiveCommit {
@@ -18,6 +19,7 @@ impl InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
             inpaint_context: Vec::new(),
+            generating: false,
         }
     }
 
@@ -32,27 +34,48 @@ impl InteractiveCommit {
             self.display_current_message(&mut term)?;
 
             match term.read_key()? {
-                Key::ArrowLeft => self.navigate_left(),
-                Key::ArrowRight => self.navigate_right(&generate_message).await?,
+                Key::ArrowLeft => {
+                    if !self.generating {
+                        self.navigate_left();
+                    }
+                }
+                Key::ArrowRight => {
+                    if !self.generating {
+                        self.generating = true;
+                        self.navigate_right(&generate_message).await?;
+                        self.generating = false;
+                    }
+                }
                 Key::Char('e') | Key::Char('E') => {
-                    if let Some(edited_message) = self.edit_message()? {
-                        self.messages[self.current_index] = edited_message;
+                    if !self.generating {
+                        if let Some(edited_message) = self.edit_message()? {
+                            self.messages[self.current_index] = edited_message;
+                        }
                     }
                 }
                 Key::Char('i') | Key::Char('I') => {
-                    self.add_inpaint_context(&mut term)?;
-                    self.regenerate_message(&generate_message).await?;
+                    if !self.generating {
+                        self.add_inpaint_context(&mut term)?;
+                        self.generating = true;
+                        self.regenerate_message(&generate_message).await?;
+                        self.generating = false;
+                    }
                 }
                 Key::Enter => {
-                    return self.perform_commit();
+                    if !self.generating {
+                        return self.perform_commit();
+                    }
                 }
                 Key::Escape => {
-                    return Ok(false);
+                    if !self.generating {
+                        return Ok(false);
+                    }
                 }
                 _ => {}
             }
         }
     }
+
 
     fn display_current_message(&self, term: &mut Term) -> Result<()> {
         let title_style = Style::new().cyan().bold();
@@ -81,11 +104,20 @@ impl InteractiveCommit {
             }
             writeln!(term)?;
         }
-        writeln!(
-            term,
-            "{}",
-            prompt_style.apply_to("← → Navigate | e Edit | i Inpaint | Enter Commit | Esc Cancel")
-        )?;
+
+        if self.generating {
+            writeln!(
+                term,
+                "{}",
+                prompt_style.apply_to("Generating message... Please wait.")
+            )?;
+        } else {
+            writeln!(
+                term,
+                "{}",
+                prompt_style.apply_to("← → Navigate | e Edit | i Inpaint | Enter Commit | Esc Cancel")
+            )?;
+        }
 
         Ok(())
     }
