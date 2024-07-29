@@ -16,6 +16,7 @@ thread_local! {
     pub static PROVIDER_REGISTRY: ProviderRegistry = ProviderRegistry::default();
 }
 
+/// Generate a refined commit message using the specified LLM provider
 pub async fn get_refined_message(
     git_info: &GitInfo,
     config: &Config,
@@ -74,6 +75,7 @@ pub async fn get_refined_message(
     Ok(refined_message)
 }
 
+/// Struct for handling unsupported providers
 struct UnsupportedProvider(String);
 
 #[async_trait]
@@ -91,7 +93,7 @@ impl LLMProvider for UnsupportedProvider {
     }
 }
 
-// This function can be used to initialize providers for testing
+/// Initialize providers for testing purposes
 pub fn init_providers(providers: HashMap<String, Arc<dyn LLMProvider>>) {
     PROVIDER_MANAGER.with(|manager| {
         let mut manager = manager.borrow_mut();
@@ -101,6 +103,7 @@ pub fn init_providers(providers: HashMap<String, Arc<dyn LLMProvider>>) {
     });
 }
 
+/// Clear all registered providers
 pub fn clear_providers() {
     PROVIDER_MANAGER.with(|manager| {
         manager.borrow_mut().clear_providers();

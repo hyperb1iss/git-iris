@@ -1,4 +1,5 @@
 use crate::git;
+use crate::log_debug;
 use anyhow::Result;
 use console::{Key, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -6,6 +7,7 @@ use std::io::Write;
 use std::process::Command;
 use std::time::Duration;
 
+/// Structure representing the interactive commit process
 pub struct InteractiveCommit {
     messages: Vec<String>,
     current_index: usize,
@@ -14,6 +16,7 @@ pub struct InteractiveCommit {
 }
 
 impl InteractiveCommit {
+    /// Create a new InteractiveCommit instance
     pub fn new(initial_message: String, custom_instructions: String) -> Self {
         InteractiveCommit {
             messages: vec![initial_message],
@@ -23,6 +26,7 @@ impl InteractiveCommit {
         }
     }
 
+    /// Run the interactive commit process
     pub async fn run<F, Fut>(&mut self, generate_message: F) -> Result<bool>
     where
         F: Fn(Option<String>, &str) -> Fut,
@@ -73,6 +77,7 @@ impl InteractiveCommit {
         }
     }
 
+    /// Display the current commit message and instructions
     fn display_current_message(&self, term: &mut Term) -> Result<()> {
         let title_style = Style::new().cyan().bold();
         let prompt_style = Style::new().yellow();
@@ -119,12 +124,14 @@ impl InteractiveCommit {
         Ok(())
     }
 
+    /// Navigate to the previous message
     fn navigate_left(&mut self) {
         if self.current_index > 0 {
             self.current_index -= 1;
         }
     }
 
+    /// Generate a new commit message and navigate to it
     async fn navigate_right<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
         F: Fn(Option<String>, &str) -> Fut,
@@ -139,8 +146,7 @@ impl InteractiveCommit {
             );
             spinner.enable_steady_tick(Duration::from_millis(100));
 
-            let new_message =
-                generate_message(None, &self.custom_instructions).await?;
+            let new_message = generate_message(None, &self.custom_instructions).await?;
             spinner.finish_and_clear();
 
             self.messages.push(new_message);
@@ -149,6 +155,7 @@ impl InteractiveCommit {
         Ok(())
     }
 
+    /// Edit the current commit message using the user's preferred editor
     fn edit_message(&self) -> Result<Option<String>> {
         let mut file = tempfile::NamedTempFile::new()?;
         write!(file, "{}", self.messages[self.current_index])?;
@@ -160,6 +167,7 @@ impl InteractiveCommit {
 
         if status.success() {
             let edited_message = std::fs::read_to_string(&path)?;
+            log_debug!("Message edited: {}", edited_message);
             Ok(Some(edited_message))
         } else {
             println!("Message editing cancelled.");
@@ -167,6 +175,7 @@ impl InteractiveCommit {
         }
     }
 
+    /// Regenerate the commit message with the updated custom instructions
     async fn regenerate_message<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
         F: Fn(Option<String>, &str) -> Fut,
@@ -181,17 +190,15 @@ impl InteractiveCommit {
         spinner.enable_steady_tick(Duration::from_millis(100));
 
         let existing_message = self.messages[self.current_index].clone();
-        let new_message = generate_message(
-            Some(existing_message),
-            &self.custom_instructions,
-        )
-        .await?;
+        let new_message =
+            generate_message(Some(existing_message), &self.custom_instructions).await?;
         self.messages[self.current_index] = new_message;
 
         spinner.finish_and_clear();
         Ok(())
     }
 
+    /// Edit the custom instructions and regenerate the commit message
     async fn edit_custom_instructions<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
         F: Fn(Option<String>, &str) -> Fut,
@@ -207,6 +214,7 @@ impl InteractiveCommit {
 
         if status.success() {
             let edited_instructions = std::fs::read_to_string(&path)?;
+            log_debug!("Custom instructions edited: {}", edited_instructions);
             self.custom_instructions = edited_instructions;
             self.regenerate_message(generate_message).await?;
         } else {
@@ -216,6 +224,7 @@ impl InteractiveCommit {
         Ok(())
     }
 
+    /// Perform the commit with the current message
     fn perform_commit(&self) -> Result<bool> {
         let spinner = ProgressBar::new_spinner();
         spinner.set_style(
@@ -234,10 +243,12 @@ impl InteractiveCommit {
         match result {
             Ok(_) => {
                 println!("✅ Commit successful!");
+                log_debug!("Commit successful with message: {}", commit_message);
                 Ok(true)
             }
             Err(e) => {
                 println!("❌ Commit failed: {}", e);
+                log_debug!("Commit failed: {}", e);
                 Ok(false)
             }
         }

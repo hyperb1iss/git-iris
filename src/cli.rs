@@ -1,13 +1,17 @@
 use crate::commands;
+use crate::log_debug;
 use clap::{Parser, Subcommand};
 use colored::*;
 
+/// CLI structure defining the available commands and global arguments
 #[derive(Parser)]
 #[command(author, version, about = "AI-assisted Git commit message generator", long_about = None)]
 pub struct Cli {
+    /// Subcommands available for the CLI
     #[command(subcommand)]
     pub command: Commands,
 
+    /// Automatically commit with the generated message
     #[arg(
         short,
         long,
@@ -17,8 +21,10 @@ pub struct Cli {
     pub auto_commit: bool,
 }
 
+/// Enumeration of available subcommands
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Generate a commit message using AI
     #[command(
         about = "Generate a commit message using AI",
         after_help = "Default LLM provider: openai\nAvailable providers: claude, openai"
@@ -33,6 +39,7 @@ pub enum Commands {
         #[arg(long, help = "Override default LLM provider")]
         provider: Option<String>,
     },
+    /// Configure the AI-assisted Git commit message generator
     #[command(about = "Configure the AI-assisted Git commit message generator")]
     Config {
         #[arg(long, help = "Set default LLM provider")]
@@ -62,6 +69,7 @@ pub enum Commands {
     },
 }
 
+/// Parse command-line arguments and handle dynamic help for the 'gen' command
 pub fn parse_args() -> Cli {
     let cli = Cli::parse();
     if let Commands::Gen { .. } = cli.command {
@@ -72,38 +80,46 @@ pub fn parse_args() -> Cli {
     cli
 }
 
+/// Print a success message with green color
 pub fn print_success(message: &str) {
     println!("{}", message.green());
 }
 
+/// Print an error message with red color
 pub fn print_error(message: &str) {
     eprintln!("{}", message.red());
 }
 
+/// Print an info message with blue color
 pub fn print_info(message: &str) {
     println!("{}", message.blue());
 }
 
+/// Print a warning message with yellow color
 pub fn print_warning(message: &str) {
     println!("{}", message.yellow());
 }
 
+/// List available LLM providers
 pub fn list_providers() -> Vec<String> {
     // Query the provider registry to get the list of available providers
     crate::provider_registry::ProviderRegistry::default().list_providers()
 }
 
+/// Print dynamic help including available LLM providers
 pub fn print_dynamic_help() {
     let providers = list_providers();
     let provider_list = providers.join(", ");
     println!("Available providers: {}", provider_list);
 }
 
+/// Main function to parse arguments and handle the command
 pub async fn main() -> anyhow::Result<()> {
     let cli = parse_args();
     handle_command(cli).await
 }
 
+/// Handle the command based on parsed arguments
 pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Commands::Gen {
@@ -111,6 +127,12 @@ pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
             gitmoji,
             provider,
         } => {
+            log_debug!(
+                "Handling 'gen' command with verbose: {}, gitmoji: {:?}, provider: {:?}",
+                verbose,
+                gitmoji,
+                provider
+            );
             commands::handle_gen_command(verbose, gitmoji, provider, cli.auto_commit).await?;
         }
         Commands::Config {
@@ -121,6 +143,7 @@ pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
             gitmoji,
             custom_instructions,
         } => {
+            log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, custom_instructions: {:?}", provider, api_key, model, param, gitmoji, custom_instructions);
             commands::handle_config_command(
                 provider,
                 api_key,

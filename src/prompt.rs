@@ -4,6 +4,7 @@ use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
 use anyhow::Result;
 
+/// Create the system prompt for the LLM
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
@@ -48,6 +49,7 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
     prompt
 }
 
+/// Create the user prompt for the LLM
 pub fn create_user_prompt(
     git_info: &GitInfo,
     verbose: bool,

@@ -2,20 +2,30 @@ use crate::config::Config;
 use crate::git::get_git_info;
 use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
+use crate::log_debug;
 use anyhow::{anyhow, Result};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Handle the 'gen' command
 pub async fn handle_gen_command(
     verbose: bool,
     gitmoji: Option<bool>,
     provider: Option<String>,
     _auto_commit: bool,
 ) -> Result<()> {
+    log_debug!(
+        "Starting 'gen' command with verbose: {}, gitmoji: {:?}, provider: {:?}",
+        verbose,
+        gitmoji,
+        provider
+    );
+
     let config = Arc::new(Config::load()?);
 
+    // Check environment prerequisites
     if let Err(e) = Config::check_environment() {
         println!("Error: {}", e);
         println!("\nPlease ensure the following:");
@@ -48,6 +58,7 @@ pub async fn handle_gen_command(
 
     let use_gitmoji = gitmoji.unwrap_or(config.use_gitmoji);
 
+    // Display a spinner while generating the message
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
         ProgressStyle::default_spinner()
@@ -56,8 +67,10 @@ pub async fn handle_gen_command(
     );
     spinner.enable_steady_tick(Duration::from_millis(100));
 
-    let custom_instructions = config.custom_instructions.clone(); // Get custom instructions
+    // Get custom instructions
+    let custom_instructions = config.custom_instructions.clone();
 
+    // Generate the initial message
     let initial_message = get_refined_message(
         &git_info,
         &config,
@@ -65,38 +78,38 @@ pub async fn handle_gen_command(
         use_gitmoji,
         verbose,
         None,
-        &custom_instructions, // Pass custom instructions
+        &custom_instructions,
     )
     .await?;
 
     spinner.finish_and_clear();
 
+    // Initialize interactive commit process
     let mut interactive_commit = InteractiveCommit::new(initial_message, custom_instructions);
 
+    // Run the interactive commit process
     let commit_performed = interactive_commit
-        .run(
-            move |existing_message, custom_instructions| {
-                let config = Arc::clone(&config);
-                let provider = Arc::clone(&provider);
-                let current_dir = Arc::clone(&current_dir);
-                let use_gitmoji = use_gitmoji;
-                let verbose = verbose;
-                let custom_instructions = custom_instructions.to_string(); // Clone custom instructions inside the async block
-                async move {
-                    let git_info = get_git_info(current_dir.as_path())?;
-                    get_refined_message(
-                        &git_info,
-                        &config,
-                        &provider,
-                        use_gitmoji,
-                        verbose,
-                        existing_message.as_deref(),
-                        &custom_instructions, // Pass cloned custom instructions
-                    )
-                    .await
-                }
-            },
-        )
+        .run(move |existing_message, custom_instructions| {
+            let config = Arc::clone(&config);
+            let provider = Arc::clone(&provider);
+            let current_dir = Arc::clone(&current_dir);
+            let use_gitmoji = use_gitmoji;
+            let verbose = verbose;
+            let custom_instructions = custom_instructions.to_string();
+            async move {
+                let git_info = get_git_info(current_dir.as_path())?;
+                get_refined_message(
+                    &git_info,
+                    &config,
+                    &provider,
+                    use_gitmoji,
+                    verbose,
+                    existing_message.as_deref(),
+                    &custom_instructions,
+                )
+                .await
+            }
+        })
         .await?;
 
     if commit_performed {
@@ -108,6 +121,7 @@ pub async fn handle_gen_command(
     Ok(())
 }
 
+/// Handle the 'config' command
 pub fn handle_config_command(
     provider: Option<String>,
     api_key: Option<String>,
@@ -116,6 +130,8 @@ pub fn handle_config_command(
     gitmoji: Option<bool>,
     custom_instructions: Option<String>,
 ) -> Result<()> {
+    log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, custom_instructions: {:?}", provider, api_key, model, param, gitmoji, custom_instructions);
+
     let mut config = Config::load()?;
 
     let provider = provider.map(|p| p.to_string());
@@ -158,6 +174,7 @@ pub fn handle_config_command(
     Ok(())
 }
 
+/// Parse additional parameters from the command line
 fn parse_additional_params(params: &[String]) -> HashMap<String, String> {
     params
         .iter()
