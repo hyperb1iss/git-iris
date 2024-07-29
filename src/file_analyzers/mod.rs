@@ -8,18 +8,33 @@ pub trait FileAnalyzer {
     fn get_file_type(&self) -> &'static str;
 }
 
+/// Module for analyzing JavaScript files
+mod javascript;
+/// Module for analyzing JSON files
+mod json;
+/// Module for analyzing Markdown files
+mod markdown;
+/// Module for analyzing Python files
+mod python;
 /// Module for analyzing Rust files
 mod rust;
-/// Module for analyzing TOML files
-mod toml;
-// Add more file type modules here as we implement them
+/// Module for analyzing YAML files
+mod yaml;
 
 /// Get the appropriate file analyzer based on the file extension
 pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
     if file.ends_with(".rs") {
         Box::new(rust::RustAnalyzer)
-    } else if file.ends_with(".toml") {
-        Box::new(toml::TomlAnalyzer)
+    } else if file.ends_with(".js") || file.ends_with(".ts") {
+        Box::new(javascript::JavaScriptAnalyzer)
+    } else if file.ends_with(".py") {
+        Box::new(python::PythonAnalyzer)
+    } else if file.ends_with(".yaml") || file.ends_with(".yml") {
+        Box::new(yaml::YamlAnalyzer)
+    } else if file.ends_with(".json") {
+        Box::new(json::JsonAnalyzer)
+    } else if file.ends_with(".md") {
+        Box::new(markdown::MarkdownAnalyzer)
     } else {
         Box::new(DefaultAnalyzer)
     }
