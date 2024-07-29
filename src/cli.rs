@@ -5,7 +5,13 @@ use colored::*;
 
 /// CLI structure defining the available commands and global arguments
 #[derive(Parser)]
-#[command(author, version = crate_version!(), about = "AI-assisted Git commit message generator", long_about = None)]
+#[command(
+    author,
+    version = crate_version!(),
+    about = "AI-assisted Git commit message generator",
+    long_about = None,
+    disable_version_flag = true
+)]
 pub struct Cli {
     /// Subcommands available for the CLI
     #[command(subcommand)]
@@ -19,6 +25,24 @@ pub struct Cli {
         help = "Automatically commit with the generated message"
     )]
     pub auto_commit: bool,
+
+    /// Log debug messages to a file
+    #[arg(
+        short = 'l',
+        long = "log",
+        global = true,
+        help = "Log debug messages to a file"
+    )]
+    pub log: bool,
+
+    /// Display the version
+    #[arg(
+        short = 'v',
+        long = "version",
+        global = true,
+        help = "Display the version"
+    )]
+    pub version: bool,
 }
 
 /// Enumeration of available subcommands
@@ -30,10 +54,7 @@ pub enum Commands {
         after_help = "Default LLM provider: openai\nAvailable providers: claude, openai"
     )]
     Gen {
-        #[arg(short, long, help = "Enable verbose mode")]
-        verbose: bool,
-
-        #[arg(short, long, help = "Override use_gitmoji setting")]
+        #[arg(short = 'g', long, help = "Override use_gitmoji setting")]
         gitmoji: Option<bool>,
 
         #[arg(long, help = "Override default LLM provider")]
@@ -57,11 +78,11 @@ pub enum Commands {
         )]
         param: Option<Vec<String>>,
 
-        #[arg(short, long, help = "Set use_gitmoji preference")]
+        #[arg(short = 'g', long, help = "Set use_gitmoji preference")]
         gitmoji: Option<bool>,
 
         #[arg(
-            short,
+            short = 'c',
             long,
             help = "Set custom instructions for the commit message generation"
         )]
@@ -100,6 +121,18 @@ pub fn print_dynamic_help() {
 /// Main function to parse arguments and handle the command
 pub async fn main() -> anyhow::Result<()> {
     let cli = parse_args();
+
+    if cli.version {
+        println!("Version: {}", crate_version!());
+        return Ok(());
+    }
+
+    if cli.log {
+        crate::logger::enable_logging();
+    } else {
+        crate::logger::disable_logging();
+    }
+
     handle_command(cli).await
 }
 
@@ -107,17 +140,15 @@ pub async fn main() -> anyhow::Result<()> {
 pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Commands::Gen {
-            verbose,
             gitmoji,
             provider,
         } => {
             log_debug!(
-                "Handling 'gen' command with verbose: {}, gitmoji: {:?}, provider: {:?}",
-                verbose,
+                "Handling 'gen' command with gitmoji: {:?}, provider: {:?}",
                 gitmoji,
                 provider
             );
-            commands::handle_gen_command(verbose, gitmoji, provider, cli.auto_commit).await?;
+            commands::handle_gen_command(cli.log, gitmoji, provider, cli.auto_commit).await?;
         }
         Commands::Config {
             provider,
