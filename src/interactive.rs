@@ -1,7 +1,6 @@
 use crate::git;
 use crate::log_debug;
 use anyhow::Result;
-use colored::*;
 use console::{Key, Style, Term};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Write;
@@ -97,7 +96,6 @@ impl InteractiveCommit {
         // Display program name and version at the top right
         let term_width = term.size().1 as usize;
         let program_info = format!("{} v{}", self.program_name, self.program_version);
-        let padding = term_width.saturating_sub(program_info.len() + 1);
         let padded_info = format!("{:>width$}", program_info, width = term_width);
 
         writeln!(term, "{}", padded_info)?;

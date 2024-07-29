@@ -1,6 +1,6 @@
 use crate::commands;
 use crate::log_debug;
-use clap::{crate_name, crate_version, Parser, Subcommand};
+use clap::{crate_version, Parser, Subcommand};
 use colored::*;
 
 /// CLI structure defining the available commands and global arguments
