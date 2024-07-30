@@ -1,10 +1,9 @@
 use crate::config::Config;
-use crate::git::{FileChange, GitInfo, show_file_from_head};
+use crate::file_analyzers;
+use crate::git::{show_file_from_head, FileChange, GitInfo};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
-use crate::file_analyzers;
 use anyhow::Result;
-use std::fs;
 
 /// Create the system prompt for the LLM
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
@@ -117,17 +116,16 @@ fn format_detailed_changes(
         let file_type = analyzer.get_file_type();
         let file_analysis = analyzer.analyze(file, change);
 
-        let (file_content_before, file_content_after) =
-            if change.status != "D" && change.status != "A" {
-                (get_file_content_before(file)?, fs::read_to_string(file)?)
-            } else if change.status == "A" {
-                (String::new(), fs::read_to_string(file)?)
-            } else {
-                (get_file_content_before(file)?, String::new())
-            };
+        let file_content_before = if change.status != "D" && change.status != "A" {
+            get_file_content_before(file)?
+        } else if change.status == "A" {
+            String::new()
+        } else {
+            get_file_content_before(file)?
+        };
 
         detailed_changes.push(format!(
-            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}\n\nFile content before changes:\n{}\n\nFile content after changes:\n{}",
+            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}\n\nFile content before changes:\n{}\n\n",
             relative_path,
             format_file_status(&change.status),
             file_type,
@@ -138,7 +136,6 @@ fn format_detailed_changes(
             },
             change.diff,
             if change.status == "A" { "New file".to_string() } else { file_content_before },
-            if change.status == "D" { "File deleted".to_string() } else { file_content_after }
         ));
     }
 
@@ -147,9 +144,10 @@ fn format_detailed_changes(
 
 fn get_file_content_before(file: &str) -> Result<String> {
     let repo_path = std::env::current_dir()?;
-    let contents = show_file_from_head(&repo_path, file)?;
-
-    Ok(contents)
+    match show_file_from_head(&repo_path, file) {
+        Ok(contents) => Ok(contents),
+        Err(_) => Ok("File content not available.".to_string()),
+    }
 }
 
 fn format_file_status(status: &str) -> &str {

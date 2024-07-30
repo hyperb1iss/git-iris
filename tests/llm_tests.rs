@@ -70,7 +70,7 @@ mod tests {
         let config = Config::default();
 
         let result =
-            get_refined_message(&git_info, &config, "openai", false, false, None, "").await?;
+            get_refined_message(&git_info, &config, "openai", false, false, "").await?;
         assert_eq!(result, "Mocked commit message");
         Ok(())
     }
@@ -83,7 +83,7 @@ mod tests {
         let config = Config::default();
 
         let result =
-            get_refined_message(&git_info, &config, "claude", false, false, None, "").await?;
+            get_refined_message(&git_info, &config, "claude", false, false, "").await?;
         assert_eq!(result, "Mocked commit message");
         Ok(())
     }
@@ -99,35 +99,11 @@ mod tests {
             "unsupported_provider",
             false,
             false,
-            None,
             "",
         )
         .await;
 
         assert!(result.is_err());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_get_refined_message_with_existing_message() -> Result<()> {
-        init_mock_providers();
-
-        let git_info = create_mock_git_info();
-        let config = Config::default();
-        let existing_message = "Initial commit message";
-
-        let result = get_refined_message(
-            &git_info,
-            &config,
-            "openai",
-            false,
-            false,
-            Some(existing_message),
-            "",
-        )
-        .await?;
-
-        assert_eq!(result, "Mocked commit message");
         Ok(())
     }
 }
