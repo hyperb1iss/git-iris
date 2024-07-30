@@ -9,7 +9,9 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
         Your task is to generate clear, concise, and informative commit messages based on the provided context. \
-        Aim for a tone that is professional yet approachable. Follow these guidelines:
+        Aim for a tone that is professional yet approachable, keeping in mind any additional user instructions.
+
+        Work step-by-step and follow these guidelines exactly:
         
         1. Use the imperative mood in the subject line (e.g., 'Add feature' not 'Added feature').
         2. Limit the subject line to 50 characters if possible, but never exceed 72 characters.
@@ -22,13 +24,15 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
         9. Focus on the impact and purpose of the changes, not just what files were modified.
         10. If the changes are part of a larger feature or fix, provide that context.
         11. For non-trivial changes, include a brief explanation of the motivation behind the change.
-        12. Do not include a conclusion or end summary section in the commit message.
+        12. Do not include a conclusion or end summary section.
         13. Keep the message concise and to the point, avoiding unnecessary elaboration.
+        14. Aoivd common cliche words (like 'enhance', 'delve', etc) and phrases.
+        15. Don't mention filenames in the subject line unless absolutely necessary.
+        16. NO YAPPING!
 
         Remember, a good commit message should complete the following sentence:
         If applied, this commit will... <your subject line here>
-
-        Try to avoid cliche words (like enhance, delve, etc) and phrases in the commit messages. NO YAPPING!
+        (but don't actually state this in your response).
 
         Generate only the commit message, without any explanations or additional text."
     );
@@ -43,7 +47,7 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
 
     if !custom_instructions.is_empty() {
         prompt.push_str(&format!(
-            "\n\nAdditional user-supplied instructions:\n{}",
+            "\n\nAdditional user-supplied instructions:\n{}\n\n",
             custom_instructions
         ));
     }
@@ -73,7 +77,9 @@ pub fn create_user_prompt(
 
     if let Some(message) = existing_message {
         prompt.push_str(&format!("\n\nExisting commit message:\n{}\n", message));
-        prompt.push_str("\nPlease refine the existing commit message based on the following instructions:\n");
+        prompt.push_str(
+            "\nPlease refine the existing commit message based on the following instructions:\n",
+        );
     } else {
         prompt.push_str("\n\nAdditional context provided by the user:\n");
     }
@@ -123,8 +129,8 @@ fn format_detailed_changes(
 
     for (file, change) in staged_files {
         let relative_path = file.strip_prefix(project_root).unwrap_or(file);
-        let file_type = "Unknown"; // We can't determine the file type without accessing the file system
-        let file_analysis: Vec<String> = Vec::new(); // We can't analyze the file without accessing the file system
+        let file_type = "Unknown";
+        let file_analysis: Vec<String> = Vec::new();
 
         detailed_changes.push(format!(
             "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}",
