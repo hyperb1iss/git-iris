@@ -125,7 +125,7 @@ fn format_staged_files(files: &[StagedFile], relevance_scores: &HashMap<String, 
 fn format_project_metadata(metadata: &ProjectMetadata) -> String {
     format!(
         "Language: {}\nFramework: {}\nDependencies: {}",
-        metadata.language,
+        metadata.language.as_deref().unwrap_or("None"),
         metadata.framework.as_deref().unwrap_or("None"),
         metadata.dependencies.join(", ")
     )

@@ -62,7 +62,8 @@ fn test_get_git_info() {
     assert_eq!(context.unstaged_files.len(), 0);
 
     // Test project metadata
-    assert_eq!(context.project_metadata.language, "Unknown");
+    assert_eq!(context.project_metadata.language, Some("Unknown".to_string()));
+
 
     // Create and stage a new file
     let new_file_path = temp_dir.path().join("new_file.txt");

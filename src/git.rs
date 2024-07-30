@@ -3,6 +3,7 @@ use crate::file_analyzers;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use std::path::Path;
+use walkdir::WalkDir;
 
 pub fn get_git_info(repo_path: &Path) -> Result<CommitContext> {
     let repo = Repository::open(repo_path)?;
@@ -127,28 +128,43 @@ fn is_binary_diff(diff: &str) -> bool {
 }
 
 fn get_project_metadata(repo_path: &Path) -> Result<ProjectMetadata> {
-    let mut language = "Unknown".to_string();
-    let framework = None;
-    let dependencies = Vec::new();
+    let mut combined_metadata = ProjectMetadata::default();
 
-    if repo_path.join("Cargo.toml").exists() {
-        language = "Rust".to_string();
-        // TODO: Parse Cargo.toml to get dependencies
-    } else if repo_path.join("package.json").exists() {
-        language = "JavaScript".to_string();
-        // TODO: Parse package.json to get dependencies and possibly framework
-    } else if repo_path.join("requirements.txt").exists() {
-        language = "Python".to_string();
-        // TODO: Parse requirements.txt to get dependencies
+    for entry in WalkDir::new(repo_path).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            let file_path = entry.path();
+            let file_name = file_path.file_name().unwrap().to_str().unwrap();
+            let analyzer = file_analyzers::get_analyzer(file_name);
+
+            if let Ok(content) = std::fs::read_to_string(file_path) {
+                let metadata = analyzer.extract_metadata(file_name, &content);
+                merge_metadata(&mut combined_metadata, metadata);
+            }
+        }
     }
 
-    // TODO: Implement more sophisticated detection logic
+    Ok(combined_metadata)
+}
 
-    Ok(ProjectMetadata {
-        language,
-        framework,
-        dependencies,
-    })
+fn merge_metadata(combined: &mut ProjectMetadata, new: ProjectMetadata) {
+    if combined.language.is_none() {
+        combined.language = new.language;
+    }
+    if combined.framework.is_none() {
+        combined.framework = new.framework;
+    }
+    if combined.version.is_none() {
+        combined.version = new.version;
+    }
+    if combined.build_system.is_none() {
+        combined.build_system = new.build_system;
+    }
+    if combined.test_framework.is_none() {
+        combined.test_framework = new.test_framework;
+    }
+    combined.dependencies.extend(new.dependencies);
+    combined.dependencies.sort();
+    combined.dependencies.dedup();
 }
 
 pub fn check_environment() -> Result<()> {

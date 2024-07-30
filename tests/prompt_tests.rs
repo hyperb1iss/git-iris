@@ -19,9 +19,13 @@ fn create_mock_commit_context() -> CommitContext {
         }],
         unstaged_files: vec!["unstaged_file.txt".to_string()],
         project_metadata: ProjectMetadata {
-            language: "Rust".to_string(),
+            language: Some("Rust".to_string()),
             framework: None,
             dependencies: vec![],
+            version: None,
+            build_system: None,
+            test_framework: None,
+            plugins: vec![],
         },
     }
 }
@@ -125,9 +129,13 @@ fn test_create_prompt_with_multiple_staged_files() {
 fn test_create_prompt_with_project_metadata() {
     let mut commit_context = create_mock_commit_context();
     commit_context.project_metadata = ProjectMetadata {
-        language: "Rust".to_string(),
+        language: Some("Rust".to_string()),
         framework: Some("Rocket".to_string()),
         dependencies: vec!["serde".to_string(), "tokio".to_string()],
+        version: None,
+        build_system: None,
+        test_framework: None,
+        plugins: vec![],
     };
 
     let config = Config::default();

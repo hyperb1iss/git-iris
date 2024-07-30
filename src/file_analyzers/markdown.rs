@@ -1,4 +1,4 @@
-use super::FileAnalyzer;
+use super::{FileAnalyzer, ProjectMetadata};
 use crate::context::StagedFile;
 use regex::Regex;
 
@@ -29,6 +29,43 @@ impl FileAnalyzer for MarkdownAnalyzer {
 
     fn get_file_type(&self) -> &'static str {
         "Markdown file"
+    }
+
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+
+        if file.to_lowercase() == "readme.md" {
+            self.extract_readme_metadata(content, &mut metadata);
+        }
+
+        metadata
+    }
+}
+
+impl MarkdownAnalyzer {
+    fn extract_readme_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+        // Extract project name from the first header
+        let title_re = Regex::new(r"(?m)^#\s+(.+)$").unwrap();
+        if let Some(cap) = title_re.captures(content) {
+            metadata.language = Some(cap[1].to_string());
+        }
+
+        // Look for badges that might indicate the build system or test framework
+        if content.contains("travis-ci.org") {
+            metadata.build_system = Some("Travis CI".to_string());
+        } else if content.contains("github.com/actions/workflows") {
+            metadata.build_system = Some("GitHub Actions".to_string());
+        }
+
+        if content.contains("coveralls.io") {
+            metadata.test_framework = Some("Coveralls".to_string());
+        }
+
+        // Extract version if present
+        let version_re = Regex::new(r"(?i)version[:\s]+(\d+\.\d+\.\d+)").unwrap();
+        if let Some(cap) = version_re.captures(content) {
+            metadata.version = Some(cap[1].to_string());
+        }
     }
 }
 

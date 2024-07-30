@@ -34,9 +34,27 @@ pub enum ChangeType {
 
 #[derive(Serialize, Debug)]
 pub struct ProjectMetadata {
-    pub language: String,
+    pub language: Option<String>,
     pub framework: Option<String>,
     pub dependencies: Vec<String>,
+    pub version: Option<String>,
+    pub build_system: Option<String>,
+    pub test_framework: Option<String>,
+    pub plugins: Vec<String>,
+}
+
+impl Default for ProjectMetadata {
+    fn default() -> Self {
+        ProjectMetadata {
+            language: None,
+            framework: None,
+            dependencies: Vec::new(),
+            version: None,
+            build_system: None,
+            test_framework: None,
+            plugins: Vec::new(),
+        }
+    }
 }
 
 impl CommitContext {

@@ -1,19 +1,22 @@
-// src/file_analyzers/mod.rs
-
-use crate::context::StagedFile;
+use crate::context::{ProjectMetadata, StagedFile};
 
 /// Trait for analyzing files and extracting relevant information
 pub trait FileAnalyzer {
-    /// Analyze the file and return a list of analysis results
     fn analyze(&self, file: &str, staged_file: &StagedFile) -> Vec<String>;
-    /// Get the type of the file being analyzed
     fn get_file_type(&self) -> &'static str;
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata;
 }
 
+/// Module for analyzing Gradle files
+mod gradle;
+/// Module for analyzing Java files
+mod java;
 /// Module for analyzing JavaScript files
 mod javascript;
 /// Module for analyzing JSON files
 mod json;
+/// Module for analyzing Kotlin files
+mod kotlin;
 /// Module for analyzing Markdown files
 mod markdown;
 /// Module for analyzing Python files
@@ -22,12 +25,6 @@ mod python;
 mod rust;
 /// Module for analyzing YAML files
 mod yaml;
-/// Module for analyzing Java files
-mod java;
-/// Module for analyzing Kotlin files
-mod kotlin;
-/// Module for analyzing Gradle files
-mod gradle;
 
 /// Get the appropriate file analyzer based on the file extension
 pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
@@ -64,5 +61,11 @@ impl FileAnalyzer for DefaultAnalyzer {
 
     fn get_file_type(&self) -> &'static str {
         "Unknown file type"
+    }
+
+    fn extract_metadata(&self, _file: &str, _content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+        metadata.language = Some("Unknown".to_string());
+        metadata
     }
 }

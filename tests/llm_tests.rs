@@ -46,9 +46,13 @@ mod tests {
             }],
             unstaged_files: vec!["unstaged_file.txt".to_string()],
             project_metadata: ProjectMetadata {
-                language: "Rust".to_string(),
+                language: Some("Rust".to_string()),
                 framework: None,
                 dependencies: vec![],
+                version: None,
+                build_system: None,
+                test_framework: None,
+                plugins: vec![],
             },
         }
     }

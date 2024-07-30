@@ -1,4 +1,4 @@
-use super::FileAnalyzer;
+use super::{FileAnalyzer, ProjectMetadata};
 use crate::context::StagedFile;
 use regex::Regex;
 use std::collections::HashSet;
@@ -26,6 +26,26 @@ impl FileAnalyzer for YamlAnalyzer {
 
     fn get_file_type(&self) -> &'static str {
         "YAML configuration file"
+    }
+
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+
+        if file == "docker-compose.yml" || file == "docker-compose.yaml" {
+            metadata.build_system = Some("Docker Compose".to_string());
+        } else if file.ends_with(".github/workflows/ci.yml") || file.ends_with(".github/workflows/ci.yaml") {
+            metadata.build_system = Some("GitHub Actions".to_string());
+        } else if file == ".travis.yml" {
+            metadata.build_system = Some("Travis CI".to_string());
+        }
+
+        // Extract version if present
+        let version_re = Regex::new(r#"(?m)^version:\s*['"]?(.+?)['"]?$"#).unwrap();
+        if let Some(cap) = version_re.captures(content) {
+            metadata.version = Some(cap[1].to_string());
+        }
+
+        metadata
     }
 }
 

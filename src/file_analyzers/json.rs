@@ -1,4 +1,4 @@
-use super::FileAnalyzer;
+use super::{FileAnalyzer, ProjectMetadata};
 use crate::context::StagedFile;
 use regex::Regex;
 use std::collections::HashSet;
@@ -26,6 +26,59 @@ impl FileAnalyzer for JsonAnalyzer {
 
     fn get_file_type(&self) -> &'static str {
         "JSON configuration file"
+    }
+
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+
+        if file == "package.json" {
+            self.extract_package_json_metadata(content, &mut metadata);
+        } else if file == "tsconfig.json" {
+            metadata.language = Some("TypeScript".to_string());
+        }
+
+        metadata
+    }
+}
+
+impl JsonAnalyzer {
+    fn extract_package_json_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
+            if let Some(version) = json["version"].as_str() {
+                metadata.version = Some(version.to_string());
+            }
+
+            if let Some(dependencies) = json["dependencies"].as_object() {
+                for dep in dependencies.keys() {
+                    metadata.dependencies.push(dep.to_string());
+                }
+            }
+
+            if let Some(dev_dependencies) = json["devDependencies"].as_object() {
+                for dep in dev_dependencies.keys() {
+                    metadata.dependencies.push(dep.to_string());
+                }
+            }
+
+            metadata.language = Some("JavaScript".to_string());
+            metadata.build_system = Some("npm".to_string());
+
+            // Detect framework
+            if json["dependencies"].get("react").is_some() {
+                metadata.framework = Some("React".to_string());
+            } else if json["dependencies"].get("vue").is_some() {
+                metadata.framework = Some("Vue".to_string());
+            } else if json["dependencies"].get("@angular/core").is_some() {
+                metadata.framework = Some("Angular".to_string());
+            }
+
+            // Detect test framework
+            if json["devDependencies"].get("jest").is_some() {
+                metadata.test_framework = Some("Jest".to_string());
+            } else if json["devDependencies"].get("mocha").is_some() {
+                metadata.test_framework = Some("Mocha".to_string());
+            }
+        }
     }
 }
 

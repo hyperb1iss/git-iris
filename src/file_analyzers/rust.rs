@@ -1,6 +1,4 @@
-// src/file_analyzers/rust.rs
-
-use super::FileAnalyzer;
+use super::{FileAnalyzer, ProjectMetadata};
 use crate::context::StagedFile;
 use regex::Regex;
 
@@ -36,6 +34,50 @@ impl FileAnalyzer for RustAnalyzer {
 
     fn get_file_type(&self) -> &'static str {
         "Rust source file"
+    }
+
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+        metadata.language = Some("Rust".to_string());
+
+        if file == "Cargo.toml" {
+            self.extract_cargo_metadata(content, &mut metadata);
+        }
+
+        metadata
+    }
+}
+
+impl RustAnalyzer {
+    fn extract_cargo_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+        let version_re = Regex::new(r#"version\s*=\s*"([^"]+)""#).unwrap();
+        if let Some(cap) = version_re.captures(content) {
+            metadata.version = Some(cap[1].to_string());
+        }
+
+        let deps_re = Regex::new(r#"(?m)^\[dependencies\](?:\s*\n(?:.*\s*=\s*.*)*)"#).unwrap();
+        if let Some(deps_section) = deps_re.find(content) {
+            let deps_lines = deps_section.as_str().lines().skip(1);
+            for line in deps_lines {
+                if let Some(dep_name) = line.split('=').next() {
+                    metadata.dependencies.push(dep_name.trim().to_string());
+                }
+            }
+        }
+
+        if content.contains("rocket") {
+            metadata.framework = Some("Rocket".to_string());
+        } else if content.contains("actix") {
+            metadata.framework = Some("Actix".to_string());
+        }
+
+        metadata.build_system = Some("Cargo".to_string());
+
+        if content.contains("[dev-dependencies]")
+            && (content.contains("\"test\"") || content.contains("'test'"))
+        {
+            metadata.test_framework = Some("built-in".to_string());
+        }
     }
 }
 

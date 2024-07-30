@@ -1,4 +1,4 @@
-use super::FileAnalyzer;
+use super::{FileAnalyzer, ProjectMetadata};
 use crate::context::StagedFile;
 use regex::Regex;
 use std::collections::HashSet;
@@ -33,6 +33,56 @@ impl FileAnalyzer for JavaScriptAnalyzer {
 
     fn get_file_type(&self) -> &'static str {
         "JavaScript/TypeScript source file"
+    }
+
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+        metadata.language = Some(if file.ends_with(".ts") { "TypeScript" } else { "JavaScript" }.to_string());
+
+        if file == "package.json" {
+            self.extract_package_json_metadata(content, &mut metadata);
+        } else {
+            self.extract_js_file_metadata(content, &mut metadata);
+        }
+
+        metadata
+    }
+}
+
+impl JavaScriptAnalyzer {
+    fn extract_package_json_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
+            if let Some(version) = json["version"].as_str() {
+                metadata.version = Some(version.to_string());
+            }
+
+            if let Some(dependencies) = json["dependencies"].as_object() {
+                for dep in dependencies.keys() {
+                    metadata.dependencies.push(dep.to_string());
+                }
+            }
+
+            if let Some(dev_dependencies) = json["devDependencies"].as_object() {
+                for dep in dev_dependencies.keys() {
+                    if dep.contains("test") || dep.contains("jest") || dep.contains("mocha") {
+                        metadata.test_framework = Some(dep.to_string());
+                        break;
+                    }
+                }
+            }
+
+            metadata.build_system = Some("npm".to_string());
+        }
+    }
+
+    fn extract_js_file_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+        if content.contains("import React") || content.contains("from 'react'") {
+            metadata.framework = Some("React".to_string());
+        } else if content.contains("import Vue") || content.contains("from 'vue'") {
+            metadata.framework = Some("Vue".to_string());
+        } else if content.contains("import { Component") || content.contains("from '@angular/core'") {
+            metadata.framework = Some("Angular".to_string());
+        }
     }
 }
 
