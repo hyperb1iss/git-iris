@@ -167,6 +167,20 @@ pub fn check_environment() -> Result<()> {
     Ok(())
 }
 
+/// Show file contents from HEAD
+pub fn show_file_from_head(repo_path: &Path, file: &str) -> Result<String> {
+    let repo = Repository::open(repo_path)?;
+    let head = repo.head()?;
+    let head_commit = head.peel_to_commit()?;
+    let tree = head_commit.tree()?;
+    let entry = tree.get_path(Path::new(file))?;
+    let object = entry.to_object(&repo)?;
+    let blob = object
+        .as_blob()
+        .ok_or_else(|| anyhow!("Failed to get blob"))?;
+    Ok(String::from_utf8_lossy(blob.content()).to_string())
+}
+
 /// Check if the current directory is inside a Git work tree
 pub fn is_inside_work_tree() -> Result<bool> {
     // Example: Check if we're inside a Git repository

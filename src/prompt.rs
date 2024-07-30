@@ -1,8 +1,10 @@
 use crate::config::Config;
-use crate::git::{FileChange, GitInfo};
+use crate::git::{FileChange, GitInfo, show_file_from_head};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
+use crate::file_analyzers;
 use anyhow::Result;
+use std::fs;
 
 /// Create the system prompt for the LLM
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
@@ -111,11 +113,21 @@ fn format_detailed_changes(
 
     for (file, change) in staged_files {
         let relative_path = file.strip_prefix(project_root).unwrap_or(file);
-        let file_type = "Unknown";
-        let file_analysis: Vec<String> = Vec::new();
+        let analyzer = file_analyzers::get_analyzer(file);
+        let file_type = analyzer.get_file_type();
+        let file_analysis = analyzer.analyze(file, change);
+
+        let (file_content_before, file_content_after) =
+            if change.status != "D" && change.status != "A" {
+                (get_file_content_before(file)?, fs::read_to_string(file)?)
+            } else if change.status == "A" {
+                (String::new(), fs::read_to_string(file)?)
+            } else {
+                (get_file_content_before(file)?, String::new())
+            };
 
         detailed_changes.push(format!(
-            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}",
+            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}\n\nFile content before changes:\n{}\n\nFile content after changes:\n{}",
             relative_path,
             format_file_status(&change.status),
             file_type,
@@ -125,10 +137,19 @@ fn format_detailed_changes(
                 file_analysis.join(", ")
             },
             change.diff,
+            if change.status == "A" { "New file".to_string() } else { file_content_before },
+            if change.status == "D" { "File deleted".to_string() } else { file_content_after }
         ));
     }
 
     Ok(detailed_changes.join("\n\n---\n\n"))
+}
+
+fn get_file_content_before(file: &str) -> Result<String> {
+    let repo_path = std::env::current_dir()?;
+    let contents = show_file_from_head(&repo_path, file)?;
+
+    Ok(contents)
 }
 
 fn format_file_status(status: &str) -> &str {
