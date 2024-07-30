@@ -56,12 +56,8 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
 }
 
 /// Create the user prompt for the LLM
-pub fn create_user_prompt(
-    git_info: &GitInfo,
-    verbose: bool,
-    existing_message: Option<&str>,
-) -> Result<String> {
-    let mut prompt = format!(
+pub fn create_user_prompt(git_info: &GitInfo, verbose: bool) -> Result<String> {
+    let prompt = format!(
         "Based on the following context, generate a Git commit message:\n\n\
         Branch: {}\n\n\
         Recent commits:\n{}\n\n\
@@ -75,15 +71,6 @@ pub fn create_user_prompt(
         format_detailed_changes(&git_info.staged_files, &git_info.project_root)?
     );
 
-    if let Some(message) = existing_message {
-        prompt.push_str(&format!("\n\nExisting commit message:\n{}\n", message));
-        prompt.push_str(
-            "\nPlease refine the existing commit message based on the following instructions:\n",
-        );
-    } else {
-        prompt.push_str("\n\nAdditional context provided by the user:\n");
-    }
-
     if verbose {
         log_debug!("User Prompt:\n{}", prompt);
     }
@@ -91,14 +78,9 @@ pub fn create_user_prompt(
     Ok(prompt)
 }
 
-pub fn create_prompt(
-    git_info: &GitInfo,
-    config: &Config,
-    verbose: bool,
-    existing_message: Option<&str>,
-) -> Result<String> {
+pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Result<String> {
     let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
-    let user_prompt = create_user_prompt(git_info, verbose, existing_message)?;
+    let user_prompt = create_user_prompt(git_info, verbose)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
 

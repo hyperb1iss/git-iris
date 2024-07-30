@@ -41,7 +41,7 @@ impl InteractiveCommit {
 
     pub async fn run<F, Fut>(&mut self, generate_message: F) -> Result<bool>
     where
-        F: Fn(Option<String>, &str) -> Fut,
+        F: Fn(&str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut term = Term::stdout();
@@ -102,7 +102,10 @@ impl InteractiveCommit {
 
         let current_message_number = self.current_index + 1;
         let total_messages = self.messages.len();
-        let title = format!("Commit Message ({}/{})", current_message_number, total_messages);
+        let title = format!(
+            "Commit Message ({}/{})",
+            current_message_number, total_messages
+        );
 
         self.display_title(term, &title, '✦', term_width)?;
 
@@ -315,7 +318,7 @@ impl InteractiveCommit {
 
     async fn regenerate_message<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn(Option<String>, &str) -> Fut,
+        F: Fn(&str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let spinner = ProgressBar::new_spinner();
@@ -327,9 +330,7 @@ impl InteractiveCommit {
         );
         spinner.enable_steady_tick(Duration::from_millis(100));
 
-        let existing_message = self.messages[self.current_index].clone();
-        let new_message =
-            generate_message(Some(existing_message), &self.custom_instructions).await?;
+        let new_message = generate_message(&self.custom_instructions).await?;
         self.messages.push(new_message);
         self.current_index = self.messages.len() - 1;
 
@@ -358,7 +359,7 @@ impl InteractiveCommit {
 
     async fn edit_custom_instructions<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
-        F: Fn(Option<String>, &str) -> Fut,
+        F: Fn(&str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut file = tempfile::NamedTempFile::new()?;

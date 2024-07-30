@@ -4,11 +4,11 @@ use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
 use crate::log_debug;
 use anyhow::{anyhow, Result};
+use clap::{crate_name, crate_version};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use clap::{crate_name, crate_version};
 
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
@@ -78,7 +78,6 @@ pub async fn handle_gen_command(
         &provider,
         use_gitmoji,
         verbose,
-        None,
         &custom_instructions,
     )
     .await?;
@@ -95,7 +94,7 @@ pub async fn handle_gen_command(
 
     // Run the interactive commit process
     let commit_performed = interactive_commit
-        .run(move |existing_message, custom_instructions| {
+        .run(move |custom_instructions| {
             let config = Arc::clone(&config);
             let provider = Arc::clone(&provider);
             let current_dir = Arc::clone(&current_dir);
@@ -110,7 +109,6 @@ pub async fn handle_gen_command(
                     &provider,
                     use_gitmoji,
                     verbose,
-                    existing_message.as_deref(),
                     &custom_instructions,
                 )
                 .await
