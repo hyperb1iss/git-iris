@@ -1,31 +1,29 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 
 pub struct PythonAnalyzer;
 
 impl FileAnalyzer for PythonAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        if let Some(functions) = extract_modified_functions(&change.diff) {
-            println!("Python Debug: Detected functions: {:?}", functions);
+        if let Some(functions) = extract_modified_functions(&staged_file.diff) {
             analysis.push(format!("Modified functions: {}", functions.join(", ")));
         }
 
-        if let Some(classes) = extract_modified_classes(&change.diff) {
+        if let Some(classes) = extract_modified_classes(&staged_file.diff) {
             analysis.push(format!("Modified classes: {}", classes.join(", ")));
         }
 
-        if has_import_changes(&change.diff) {
+        if has_import_changes(&staged_file.diff) {
             analysis.push("Import statements have been modified".to_string());
         }
 
-        if let Some(decorators) = extract_modified_decorators(&change.diff) {
+        if let Some(decorators) = extract_modified_decorators(&staged_file.diff) {
             analysis.push(format!("Modified decorators: {}", decorators.join(", ")));
         }
 
-        println!("Python Debug: Final analysis: {:?}", analysis);
         analysis
     }
 

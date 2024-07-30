@@ -1,31 +1,33 @@
+// src/file_analyzers/rust.rs
+
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 
 /// Analyzer for Rust source files
 pub struct RustAnalyzer;
 
 impl FileAnalyzer for RustAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
         // Check for new or modified functions
-        if let Some(functions) = extract_modified_functions(&change.diff) {
+        if let Some(functions) = extract_modified_functions(&staged_file.diff) {
             analysis.push(format!("Modified functions: {}", functions.join(", ")));
         }
 
         // Check for new or modified structs
-        if let Some(structs) = extract_modified_structs(&change.diff) {
+        if let Some(structs) = extract_modified_structs(&staged_file.diff) {
             analysis.push(format!("Modified structs: {}", structs.join(", ")));
         }
 
         // Check for new or modified traits
-        if let Some(traits) = extract_modified_traits(&change.diff) {
+        if let Some(traits) = extract_modified_traits(&staged_file.diff) {
             analysis.push(format!("Modified traits: {}", traits.join(", ")));
         }
 
         // Check for new or modified imports
-        if has_import_changes(&change.diff) {
+        if has_import_changes(&staged_file.diff) {
             analysis.push("Import statements have been modified".to_string());
         }
 

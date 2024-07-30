@@ -1,31 +1,26 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 
-/// Analyzer for Markdown files
 pub struct MarkdownAnalyzer;
 
 impl FileAnalyzer for MarkdownAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        // Check for new or modified headers
-        if let Some(headers) = extract_modified_headers(&change.diff) {
+        if let Some(headers) = extract_modified_headers(&staged_file.diff) {
             analysis.push(format!("Modified headers: {}", headers.join(", ")));
         }
 
-        // Check for changes in lists
-        if has_list_changes(&change.diff) {
+        if has_list_changes(&staged_file.diff) {
             analysis.push("List structures have been modified".to_string());
         }
 
-        // Check for changes in code blocks
-        if has_code_block_changes(&change.diff) {
+        if has_code_block_changes(&staged_file.diff) {
             analysis.push("Code blocks have been modified".to_string());
         }
 
-        // Check for changes in links
-        if has_link_changes(&change.diff) {
+        if has_link_changes(&staged_file.diff) {
             analysis.push("Links have been modified".to_string());
         }
 

@@ -1,23 +1,23 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 use std::collections::HashSet;
 
 pub struct JavaAnalyzer;
 
 impl FileAnalyzer for JavaAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        if let Some(classes) = extract_modified_classes(&change.diff) {
+        if let Some(classes) = extract_modified_classes(&staged_file.diff) {
             analysis.push(format!("Modified classes: {}", classes.join(", ")));
         }
 
-        if let Some(methods) = extract_modified_methods(&change.diff) {
+        if let Some(methods) = extract_modified_methods(&staged_file.diff) {
             analysis.push(format!("Modified methods: {}", methods.join(", ")));
         }
 
-        if has_import_changes(&change.diff) {
+        if has_import_changes(&staged_file.diff) {
             analysis.push("Import statements have been modified".to_string());
         }
 

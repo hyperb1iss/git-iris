@@ -1,22 +1,22 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 
 pub struct KotlinAnalyzer;
 
 impl FileAnalyzer for KotlinAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        if let Some(classes) = extract_modified_classes(&change.diff) {
+        if let Some(classes) = extract_modified_classes(&staged_file.diff) {
             analysis.push(format!("Modified classes: {}", classes.join(", ")));
         }
 
-        if let Some(functions) = extract_modified_functions(&change.diff) {
+        if let Some(functions) = extract_modified_functions(&staged_file.diff) {
             analysis.push(format!("Modified functions: {}", functions.join(", ")));
         }
 
-        if has_import_changes(&change.diff) {
+        if has_import_changes(&staged_file.diff) {
             analysis.push("Import statements have been modified".to_string());
         }
 

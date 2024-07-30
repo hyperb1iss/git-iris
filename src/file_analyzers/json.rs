@@ -1,28 +1,26 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 use std::collections::HashSet;
 
 pub struct JsonAnalyzer;
 
 impl FileAnalyzer for JsonAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        if let Some(keys) = extract_modified_top_level_keys(&change.diff) {
-            println!("JSON Debug: Detected keys: {:?}", keys);
+        if let Some(keys) = extract_modified_top_level_keys(&staged_file.diff) {
             analysis.push(format!("Modified top-level keys: {}", keys.join(", ")));
         }
 
-        if has_array_changes(&change.diff) {
+        if has_array_changes(&staged_file.diff) {
             analysis.push("Array structures have been modified".to_string());
         }
 
-        if has_nested_object_changes(&change.diff) {
+        if has_nested_object_changes(&staged_file.diff) {
             analysis.push("Nested objects have been modified".to_string());
         }
 
-        println!("JSON Debug: Final analysis: {:?}", analysis);
         analysis
     }
 

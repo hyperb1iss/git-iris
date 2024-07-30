@@ -1,11 +1,24 @@
 use crate::config::Config;
-use crate::file_analyzers;
-use crate::git::{show_file_from_head, FileChange, GitInfo};
+use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
+use crate::relevance::RelevanceScorer;
 use anyhow::Result;
+use std::collections::HashMap;
 
-/// Create the system prompt for the LLM
+pub fn create_prompt(context: &CommitContext, config: &Config, verbose: bool) -> Result<String> {
+    let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
+    let user_prompt = create_user_prompt(context, verbose)?;
+
+    let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
+
+    if verbose {
+        log_debug!("Full Prompt:\n{}", full_prompt);
+    }
+
+    Ok(full_prompt)
+}
+
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
@@ -27,7 +40,7 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
         11. For non-trivial changes, include a brief explanation of the motivation behind the change.
         12. Do not include a conclusion or end summary section.
         13. Keep the message concise and to the point, avoiding unnecessary elaboration.
-        14. Aoivd common cliche words (like 'enhance', 'delve', etc) and phrases.
+        14. Avoid common cliché words (like 'enhance', 'delve', etc) and phrases.
         15. Don't mention filenames in the subject line unless absolutely necessary.
         16. NO YAPPING!
 
@@ -56,106 +69,94 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
     prompt
 }
 
-/// Create the user prompt for the LLM
-pub fn create_user_prompt(git_info: &GitInfo, verbose: bool) -> Result<String> {
+pub fn create_user_prompt(context: &CommitContext, verbose: bool) -> Result<String> {
+    let scorer = RelevanceScorer::new();
+    let relevance_scores = scorer.score(context);
+    let detailed_changes = format_detailed_changes(&context.staged_files, &relevance_scores);
+
     let prompt = format!(
         "Based on the following context, generate a Git commit message:\n\n\
         Branch: {}\n\n\
         Recent commits:\n{}\n\n\
         Staged changes:\n{}\n\n\
         Unstaged files:\n{}\n\n\
+        Project metadata:\n{}\n\n\
         Detailed changes:\n{}",
-        git_info.branch,
-        format_recent_commits(&git_info.recent_commits),
-        format_staged_files(&git_info.staged_files),
-        git_info.unstaged_files.join(", "),
-        format_detailed_changes(&git_info.staged_files, &git_info.project_root)?
+        context.branch,
+        format_recent_commits(&context.recent_commits),
+        format_staged_files(&context.staged_files, &relevance_scores),
+        context.unstaged_files.join(", "),
+        format_project_metadata(&context.project_metadata),
+        detailed_changes
     );
 
     if verbose {
+        log_debug!("Detailed changes:\n{}", detailed_changes);
         log_debug!("User Prompt:\n{}", prompt);
     }
 
     Ok(prompt)
 }
 
-pub fn create_prompt(git_info: &GitInfo, config: &Config, verbose: bool) -> Result<String> {
-    let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
-    let user_prompt = create_user_prompt(git_info, verbose)?;
-
-    let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
-
-    if verbose {
-        log_debug!("Full Prompt:\n{}", full_prompt);
-    }
-
-    Ok(full_prompt)
-}
-
-fn format_recent_commits(commits: &[String]) -> String {
-    commits.join("\n")
-}
-
-fn format_staged_files(staged_files: &std::collections::HashMap<String, FileChange>) -> String {
-    staged_files
+fn format_recent_commits(commits: &[RecentCommit]) -> String {
+    commits
         .iter()
-        .map(|(file, change)| format!("{} ({})", file, format_file_status(&change.status),))
-        .collect::<Vec<String>>()
+        .map(|commit| format!("{} - {}", &commit.hash[..7], commit.message))
+        .collect::<Vec<_>>()
         .join("\n")
 }
 
+fn format_staged_files(files: &[StagedFile], relevance_scores: &HashMap<String, f32>) -> String {
+    files
+        .iter()
+        .map(|file| {
+            let relevance = relevance_scores.get(&file.path).unwrap_or(&0.0);
+            format!(
+                "{} ({:.2}) - {}",
+                file.path,
+                relevance,
+                format_change_type(&file.change_type)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_project_metadata(metadata: &ProjectMetadata) -> String {
+    format!(
+        "Language: {}\nFramework: {}\nDependencies: {}",
+        metadata.language,
+        metadata.framework.as_deref().unwrap_or("None"),
+        metadata.dependencies.join(", ")
+    )
+}
+
 fn format_detailed_changes(
-    staged_files: &std::collections::HashMap<String, FileChange>,
-    project_root: &str,
-) -> Result<String> {
-    let mut detailed_changes = Vec::new();
-
-    for (file, change) in staged_files {
-        let relative_path = file.strip_prefix(project_root).unwrap_or(file);
-        let analyzer = file_analyzers::get_analyzer(file);
-        let file_type = analyzer.get_file_type();
-        let file_analysis = analyzer.analyze(file, change);
-
-        let file_content_before = if change.status != "D" && change.status != "A" {
-            get_file_content_before(file)?
-        } else if change.status == "A" {
-            String::new()
-        } else {
-            get_file_content_before(file)?
-        };
-
-        detailed_changes.push(format!(
-            "File: {} ({}, {})\n\nAnalysis:\n{}\n\nDiff:\n{}\n\nFile content before changes:\n{}\n\n",
-            relative_path,
-            format_file_status(&change.status),
-            file_type,
-            if file_analysis.is_empty() {
-                "No significant patterns detected.".to_string()
-            } else {
-                file_analysis.join(", ")
-            },
-            change.diff,
-            if change.status == "A" { "New file".to_string() } else { file_content_before },
-        ));
-    }
-
-    Ok(detailed_changes.join("\n\n---\n\n"))
+    files: &[StagedFile],
+    relevance_scores: &HashMap<String, f32>,
+) -> String {
+    files
+        .iter()
+        .map(|file| {
+            let relevance = relevance_scores.get(&file.path).unwrap_or(&0.0);
+            format!(
+                "File: {} (Relevance: {:.2})\nChange Type: {}\nAnalysis:\n{}\n\nDiff:\n{}",
+                file.path,
+                relevance,
+                format_change_type(&file.change_type),
+                file.analysis.join("\n"),
+                file.diff
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n---\n\n")
 }
 
-fn get_file_content_before(file: &str) -> Result<String> {
-    let repo_path = std::env::current_dir()?;
-    match show_file_from_head(&repo_path, file) {
-        Ok(contents) => Ok(contents),
-        Err(_) => Ok("File content not available.".to_string()),
-    }
-}
-
-fn format_file_status(status: &str) -> &str {
-    match status {
-        "A" => "Added",
-        "M" => "Modified",
-        "D" => "Deleted",
-        _ => "Changed",
+fn format_change_type(change_type: &ChangeType) -> &'static str {
+    match change_type {
+        ChangeType::Added => "Added",
+        ChangeType::Modified => "Modified",
+        ChangeType::Deleted => "Deleted",
     }
 }
 

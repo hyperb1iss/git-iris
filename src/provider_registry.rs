@@ -1,13 +1,12 @@
 use crate::claude_provider::ClaudeProvider;
-use crate::config::ProviderConfig;
-use crate::llm_provider::LLMProvider;
+use crate::llm_provider::{LLMProvider, LLMProviderConfig};
 use crate::openai_provider::OpenAIProvider;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct ProviderRegistry {
-    providers: HashMap<String, Box<dyn Fn(ProviderConfig) -> Result<Arc<dyn LLMProvider>>>>,
+    providers: HashMap<String, Box<dyn Fn(LLMProviderConfig) -> Result<Arc<dyn LLMProvider>>>>,
     default_models: HashMap<String, &'static str>,
 }
 
@@ -17,16 +16,8 @@ impl ProviderRegistry {
             providers: HashMap::new(),
             default_models: HashMap::new(),
         };
-        registry.register("openai", |config| {
-            Ok(Arc::new(OpenAIProvider::new(
-                config.to_llm_provider_config(),
-            )))
-        });
-        registry.register("claude", |config| {
-            Ok(Arc::new(ClaudeProvider::new(
-                config.to_llm_provider_config(),
-            )))
-        });
+        registry.register("openai", |config| Ok(Arc::new(OpenAIProvider::new(config))));
+        registry.register("claude", |config| Ok(Arc::new(ClaudeProvider::new(config))));
         registry.set_default_model("openai", OpenAIProvider::default_model());
         registry.set_default_model("claude", ClaudeProvider::default_model());
         registry
@@ -34,7 +25,7 @@ impl ProviderRegistry {
 
     pub fn register<F>(&mut self, name: &str, creator: F)
     where
-        F: Fn(ProviderConfig) -> Result<Arc<dyn LLMProvider>> + 'static,
+        F: Fn(LLMProviderConfig) -> Result<Arc<dyn LLMProvider>> + 'static,
     {
         self.providers.insert(name.to_string(), Box::new(creator));
     }
@@ -46,7 +37,7 @@ impl ProviderRegistry {
     pub fn create_provider(
         &self,
         name: &str,
-        config: ProviderConfig,
+        config: LLMProviderConfig,
     ) -> Result<Arc<dyn LLMProvider>> {
         if let Some(creator) = self.providers.get(name) {
             creator(config)

@@ -3,7 +3,7 @@ mod tests {
     use anyhow::Result;
     use async_trait::async_trait;
     use git_iris::config::Config;
-    use git_iris::git::{FileChange, GitInfo};
+    use git_iris::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
     use git_iris::llm::{get_refined_message, init_providers, LLMProvider};
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -29,23 +29,27 @@ mod tests {
         }
     }
 
-    fn create_mock_git_info() -> GitInfo {
-        GitInfo {
+    fn create_mock_commit_context() -> CommitContext {
+        CommitContext {
             branch: "main".to_string(),
-            recent_commits: vec!["abcdef1 Initial commit".to_string()],
-            staged_files: {
-                let mut map = HashMap::new();
-                map.insert(
-                    "file1.rs".to_string(),
-                    FileChange {
-                        status: "M".to_string(),
-                        diff: "- old line\n+ new line".to_string(),
-                    },
-                );
-                map
-            },
+            recent_commits: vec![RecentCommit {
+                hash: "abcdef1".to_string(),
+                message: "Initial commit".to_string(),
+                author: "Test User".to_string(),
+                timestamp: "1234567890".to_string(),
+            }],
+            staged_files: vec![StagedFile {
+                path: "file1.rs".to_string(),
+                change_type: ChangeType::Modified,
+                diff: "- old line\n+ new line".to_string(),
+                analysis: vec!["Modified function: main".to_string()],
+            }],
             unstaged_files: vec!["unstaged_file.txt".to_string()],
-            project_root: "/mock/path/to/project".to_string(),
+            project_metadata: ProjectMetadata {
+                language: "Rust".to_string(),
+                framework: None,
+                dependencies: vec![],
+            },
         }
     }
 
@@ -66,11 +70,11 @@ mod tests {
     async fn test_get_refined_message_openai() -> Result<()> {
         init_mock_providers();
 
-        let git_info = create_mock_git_info();
+        let commit_context = create_mock_commit_context();
         let config = Config::default();
 
         let result =
-            get_refined_message(&git_info, &config, "openai", false, false, "").await?;
+            get_refined_message(&commit_context, &config, "openai", false, false, "").await?;
         assert_eq!(result, "Mocked commit message");
         Ok(())
     }
@@ -79,22 +83,22 @@ mod tests {
     async fn test_get_refined_message_claude() -> Result<()> {
         init_mock_providers();
 
-        let git_info = create_mock_git_info();
+        let commit_context = create_mock_commit_context();
         let config = Config::default();
 
         let result =
-            get_refined_message(&git_info, &config, "claude", false, false, "").await?;
+            get_refined_message(&commit_context, &config, "claude", false, false, "").await?;
         assert_eq!(result, "Mocked commit message");
         Ok(())
     }
 
     #[tokio::test]
     async fn test_get_refined_message_unsupported_provider() -> Result<()> {
-        let git_info = create_mock_git_info();
+        let commit_context = create_mock_commit_context();
         let config = Config::default();
 
         let result = get_refined_message(
-            &git_info,
+            &commit_context,
             &config,
             "unsupported_provider",
             false,

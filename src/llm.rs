@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::git::GitInfo;
+use crate::context::CommitContext;
 use crate::log_debug;
 use crate::prompt;
 use crate::provider_registry::ProviderRegistry;
@@ -18,7 +18,7 @@ thread_local! {
 
 /// Generate a refined commit message using the specified LLM provider
 pub async fn get_refined_message(
-    git_info: &GitInfo,
+    context: &CommitContext,
     config: &Config,
     provider: &str,
     use_gitmoji: bool,
@@ -34,7 +34,7 @@ pub async fn get_refined_message(
         .unwrap_or_else(|| {
             PROVIDER_REGISTRY.with(|registry| {
                 let provider_arc = registry
-                    .create_provider(provider, provider_config.clone())
+                    .create_provider(provider, provider_config.to_llm_provider_config())
                     .unwrap_or_else(|e| {
                         panic!("Failed to create provider {}: {}", provider, e);
                     });
@@ -55,7 +55,7 @@ pub async fn get_refined_message(
     }
 
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
-    let user_prompt = prompt::create_user_prompt(git_info, verbose)?;
+    let user_prompt = prompt::create_user_prompt(context, verbose)?;
 
     if verbose {
         log_debug!("Using LLM provider: {}", provider.provider_name());

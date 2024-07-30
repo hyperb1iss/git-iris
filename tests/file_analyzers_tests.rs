@@ -1,11 +1,12 @@
+use git_iris::context::{ChangeType, StagedFile};
 use git_iris::file_analyzers::get_analyzer;
-use git_iris::git::FileChange;
 
 #[test]
 fn test_rust_analyzer() {
     let analyzer = get_analyzer("test.rs");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.rs".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +pub fn new_function() {
 +    println!("Hello, world!");
@@ -18,6 +19,7 @@ fn test_rust_analyzer() {
 +}
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.rs", &change);
@@ -29,8 +31,9 @@ fn test_rust_analyzer() {
 #[test]
 fn test_javascript_analyzer() {
     let analyzer = get_analyzer("test.js");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.js".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +function newFunction() {
 +    console.log("Hello, world!");
@@ -49,6 +52,7 @@ fn test_javascript_analyzer() {
 +import { useState } from 'react';
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.js", &change);
@@ -68,8 +72,9 @@ fn test_javascript_analyzer() {
 #[test]
 fn test_python_analyzer() {
     let analyzer = get_analyzer("test.py");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.py".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +def new_function():
 +    print("Hello, world!")
@@ -84,6 +89,7 @@ fn test_python_analyzer() {
 +from module import something
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.py", &change);
@@ -97,8 +103,9 @@ fn test_python_analyzer() {
 #[test]
 fn test_yaml_analyzer() {
     let analyzer = get_analyzer("test.yaml");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.yaml".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +new_key: value
 -old_key: value
@@ -109,6 +116,7 @@ fn test_yaml_analyzer() {
 +  inner_key: value
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.yaml", &change);
@@ -129,8 +137,9 @@ fn test_yaml_analyzer() {
 #[test]
 fn test_json_analyzer() {
     let analyzer = get_analyzer("test.json");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.json".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +  "new_key": "value",
 -  "old_key": "value",
@@ -143,6 +152,7 @@ fn test_json_analyzer() {
    }
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.json", &change);
@@ -166,8 +176,9 @@ fn test_json_analyzer() {
 #[test]
 fn test_markdown_analyzer() {
     let analyzer = get_analyzer("test.md");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.md".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +# New Header
 -## Old Header
@@ -180,6 +191,7 @@ fn test_markdown_analyzer() {
 -[Old link](https://old-example.com)
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.md", &change);
@@ -193,9 +205,11 @@ fn test_markdown_analyzer() {
 #[test]
 fn test_default_analyzer() {
     let analyzer = get_analyzer("unknown.xyz");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "unknown.xyz".to_string(),
+        change_type: ChangeType::Modified,
         diff: "Some changes".to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("unknown.xyz", &change);
@@ -209,8 +223,9 @@ fn test_default_analyzer() {
 #[test]
 fn test_java_analyzer() {
     let analyzer = get_analyzer("test.java");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.java".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +public class NewClass {
 +    public void newMethod() {
@@ -226,10 +241,11 @@ fn test_java_analyzer() {
 -import java.util.ArrayList;
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.java", &change);
-    println!("Java analysis results: {:?}", analysis); // Debug output
+    println!("Java analysis results: {:?}", analysis);
 
     // Check for modified classes
     let class_analysis = analysis
@@ -264,8 +280,9 @@ fn test_java_analyzer() {
 #[test]
 fn test_kotlin_analyzer() {
     let analyzer = get_analyzer("test.kt");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "test.kt".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +class NewClass {
 +    fun newFunction() {
@@ -281,6 +298,7 @@ fn test_kotlin_analyzer() {
 -import kotlin.collections.ArrayList
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("test.kt", &change);
@@ -292,8 +310,9 @@ fn test_kotlin_analyzer() {
 #[test]
 fn test_gradle_analyzer() {
     let analyzer = get_analyzer("build.gradle");
-    let change = FileChange {
-        status: "M".to_string(),
+    let change = StagedFile {
+        path: "build.gradle".to_string(),
+        change_type: ChangeType::Modified,
         diff: r#"
 +    implementation 'com.example:new-library:1.0.0'
 -    implementation 'com.example:old-library:0.9.0'
@@ -308,6 +327,7 @@ fn test_gradle_analyzer() {
 +}
         "#
         .to_string(),
+        analysis: Vec::new(),
     };
 
     let analysis = analyzer.analyze("build.gradle", &change);

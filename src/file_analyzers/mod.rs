@@ -1,9 +1,11 @@
-use crate::git::FileChange;
+// src/file_analyzers/mod.rs
+
+use crate::context::StagedFile;
 
 /// Trait for analyzing files and extracting relevant information
 pub trait FileAnalyzer {
     /// Analyze the file and return a list of analysis results
-    fn analyze(&self, file: &str, change: &FileChange) -> Vec<String>;
+    fn analyze(&self, file: &str, staged_file: &StagedFile) -> Vec<String>;
     /// Get the type of the file being analyzed
     fn get_file_type(&self) -> &'static str;
 }
@@ -56,7 +58,7 @@ pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
 struct DefaultAnalyzer;
 
 impl FileAnalyzer for DefaultAnalyzer {
-    fn analyze(&self, _file: &str, _change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, _staged_file: &StagedFile) -> Vec<String> {
         vec![]
     }
 

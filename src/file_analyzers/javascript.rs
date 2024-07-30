@@ -1,39 +1,33 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 use std::collections::HashSet;
 
 pub struct JavaScriptAnalyzer;
 
 impl FileAnalyzer for JavaScriptAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        if let Some(functions) = extract_modified_functions(&change.diff) {
-            println!("JavaScript Debug: Detected functions: {:?}", functions);
+        if let Some(functions) = extract_modified_functions(&staged_file.diff) {
             analysis.push(format!("Modified functions: {}", functions.join(", ")));
         }
 
-        if let Some(classes) = extract_modified_classes(&change.diff) {
+        if let Some(classes) = extract_modified_classes(&staged_file.diff) {
             analysis.push(format!("Modified classes: {}", classes.join(", ")));
         }
 
-        if has_import_changes(&change.diff) {
+        if has_import_changes(&staged_file.diff) {
             analysis.push("Import statements have been modified".to_string());
         }
 
-        if let Some(components) = extract_modified_react_components(&change.diff) {
-            println!(
-                "JavaScript Debug: Detected React components: {:?}",
-                components
-            );
+        if let Some(components) = extract_modified_react_components(&staged_file.diff) {
             analysis.push(format!(
                 "Modified React components: {}",
                 components.join(", ")
             ));
         }
 
-        println!("JavaScript Debug: Final analysis: {:?}", analysis);
         analysis
     }
 

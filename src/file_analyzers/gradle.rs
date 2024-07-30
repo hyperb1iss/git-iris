@@ -1,22 +1,22 @@
 use super::FileAnalyzer;
-use crate::git::FileChange;
+use crate::context::StagedFile;
 use regex::Regex;
 
 pub struct GradleAnalyzer;
 
 impl FileAnalyzer for GradleAnalyzer {
-    fn analyze(&self, _file: &str, change: &FileChange) -> Vec<String> {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
         let mut analysis = Vec::new();
 
-        if has_dependency_changes(&change.diff) {
+        if has_dependency_changes(&staged_file.diff) {
             analysis.push("Dependencies have been modified".to_string());
         }
 
-        if has_plugin_changes(&change.diff) {
+        if has_plugin_changes(&staged_file.diff) {
             analysis.push("Plugins have been modified".to_string());
         }
 
-        if has_task_changes(&change.diff) {
+        if has_task_changes(&staged_file.diff) {
             analysis.push("Tasks have been modified".to_string());
         }
 

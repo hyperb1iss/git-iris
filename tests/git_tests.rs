@@ -1,4 +1,5 @@
 use git2::Repository;
+use git_iris::context::ChangeType;
 use git_iris::git::{commit, get_git_info};
 use std::fs;
 use std::path::Path;
@@ -41,27 +42,27 @@ fn setup_git_repo() -> TempDir {
 fn test_get_git_info() {
     let temp_dir = setup_git_repo();
 
-    let git_info = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path()).unwrap();
 
     // Test branch name
     assert!(
-        git_info.branch == "main" || git_info.branch == "master",
+        context.branch == "main" || context.branch == "master",
         "Branch should be 'main' or 'master', but got '{}'",
-        git_info.branch
+        context.branch
     );
 
     // Test recent commits
-    assert_eq!(git_info.recent_commits.len(), 1);
-    assert!(git_info.recent_commits[0].contains("Initial commit"));
+    assert_eq!(context.recent_commits.len(), 1);
+    assert!(context.recent_commits[0].message.contains("Initial commit"));
 
     // Test staged files (should be empty after commit)
-    assert_eq!(git_info.staged_files.len(), 0);
+    assert_eq!(context.staged_files.len(), 0);
 
     // Test unstaged files (should be empty after commit)
-    assert_eq!(git_info.unstaged_files.len(), 0);
+    assert_eq!(context.unstaged_files.len(), 0);
 
-    // Test project root
-    assert_eq!(git_info.project_root, temp_dir.path().to_str().unwrap());
+    // Test project metadata
+    assert_eq!(context.project_metadata.language, "Unknown");
 
     // Create and stage a new file
     let new_file_path = temp_dir.path().join("new_file.txt");
@@ -76,15 +77,19 @@ fn test_get_git_info() {
     fs::write(&unstaged_file_path, "Unstaged content").unwrap();
 
     // Get updated git info
-    let updated_git_info = get_git_info(temp_dir.path()).unwrap();
+    let updated_context = get_git_info(temp_dir.path()).unwrap();
 
     // Test staged files
-    assert_eq!(updated_git_info.staged_files.len(), 1);
-    assert!(updated_git_info.staged_files.contains_key("new_file.txt"));
+    assert_eq!(updated_context.staged_files.len(), 1);
+    assert_eq!(updated_context.staged_files[0].path, "new_file.txt");
+    assert!(matches!(
+        updated_context.staged_files[0].change_type,
+        ChangeType::Added
+    ));
 
     // Test unstaged files
-    assert_eq!(updated_git_info.unstaged_files.len(), 1);
-    assert_eq!(updated_git_info.unstaged_files[0], "unstaged.txt");
+    assert_eq!(updated_context.unstaged_files.len(), 1);
+    assert_eq!(updated_context.unstaged_files[0], "unstaged.txt");
 }
 
 #[test]
@@ -104,9 +109,11 @@ fn test_commit() {
     assert!(result.is_ok());
 
     // Verify commit
-    let git_info = get_git_info(temp_dir.path()).unwrap();
-    assert_eq!(git_info.recent_commits.len(), 2);
-    assert!(git_info.recent_commits[0].contains("Test commit message"));
+    let context = get_git_info(temp_dir.path()).unwrap();
+    assert_eq!(context.recent_commits.len(), 2);
+    assert!(context.recent_commits[0]
+        .message
+        .contains("Test commit message"));
 }
 
 #[test]
@@ -125,12 +132,13 @@ fn test_multiple_staged_files() {
         index.write().unwrap();
     }
 
-    let git_info = get_git_info(temp_dir.path()).unwrap();
-    assert_eq!(git_info.staged_files.len(), 3);
+    let context = get_git_info(temp_dir.path()).unwrap();
+    assert_eq!(context.staged_files.len(), 3);
     for i in 1..=3 {
-        assert!(git_info
+        assert!(context
             .staged_files
-            .contains_key(&format!("file{}.txt", i)));
+            .iter()
+            .any(|file| file.path == format!("file{}.txt", i)));
     }
 }
 
@@ -146,10 +154,15 @@ fn test_modified_file() {
     index.add_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let git_info = get_git_info(temp_dir.path()).unwrap();
-    assert_eq!(git_info.staged_files.len(), 1);
-    assert!(git_info.staged_files.contains_key("initial.txt"));
-    assert_eq!(git_info.staged_files["initial.txt"].status, "M");
+    let context = get_git_info(temp_dir.path()).unwrap();
+    assert_eq!(context.staged_files.len(), 1);
+    assert!(
+        context
+            .staged_files
+            .iter()
+            .any(|file| file.path == "initial.txt"
+                && matches!(file.change_type, ChangeType::Modified))
+    );
 }
 
 #[test]
@@ -164,10 +177,12 @@ fn test_deleted_file() {
     index.remove_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let git_info = get_git_info(temp_dir.path()).unwrap();
-    assert_eq!(git_info.staged_files.len(), 1);
-    assert!(git_info.staged_files.contains_key("initial.txt"));
-    assert_eq!(git_info.staged_files["initial.txt"].status, "D");
+    let context = get_git_info(temp_dir.path()).unwrap();
+    assert_eq!(context.staged_files.len(), 1);
+    assert!(context
+        .staged_files
+        .iter()
+        .any(|file| file.path == "initial.txt" && matches!(file.change_type, ChangeType::Deleted)));
 }
 
 #[test]
@@ -191,15 +206,22 @@ fn test_binary_file() {
     index.add_path(Path::new("image.png")).unwrap();
     index.write().unwrap();
 
-    let git_info = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path()).unwrap();
 
     // Check if the binary file is in staged files
-    assert!(git_info.staged_files.contains_key("image.png"));
+    assert!(context
+        .staged_files
+        .iter()
+        .any(|file| file.path == "image.png"));
 
     // Check if the diff for the binary file is "[Binary file changed]"
-    let binary_file_change = git_info.staged_files.get("image.png").unwrap();
-    assert_eq!(binary_file_change.diff, "[Binary file changed]");
+    let binary_file = context
+        .staged_files
+        .iter()
+        .find(|file| file.path == "image.png")
+        .unwrap();
+    assert_eq!(binary_file.diff, "[Binary file changed]");
 
     // Check if the status is correct
-    assert_eq!(binary_file_change.status, "A");
+    assert!(matches!(binary_file.change_type, ChangeType::Added));
 }
