@@ -26,7 +26,7 @@ mod tests {
         );
         assert_eq!(
             apply_gitmoji("chore: update dependencies"),
-            "🔧 chore: update dependencies"
+            "🔨 chore: update dependencies"
         );
         assert_eq!(
             apply_gitmoji("unknown: some message"),
@@ -39,11 +39,13 @@ mod tests {
     #[test]
     fn test_get_gitmoji_list() {
         let list = get_gitmoji_list();
-        assert!(list.contains("🎨 - :art: - Improve structure / format of the code"));
-        assert!(list.contains("🐛 - :bug: - Fix a bug"));
-        assert!(list.contains("📝 - :memo: - Add or update documentation"));
         assert!(list.contains("✨ - :feat: - Introduce new features"));
-        assert!(list.contains("🔧 - :chore: - Add or update configuration files"));
+        assert!(list.contains("🐛 - :fix: - Fix a bug"));
+        assert!(list.contains("📝 - :docs: - Add or update documentation"));
+        assert!(list.contains("💄 - :style: - Add or update the UI and style files"));
+        assert!(list.contains("♻️ - :refactor: - Refactor code"));
+        assert!(list.contains("✅ - :test: - Add or update tests"));
+        assert!(list.contains("🔨 - :chore: - Other changes that don't modify src or test files"));
         // Add more assertions for other gitmojis as needed
     }
 
@@ -55,7 +57,7 @@ mod tests {
         assert_eq!(get_gitmoji("style"), Some("💄"));
         assert_eq!(get_gitmoji("refactor"), Some("♻️"));
         assert_eq!(get_gitmoji("test"), Some("✅"));
-        assert_eq!(get_gitmoji("chore"), Some("🔧"));
+        assert_eq!(get_gitmoji("chore"), Some("🔨"));
         assert_eq!(get_gitmoji("unknown"), None);
     }
 }

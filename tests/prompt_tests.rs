@@ -66,8 +66,13 @@ fn test_create_prompt_with_gitmoji() {
 
     let prompt = create_prompt(&commit_context, &config, false).unwrap();
 
-    assert!(prompt.contains("Use a single gitmoji at the start of the commit message"));
-    assert!(prompt.contains("🎨 - :art: - Improve structure / format of the code"));
+    assert!(prompt.contains("✨ - :feat: - Introduce new features"));
+    assert!(prompt.contains("🐛 - :fix: - Fix a bug"));
+    assert!(prompt.contains("📝 - :docs: - Add or update documentation"));
+    assert!(prompt.contains("💄 - :style: - Add or update the UI and style files"));
+    assert!(prompt.contains("♻️ - :refactor: - Refactor code"));
+    assert!(prompt.contains("✅ - :test: - Add or update tests"));
+    assert!(prompt.contains("🔨 - :chore: - Other changes that don't modify src or test files"));
 }
 
 #[test]
