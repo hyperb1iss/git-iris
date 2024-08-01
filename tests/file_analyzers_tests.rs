@@ -20,6 +20,7 @@ fn test_rust_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.rs", &change);
@@ -53,6 +54,7 @@ fn test_javascript_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.js", &change);
@@ -90,6 +92,7 @@ fn test_python_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.py", &change);
@@ -117,6 +120,7 @@ fn test_yaml_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.yaml", &change);
@@ -153,6 +157,7 @@ fn test_json_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.json", &change);
@@ -192,6 +197,7 @@ fn test_markdown_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.md", &change);
@@ -210,6 +216,7 @@ fn test_default_analyzer() {
         change_type: ChangeType::Modified,
         diff: "Some changes".to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("unknown.xyz", &change);
@@ -242,6 +249,7 @@ fn test_java_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.java", &change);
@@ -299,6 +307,7 @@ fn test_kotlin_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("test.kt", &change);
@@ -344,6 +353,7 @@ fn test_gradle_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content_excluded: false,
     };
 
     let analysis = analyzer.analyze("build.gradle", &change);

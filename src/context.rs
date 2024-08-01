@@ -23,6 +23,7 @@ pub struct StagedFile {
     pub change_type: ChangeType,
     pub diff: String,
     pub analysis: Vec<String>,
+    pub content_excluded: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]

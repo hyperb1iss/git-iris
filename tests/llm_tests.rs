@@ -43,6 +43,7 @@ mod tests {
                 change_type: ChangeType::Modified,
                 diff: "- old line\n+ new line".to_string(),
                 analysis: vec!["Modified function: main".to_string()],
+                content_excluded: false,
             }],
             unstaged_files: vec!["unstaged_file.txt".to_string()],
             project_metadata: ProjectMetadata {

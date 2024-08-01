@@ -16,6 +16,7 @@ fn create_mock_commit_context() -> CommitContext {
             change_type: ChangeType::Modified,
             diff: "- old line\n+ new line".to_string(),
             analysis: vec!["Modified function: main".to_string()],
+            content_excluded: false,
         }],
         unstaged_files: vec!["unstaged_file.txt".to_string()],
         project_metadata: ProjectMetadata {
@@ -111,6 +112,7 @@ fn test_create_prompt_with_multiple_staged_files() {
         change_type: ChangeType::Added,
         diff: "+ new file content".to_string(),
         analysis: vec!["New function: helper".to_string()],
+        content_excluded: false,
     });
 
     let config = Config::default();

@@ -2,6 +2,7 @@ use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, S
 use crate::file_analyzers;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
+use regex::Regex;
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -48,6 +49,38 @@ fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<RecentCommi
     Ok(commits)
 }
 
+fn should_exclude_file(path: &str) -> bool {
+    let exclude_patterns = vec![
+        String::from(r"\.git"),
+        String::from(r"\.svn"),
+        String::from(r"\.hg"),
+        String::from(r"\.DS_Store"),
+        String::from(r"node_modules"),
+        String::from(r"target"),
+        String::from(r"build"),
+        String::from(r"dist"),
+        String::from(r"\.vscode"),
+        String::from(r"\.idea"),
+        String::from(r"\.vs"),
+        String::from(r"package-lock\.json"),
+        String::from(r"\.lock"),
+        String::from(r"\.log"),
+        String::from(r"\.tmp"),
+        String::from(r"\.temp"),
+        String::from(r"\.swp"),
+        String::from(r"\.min\.js"),
+        // Add more patterns as needed
+    ];
+
+    for pattern in exclude_patterns {
+        let re = Regex::new(&pattern).unwrap();
+        if re.is_match(path) {
+            return true;
+        }
+    }
+    false
+}
+
 fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)> {
     let mut staged_files = Vec::new();
     let mut unstaged_files = Vec::new();
@@ -69,21 +102,33 @@ fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)
                 ChangeType::Deleted
             };
 
-            let diff = get_diff_for_file(repo, path, true)?;
+            let should_exclude = should_exclude_file(path);
+            let diff = if should_exclude {
+                String::from("[Content excluded]")
+            } else {
+                get_diff_for_file(repo, path, true)?
+            };
+
             let analyzer = file_analyzers::get_analyzer(path);
             let staged_file = StagedFile {
                 path: path.to_string(),
                 change_type: change_type.clone(),
                 diff: diff.clone(),
                 analysis: Vec::new(),
+                content_excluded: should_exclude,
             };
-            let analysis = analyzer.analyze(path, &staged_file);
+            let analysis = if should_exclude {
+                vec!["[Analysis excluded]".to_string()]
+            } else {
+                analyzer.analyze(path, &staged_file)
+            };
 
             staged_files.push(StagedFile {
                 path: path.to_string(),
                 change_type,
                 diff,
                 analysis,
+                content_excluded: should_exclude,
             });
         } else if status.is_wt_modified() || status.is_wt_new() || status.is_wt_deleted() {
             unstaged_files.push(path.to_string());
