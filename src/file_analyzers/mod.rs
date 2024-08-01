@@ -7,6 +7,10 @@ pub trait FileAnalyzer {
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata;
 }
 
+/// Module for analyzing C files
+mod c;
+/// Module for analyzing C++ files
+mod cpp;
 /// Module for analyzing Gradle files
 mod gradle;
 /// Module for analyzing Java files
@@ -28,7 +32,11 @@ mod yaml;
 
 /// Get the appropriate file analyzer based on the file extension
 pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
-    if file.ends_with(".rs") {
+    if file.ends_with(".c") || file == "Makefile" {
+        Box::new(c::CAnalyzer)
+    } else if file.ends_with(".cpp") || file.ends_with(".cc") || file.ends_with(".cxx") ||  file == "CMakeLists.txt" {
+        Box::new(cpp::CppAnalyzer)
+    } else if file.ends_with(".rs") {
         Box::new(rust::RustAnalyzer)
     } else if file.ends_with(".js") || file.ends_with(".ts") {
         Box::new(javascript::JavaScriptAnalyzer)

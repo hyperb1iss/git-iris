@@ -361,3 +361,99 @@ fn test_gradle_analyzer() {
     assert!(analysis.contains(&"Plugins have been modified".to_string()));
     assert!(analysis.contains(&"Tasks have been modified".to_string()));
 }
+
+#[test]
+fn test_c_analyzer() {
+    let analyzer = get_analyzer("test.c");
+    let change = StagedFile {
+        path: "test.c".to_string(),
+        change_type: ChangeType::Modified,
+        diff: r#"
++void new_function() {
++    printf("Hello, world!");
++}
+-struct OldStruct {
+-    int field;
+-}
++struct NewStruct {
++    char field;
++}
++#include <stdio.h>
+-#include <stdlib.h>
+        "#
+        .to_string(),
+        analysis: Vec::new(),
+        content_excluded: false,
+    };
+
+    let analysis = analyzer.analyze("test.c", &change);
+    println!("C Test Debug: Analysis results: {:?}", analysis);
+    assert!(analysis.contains(&"Modified functions: new_function".to_string()));
+    assert!(analysis
+        .iter()
+        .any(|s| s.contains("OldStruct") && s.contains("NewStruct")));
+    assert!(analysis.contains(&"Include statements have been modified".to_string()));
+}
+
+#[test]
+fn test_c_analyzer_metadata() {
+    let analyzer = get_analyzer("Makefile");
+    let content = r#"
+VERSION = 1.0
+LIBS += -lm
+    "#;
+
+    let metadata = analyzer.extract_metadata("Makefile", content);
+    assert_eq!(metadata.language, Some("C".to_string()));
+    assert_eq!(metadata.build_system, Some("Makefile".to_string()));
+    assert_eq!(metadata.version, Some("1.0".to_string()));
+    assert_eq!(metadata.dependencies, vec!["-lm".to_string()]);
+}
+
+#[test]
+fn test_cpp_analyzer() {
+    let analyzer = get_analyzer("test.cpp");
+    let change = StagedFile {
+        path: "test.cpp".to_string(),
+        change_type: ChangeType::Modified,
+        diff: r#"
++void newFunction() {
++    std::cout << "Hello, world!" << std::endl;
++}
+-class OldClass {
+-    OldClass() {}
+-}
++class NewClass {
++    NewClass() {}
++}
++#include <iostream>
+-#include <vector>
+        "#
+        .to_string(),
+        analysis: Vec::new(),
+        content_excluded: false,
+    };
+
+    let analysis = analyzer.analyze("test.cpp", &change);
+    println!("C++ Test Debug: Analysis results: {:?}", analysis);
+    assert!(analysis.contains(&"Modified functions: newFunction".to_string()));
+    assert!(analysis
+        .iter()
+        .any(|s| s.contains("OldClass") && s.contains("NewClass")));
+    assert!(analysis.contains(&"Include statements have been modified".to_string()));
+}
+
+#[test]
+fn test_cpp_analyzer_metadata() {
+    let analyzer = get_analyzer("CMakeLists.txt");
+    let content = r#"
+project(MyProject VERSION 1.0)
+find_package(Boost REQUIRED)
+    "#;
+
+    let metadata = analyzer.extract_metadata("CMakeLists.txt", content);
+    assert_eq!(metadata.language, Some("C++".to_string()));
+    assert_eq!(metadata.build_system, Some("CMake".to_string()));
+    assert_eq!(metadata.version, Some("1.0".to_string()));
+    assert!(metadata.dependencies.contains(&"Boost".to_string()));
+}
