@@ -1,9 +1,15 @@
+mod claude_provider;
+mod openai_provider;
+pub mod provider_registry;
+pub use crate::llm_providers::provider_registry::ProviderRegistry;
+
 use crate::log_debug;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
+
 
 /// Trait defining the interface for LLM providers
 #[async_trait]

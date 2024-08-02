@@ -1,6 +1,6 @@
-use crate::llm_provider::LLMProvider;
+use crate::llm_providers::LLMProvider;
+use crate::llm_providers::ProviderRegistry;
 use crate::log_debug;
-use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use dirs::config_dir;
 use serde::{Deserialize, Serialize};
@@ -179,8 +179,8 @@ impl ProviderConfig {
     }
 
     /// Convert to LLMProviderConfig
-    pub fn to_llm_provider_config(&self) -> crate::llm_provider::LLMProviderConfig {
-        crate::llm_provider::LLMProviderConfig {
+    pub fn to_llm_provider_config(&self) -> crate::llm_providers::LLMProviderConfig {
+        crate::llm_providers::LLMProviderConfig {
             api_key: self.api_key.clone(),
             model: self.model.clone(),
             additional_params: self.additional_params.clone(),

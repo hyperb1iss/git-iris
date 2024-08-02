@@ -1,6 +1,6 @@
-use crate::claude_provider::ClaudeProvider;
-use crate::llm_provider::{LLMProvider, LLMProviderConfig};
-use crate::openai_provider::OpenAIProvider;
+use crate::llm_providers::claude_provider::ClaudeProvider;
+use crate::llm_providers::{LLMProvider, LLMProviderConfig};
+use crate::llm_providers::openai_provider::OpenAIProvider;
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::Arc;

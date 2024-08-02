@@ -149,7 +149,7 @@ pub fn print_success(message: &str) {
 /// List available LLM providers
 pub fn list_providers() -> Vec<String> {
     // Query the provider registry to get the list of available providers
-    crate::provider_registry::ProviderRegistry::default().list_providers()
+    crate::llm_providers::ProviderRegistry::default().list_providers()
 }
 
 /// Print dynamic help including available LLM providers

@@ -1,39 +1,38 @@
-use crate::llm_provider::{LLMProvider, LLMProviderConfig};
+use crate::llm_providers::{LLMProvider, LLMProviderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 
-/// Represents the Claude LLM provider
-pub struct ClaudeProvider {
+/// Represents the OpenAI LLM provider
+pub struct OpenAIProvider {
     config: LLMProviderConfig,
 }
 
-impl ClaudeProvider {
-    /// Creates a new instance of ClaudeProvider with the given configuration
+impl OpenAIProvider {
+    /// Creates a new instance of OpenAIProvider with the given configuration
     pub fn new(config: LLMProviderConfig) -> Self {
         Self { config }
     }
 
-    /// Returns the default model name for the Claude provider
+    /// Returns the default model name for the OpenAI provider
     pub fn default_model() -> &'static str {
-        "claude-3-5-sonnet-20240620"
+        "gpt-4"
     }
 }
 
 #[async_trait]
-impl LLMProvider for ClaudeProvider {
-    /// Generates a message using the Claude API
+impl LLMProvider for OpenAIProvider {
+    /// Generates a message using the OpenAI API
     async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
         let client = Client::new();
 
         let mut request_body = json!({
             "model": self.config.model,
-            "system": system_prompt, // Top-level system parameter
             "messages": [
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
-            ],
-            "max_tokens": 4096,
+            ]
         });
 
         // Add additional parameters from the configuration
@@ -43,9 +42,8 @@ impl LLMProvider for ClaudeProvider {
 
         // Make the API request
         let response = client
-            .post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", &self.config.api_key)
-            .header("anthropic-version", "2023-06-01")
+            .post("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -56,7 +54,7 @@ impl LLMProvider for ClaudeProvider {
             let status = response.status();
             let text = response.text().await?;
             return Err(anyhow::anyhow!(
-                "Claude API request failed with status {}: {}",
+                "OpenAI API request failed with status {}: {}",
                 status,
                 text
             ));
@@ -64,26 +62,19 @@ impl LLMProvider for ClaudeProvider {
 
         // Parse the response body
         let response_body: serde_json::Value = response.json().await?;
-        let content_array = response_body["content"].as_array().ok_or_else(|| {
-            anyhow::anyhow!("Failed to extract content array from Claude API response")
-        })?;
+        let content = response_body["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Failed to extract content from OpenAI API response"))?;
 
-        // Extract the message content
-        let message = content_array
-            .iter()
-            .filter_map(|item| item["text"].as_str())
-            .collect::<Vec<&str>>()
-            .join("\n");
-
-        Ok(message)
+        Ok(content.to_string())
     }
 
     /// Returns the provider name
     fn provider_name(&self) -> &str {
-        "Claude"
+        "OpenAI"
     }
 
     fn default_token_limit(&self) -> usize {
-        150000 // Claude can do 200K
+        100000 // GPT-4o can do 128K
     }
 }

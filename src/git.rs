@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
-use crate::provider_registry::ProviderRegistry;
+use crate::llm_providers::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;

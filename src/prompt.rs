@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
-use crate::provider_registry::ProviderRegistry;
+use crate::llm_providers::ProviderRegistry;
 use crate::relevance::RelevanceScorer;
 use crate::token_optimizer::TokenOptimizer;
 use anyhow::Result;

@@ -2,14 +2,14 @@ use crate::config::Config;
 use crate::context::CommitContext;
 use crate::log_debug;
 use crate::prompt;
-use crate::provider_registry::ProviderRegistry;
+use crate::llm_providers::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub use crate::llm_provider::{LLMProvider, LLMProviderConfig, LLMProviderManager};
+pub use crate::llm_providers::{LLMProvider, LLMProviderConfig, LLMProviderManager};
 
 thread_local! {
     pub static PROVIDER_MANAGER: RefCell<LLMProviderManager> = RefCell::new(LLMProviderManager::new());
