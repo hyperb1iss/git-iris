@@ -2,6 +2,7 @@ use crate::llm_provider::LLMProvider;
 use crate::log_debug;
 use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
+use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -60,9 +61,11 @@ impl Config {
 
     /// Get the path to the configuration file
     fn get_config_path() -> Result<PathBuf> {
-        dirs::home_dir()
-            .ok_or_else(|| anyhow!("Unable to determine home directory"))
-            .map(|path| path.join(".git-iris"))
+        let mut path = config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
+        path.push("git-iris");
+        std::fs::create_dir_all(&path)?;
+        path.push("config.toml");
+        Ok(path)
     }
 
     /// Check the environment for necessary prerequisites
