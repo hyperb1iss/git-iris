@@ -1,10 +1,10 @@
 use crate::git;
 use crate::log_debug;
+use crate::messages;
 use anyhow::Result;
 use colored::*;
 use console::{Key, Term};
 use indicatif::{ProgressBar, ProgressStyle};
-use rand::seq::SliceRandom;
 use std::cmp::max;
 use std::io::Write;
 use std::process::Command;
@@ -18,7 +18,6 @@ pub struct InteractiveCommit {
     custom_instructions: String,
     program_name: String,
     program_version: String,
-    regen_messages: Vec<String>,
 }
 
 impl InteractiveCommit {
@@ -35,7 +34,6 @@ impl InteractiveCommit {
             custom_instructions,
             program_name,
             program_version,
-            regen_messages: get_regen_messages(),
         }
     }
 
@@ -322,7 +320,7 @@ impl InteractiveCommit {
         Fut: std::future::Future<Output = Result<String>>,
     {
         let spinner = ProgressBar::new_spinner();
-        let random_message = self.regen_messages.choose(&mut rand::thread_rng()).unwrap();
+        let random_message = messages::get_random_message();
         spinner.set_style(
             ProgressStyle::default_spinner()
                 .tick_chars("✦✧✶✷✸✹✺✻✼✽")
@@ -419,24 +417,4 @@ impl InteractiveCommit {
             }
         }
     }
-}
-
-fn get_regen_messages() -> Vec<String> {
-    vec![
-        "🔮 Consulting the cosmic commit oracle...".to_string(),
-        "✨ Aligning the celestial code spheres...".to_string(),
-        "🌠 Channeling the spirit of clean commits...".to_string(),
-        "🚀 Launching commit ideas into the coding cosmos...".to_string(),
-        "🌌 Exploring the galaxy of potential messages...".to_string(),
-        "🔭 Peering into the commit-verse for inspiration...".to_string(),
-        "🧙‍♂️ Casting a spell for the perfect commit message...".to_string(),
-        "🌟 Harnessing the power of a thousand code stars...".to_string(),
-        "🪐 Orbiting the planet of precise git descriptions...".to_string(),
-        "🌈 Weaving a tapestry of colorful commit prose...".to_string(),
-        "🎇 Igniting the fireworks of code brilliance...".to_string(),
-        "🧠 Syncing with the collective coding consciousness...".to_string(),
-        "🌙 Aligning the moon phases for optimal commit clarity...".to_string(),
-        "🔬 Analyzing code particles at the quantum level...".to_string(),
-        "🧬 Decoding the DNA of your changes...".to_string(),
-    ]
 }

@@ -8,11 +8,31 @@ use regex::Regex;
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn get_git_info(repo_path: &Path, config: &Config) -> Result<CommitContext> {
+pub fn get_git_info(
+    repo_path: &Path,
+    config: &Config,
+    progress_callback: Option<&dyn Fn(&str)>,
+) -> Result<CommitContext> {
     let repo = Repository::open(repo_path)?;
+
+    if let Some(cb) = progress_callback {
+        cb("Analyzing current branch...");
+    }
     let branch = get_current_branch(&repo)?;
+
+    if let Some(cb) = progress_callback {
+        cb("Fetching recent commits...");
+    }
     let recent_commits = get_recent_commits(&repo, 5)?;
-    let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
+
+    if let Some(cb) = progress_callback {
+        cb("Analyzing file statuses...");
+    }
+    let (staged_files, unstaged_files) = get_file_statuses(&repo, progress_callback)?;
+
+    if let Some(cb) = progress_callback {
+        cb("Extracting project metadata...");
+    }
     let project_metadata = get_project_metadata(repo_path)?;
 
     let mut context = CommitContext::new(
@@ -31,9 +51,11 @@ pub fn get_git_info(repo_path: &Path, config: &Config) -> Result<CommitContext> 
     )?;
 
     // Get the token limit for the default provider
-    let token_limit = config.providers[&config.default_provider]
-        .get_token_limit(provider.as_ref());
+    let token_limit = config.providers[&config.default_provider].get_token_limit(provider.as_ref());
 
+    if let Some(cb) = progress_callback {
+        cb("Optimizing context...");
+    }
     // Optimize the context based on the token limit
     context.optimize(token_limit);
 
@@ -99,7 +121,10 @@ fn should_exclude_file(path: &str) -> bool {
     false
 }
 
-fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)> {
+fn get_file_statuses(
+    repo: &Repository,
+    progress_callback: Option<&dyn Fn(&str)>,
+) -> Result<(Vec<StagedFile>, Vec<String>)> {
     let mut staged_files = Vec::new();
     let mut unstaged_files = Vec::new();
 
@@ -107,7 +132,15 @@ fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)
     opts.include_untracked(true);
     let statuses = repo.statuses(Some(&mut opts))?;
 
-    for entry in statuses.iter() {
+    for (index, entry) in statuses.iter().enumerate() {
+        if let Some(cb) = progress_callback {
+            cb(&format!(
+                "Processing file {} of {}...",
+                index + 1,
+                statuses.len()
+            ));
+        }
+
         let path = entry.path().unwrap();
         let status = entry.status();
 

@@ -10,6 +10,7 @@ pub mod interactive;
 pub mod llm;
 pub mod llm_provider;
 pub mod logger;
+pub mod messages;
 pub mod openai_provider;
 pub mod prompt;
 pub mod provider_registry;

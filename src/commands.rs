@@ -3,12 +3,12 @@ use crate::git::get_git_info;
 use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
 use crate::log_debug;
+use crate::messages;
 use anyhow::{anyhow, Result};
 use clap::{crate_name, crate_version};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
@@ -17,6 +17,8 @@ pub async fn handle_gen_command(
     provider: Option<String>,
     auto_commit: bool,
     instructions: Option<String>,
+    spinner: &ProgressBar,
+    progress_callback: impl Fn(&str),
 ) -> Result<()> {
     log_debug!(
         "Starting 'gen' command with verbose: {}, use_gitmoji: {}, provider: {:?}, auto_commit: {}, instructions: {:?}",
@@ -31,6 +33,7 @@ pub async fn handle_gen_command(
 
     // Check environment prerequisites
     if let Err(e) = Config::check_environment() {
+        spinner.finish_and_clear();
         crate::cli::print_error(&format!("Error: {}", e));
         crate::cli::print_info("\nPlease ensure the following:");
         crate::cli::print_info("1. Git is installed and accessible from the command line.");
@@ -45,14 +48,16 @@ pub async fn handle_gen_command(
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
 
     if provider_config.api_key.is_empty() {
+        spinner.finish_and_clear();
         crate::cli::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider));
         return Ok(());
     }
 
     let current_dir = Arc::new(std::env::current_dir()?);
-    let git_info = get_git_info(current_dir.as_path(), &config)?;
+    let git_info = get_git_info(current_dir.as_path(), &config, Some(&progress_callback))?;
 
     if git_info.staged_files.is_empty() {
+        spinner.finish_and_clear();
         crate::cli::print_warning(
             "No staged changes. Please stage your changes before generating a commit message.",
         );
@@ -62,14 +67,8 @@ pub async fn handle_gen_command(
 
     let use_gitmoji = use_gitmoji && config.use_gitmoji;
 
-    // Display a spinner while generating the message
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-            .template("{spinner} Generating initial commit message...")?,
-    );
-    spinner.enable_steady_tick(Duration::from_millis(100));
+    let message = messages::get_random_message();
+    spinner.set_message(message.clone());
 
     // Get instructions
     let instructions = instructions.unwrap_or_else(|| config.instructions.clone());
@@ -105,7 +104,7 @@ pub async fn handle_gen_command(
             let verbose = verbose;
             let instructions = instructions.to_string();
             async move {
-                let git_info = get_git_info(current_dir.as_path(), &config)?;
+                let git_info = get_git_info(current_dir.as_path(), &config, None)?;
                 get_refined_message(
                     &git_info,
                     &config,

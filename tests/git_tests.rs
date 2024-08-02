@@ -46,7 +46,7 @@ fn test_get_git_info() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
 
     // Test branch name
     assert!(
@@ -84,7 +84,7 @@ fn test_get_git_info() {
     fs::write(&unstaged_file_path, "Unstaged content").unwrap();
 
     // Get updated git info
-    let updated_context = get_git_info(temp_dir.path(), &config).unwrap();
+    let updated_context = get_git_info(temp_dir.path(), &config, None).unwrap();
 
     // Test staged files
     assert_eq!(updated_context.staged_files.len(), 1);
@@ -117,7 +117,7 @@ fn test_commit() {
     assert!(result.is_ok());
 
     // Verify commit
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
     assert_eq!(context.recent_commits.len(), 2);
     assert!(context.recent_commits[0]
         .message
@@ -141,7 +141,7 @@ fn test_multiple_staged_files() {
         index.write().unwrap();
     }
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
     assert_eq!(context.staged_files.len(), 3);
     for i in 1..=3 {
         assert!(context
@@ -164,7 +164,7 @@ fn test_modified_file() {
     index.add_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(
         context
@@ -188,7 +188,7 @@ fn test_deleted_file() {
     index.remove_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(context
         .staged_files
@@ -218,7 +218,7 @@ fn test_binary_file() {
     index.add_path(Path::new("image.png")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
 
     // Check if the binary file is in staged files
     assert!(context
@@ -272,7 +272,7 @@ fn test_get_git_info_with_excluded_files() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
 
     // Check excluded files
     let excluded_files: Vec<_> = context
@@ -344,7 +344,7 @@ fn test_multiple_staged_files_with_exclusions() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config, None).unwrap();
 
     assert_eq!(context.staged_files.len(), 5);
 
@@ -391,7 +391,7 @@ fn test_token_optimization_integration() {
         .unwrap()
         .token_limit = Some(small_token_limit);
 
-    let context = get_git_info(repo_path, &config).unwrap();
+    let context = get_git_info(repo_path, &config, None).unwrap();
 
     let prompt = create_prompt(&context, &config, provider, false).unwrap();
 
