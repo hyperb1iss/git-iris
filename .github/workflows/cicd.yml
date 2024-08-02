@@ -7,7 +7,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: git-iris
+            asset_name: git-iris-linux-amd64
+          - os: macos-latest
+            artifact_name: git-iris
+            asset_name: git-iris-macos-amd64
+          - os: windows-latest
+            artifact_name: git-iris.exe
+            asset_name: git-iris-windows-amd64.exe
 
     steps:
     - name: Checkout repository
@@ -35,26 +48,16 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-    - name: Upload Release Asset
+    - name: Upload artifact
       uses: actions/upload-artifact@v2
       with:
-        name: git-iris
-        path: target/release/git-iris
+        name: ${{ matrix.asset_name }}
+        path: target/release/${{ matrix.artifact_name }}
 
-  release:
-    runs-on: ubuntu-latest
+  create-release:
     needs: build
-
+    runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -65,14 +68,145 @@ jobs:
         release_name: Release ${{ github.ref }}
         draft: false
         prerelease: false
+    - name: Output Release URL File
+      run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
+    - name: Save Release URL File for publish
+      uses: actions/upload-artifact@v1
+      with:
+        name: release_url
+        path: release_url.txt
+
+  publish:
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            asset_name: git-iris-linux-amd64
+          - os: macos-latest
+            asset_name: git-iris-macos-amd64
+          - os: windows-latest
+            asset_name: git-iris-windows-amd64.exe
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Get Release URL
+      uses: actions/download-artifact@v1
+      with:
+        name: release_url
+
+    - name: Get Release File Name & Upload URL
+      id: get_release_info
+      run: |
+        value=`cat release_url/release_url.txt`
+        echo ::set-output name=upload_url::$value
+      shell: bash
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: ${{ matrix.asset_name }}
 
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: target/release/git-iris
-        asset_name: git-iris
+        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+        asset_path: ./${{ matrix.asset_name }}
+        asset_name: ${{ matrix.asset_name }}
         asset_content_type: application/octet-stream
 
+  build-deb:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - name: Install cargo-deb
+      run: cargo install cargo-deb
+    - name: Build .deb package
+      run: cargo deb
+    - name: Get Release URL
+      uses: actions/download-artifact@v1
+      with:
+        name: release_url
+    - name: Get Release File Name & Upload URL
+      id: get_release_info
+      run: |
+        value=`cat release_url/release_url.txt`
+        echo ::set-output name=upload_url::$value
+    - name: Upload .deb package
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+        asset_path: ./target/debian/git-iris_${{ github.ref_name }}_amd64.deb
+        asset_name: git-iris_${{ github.ref_name }}_amd64.deb
+        asset_content_type: application/vnd.debian.binary-package
+
+  build-rpm:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - name: Install cargo-rpm
+      run: cargo install cargo-rpm
+    - name: Build .rpm package
+      run: cargo rpm build
+    - name: Get Release URL
+      uses: actions/download-artifact@v1
+      with:
+        name: release_url
+    - name: Get Release File Name & Upload URL
+      id: get_release_info
+      run: |
+        value=`cat release_url/release_url.txt`
+        echo ::set-output name=upload_url::$value
+    - name: Upload .rpm package
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+        asset_path: ./target/release/rpmbuild/RPMS/x86_64/git-iris-${{ github.ref_name }}-1.x86_64.rpm
+        asset_name: git-iris-${{ github.ref_name }}-1.x86_64.rpm
+        asset_content_type: application/x-rpm
+
+  upload-man-page:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get Release URL
+      uses: actions/download-artifact@v1
+      with:
+        name: release_url
+    - name: Get Release File Name & Upload URL
+      id: get_release_info
+      run: |
+        value=`cat release_url/release_url.txt`
+        echo ::set-output name=upload_url::$value
+    - name: Upload Man Page
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+        asset_path: ./git-iris.1
+        asset_name: git-iris.1
+        asset_content_type: application/x-troff-man
