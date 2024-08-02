@@ -47,7 +47,7 @@ pub async fn handle_gen_command(
     }
 
     let current_dir = Arc::new(std::env::current_dir()?);
-    let git_info = get_git_info(current_dir.as_path())?;
+    let git_info = get_git_info(current_dir.as_path(), &config)?;
 
     if git_info.staged_files.is_empty() {
         println!(
@@ -102,7 +102,7 @@ pub async fn handle_gen_command(
             let verbose = verbose;
             let custom_instructions = custom_instructions.to_string();
             async move {
-                let git_info = get_git_info(current_dir.as_path())?;
+                let git_info = get_git_info(current_dir.as_path(), &config)?;
                 get_refined_message(
                     &git_info,
                     &config,
@@ -133,6 +133,7 @@ pub fn handle_config_command(
     param: Option<Vec<String>>,
     gitmoji: Option<bool>,
     custom_instructions: Option<String>,
+    token_limit: Option<usize>,
 ) -> Result<()> {
     log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, custom_instructions: {:?}", provider, api_key, model, param, gitmoji, custom_instructions);
 
@@ -148,6 +149,7 @@ pub fn handle_config_command(
         additional_params,
         gitmoji,
         custom_instructions,
+        token_limit,
     );
     config.save()?;
     println!("Configuration updated successfully.");

@@ -1,6 +1,8 @@
 use serde::Serialize;
 
-#[derive(Serialize, Debug)]
+use crate::token_optimizer::TokenOptimizer;
+
+#[derive(Serialize, Debug, Clone)]
 pub struct CommitContext {
     pub branch: String,
     pub recent_commits: Vec<RecentCommit>,
@@ -9,7 +11,7 @@ pub struct CommitContext {
     pub project_metadata: ProjectMetadata,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct RecentCommit {
     pub hash: String,
     pub message: String,
@@ -17,7 +19,7 @@ pub struct RecentCommit {
     pub timestamp: String,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct StagedFile {
     pub path: String,
     pub change_type: ChangeType,
@@ -33,7 +35,7 @@ pub enum ChangeType {
     Deleted,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ProjectMetadata {
     pub language: Option<String>,
     pub framework: Option<String>,
@@ -73,5 +75,9 @@ impl CommitContext {
             unstaged_files,
             project_metadata,
         }
+    }
+    pub fn optimize(&mut self, max_tokens: usize) {
+        let optimizer = TokenOptimizer::new(max_tokens);
+        optimizer.optimize_context(self);
     }
 }

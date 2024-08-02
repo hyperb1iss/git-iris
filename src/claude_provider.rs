@@ -82,4 +82,8 @@ impl LLMProvider for ClaudeProvider {
     fn provider_name(&self) -> &str {
         "Claude"
     }
+
+    fn default_token_limit(&self) -> usize {
+        150000 // Claude can do 200K
+    }
 }

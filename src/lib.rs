@@ -14,6 +14,7 @@ pub mod openai_provider;
 pub mod prompt;
 pub mod provider_registry;
 pub mod relevance;
+pub mod token_optimizer;
 
 // Re-export important structs and functions for easier testing
 pub use config::Config;

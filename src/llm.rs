@@ -29,7 +29,7 @@ pub async fn get_refined_message(
         .get_provider_config(provider)
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
 
-    let provider: Arc<dyn LLMProvider> = PROVIDER_MANAGER
+    let provider_instance: Arc<dyn LLMProvider> = PROVIDER_MANAGER
         .with(|manager| manager.borrow().get_provider(provider).cloned())
         .unwrap_or_else(|| {
             PROVIDER_REGISTRY.with(|registry| {
@@ -47,23 +47,23 @@ pub async fn get_refined_message(
             })
         });
 
-    if provider.is_unsupported() {
+    if provider_instance.is_unsupported() {
         return Err(anyhow!(
             "Unsupported LLM provider: {}",
-            provider.provider_name()
+            provider_instance.provider_name()
         ));
     }
 
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
-    let user_prompt = prompt::create_user_prompt(context, verbose)?;
+    let user_prompt = prompt::create_prompt(context, config, provider, verbose)?;
 
     if verbose {
-        log_debug!("Using LLM provider: {}", provider.provider_name());
+        log_debug!("Using LLM provider: {}", provider_instance.provider_name());
         log_debug!("System prompt:\n{}", system_prompt);
         log_debug!("User prompt:\n{}", user_prompt);
     }
 
-    let refined_message = provider
+    let refined_message = provider_instance
         .generate_message(&system_prompt, &user_prompt)
         .await?;
 

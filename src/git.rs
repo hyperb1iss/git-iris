@@ -1,25 +1,43 @@
+use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
+use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn get_git_info(repo_path: &Path) -> Result<CommitContext> {
+pub fn get_git_info(repo_path: &Path, config: &Config) -> Result<CommitContext> {
     let repo = Repository::open(repo_path)?;
     let branch = get_current_branch(&repo)?;
     let recent_commits = get_recent_commits(&repo, 5)?;
     let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
     let project_metadata = get_project_metadata(repo_path)?;
 
-    Ok(CommitContext::new(
+    let mut context = CommitContext::new(
         branch,
         recent_commits,
         staged_files,
         unstaged_files,
         project_metadata,
-    ))
+    );
+
+    // Get the provider instance
+    let provider_registry = ProviderRegistry::default();
+    let provider = provider_registry.create_provider(
+        &config.default_provider,
+        config.providers[&config.default_provider].to_llm_provider_config(),
+    )?;
+
+    // Get the token limit for the default provider
+    let token_limit = config.providers[&config.default_provider]
+        .get_token_limit(provider.as_ref());
+
+    // Optimize the context based on the token limit
+    context.optimize(token_limit);
+
+    Ok(context)
 }
 
 fn get_current_branch(repo: &Repository) -> Result<String> {
@@ -222,19 +240,6 @@ pub fn check_environment() -> Result<()> {
     }
 
     Ok(())
-}
-
-pub fn show_file_from_head(repo_path: &Path, file: &str) -> Result<String> {
-    let repo = Repository::open(repo_path)?;
-    let head = repo.head()?;
-    let head_commit = head.peel_to_commit()?;
-    let tree = head_commit.tree()?;
-    let entry = tree.get_path(Path::new(file))?;
-    let object = entry.to_object(&repo)?;
-    let blob = object
-        .as_blob()
-        .ok_or_else(|| anyhow!("Failed to get blob"))?;
-    Ok(String::from_utf8_lossy(blob.content()).to_string())
 }
 
 pub fn is_inside_work_tree() -> Result<bool> {

@@ -16,6 +16,9 @@ pub trait LLMProvider: Send + Sync {
     }
     /// Get the name of the provider
     fn provider_name(&self) -> &str;
+    fn default_token_limit(&self) -> usize {
+        4000 // Default fallback value
+    }
 }
 
 /// Manager for handling multiple LLM providers

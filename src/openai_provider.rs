@@ -73,4 +73,8 @@ impl LLMProvider for OpenAIProvider {
     fn provider_name(&self) -> &str {
         "OpenAI"
     }
+
+    fn default_token_limit(&self) -> usize {
+        100000 // GPT-4o can do 128K
+    }
 }

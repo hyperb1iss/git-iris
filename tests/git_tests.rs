@@ -1,6 +1,9 @@
 use git2::Repository;
+use git_iris::config::Config;
 use git_iris::context::ChangeType;
 use git_iris::git::{commit, get_git_info};
+use git_iris::prompt::create_prompt;
+use git_iris::token_optimizer::TokenOptimizer;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
@@ -41,8 +44,9 @@ fn setup_git_repo() -> TempDir {
 #[test]
 fn test_get_git_info() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
 
     // Test branch name
     assert!(
@@ -80,7 +84,7 @@ fn test_get_git_info() {
     fs::write(&unstaged_file_path, "Unstaged content").unwrap();
 
     // Get updated git info
-    let updated_context = get_git_info(temp_dir.path()).unwrap();
+    let updated_context = get_git_info(temp_dir.path(), &config).unwrap();
 
     // Test staged files
     assert_eq!(updated_context.staged_files.len(), 1);
@@ -98,6 +102,7 @@ fn test_get_git_info() {
 #[test]
 fn test_commit() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Create and stage a new file
     let new_file_path = temp_dir.path().join("commit_test.txt");
@@ -112,7 +117,7 @@ fn test_commit() {
     assert!(result.is_ok());
 
     // Verify commit
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
     assert_eq!(context.recent_commits.len(), 2);
     assert!(context.recent_commits[0]
         .message
@@ -122,6 +127,7 @@ fn test_commit() {
 #[test]
 fn test_multiple_staged_files() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Create and stage multiple files
     for i in 1..=3 {
@@ -135,7 +141,7 @@ fn test_multiple_staged_files() {
         index.write().unwrap();
     }
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
     assert_eq!(context.staged_files.len(), 3);
     for i in 1..=3 {
         assert!(context
@@ -148,6 +154,7 @@ fn test_multiple_staged_files() {
 #[test]
 fn test_modified_file() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Modify the initial file
     let initial_file_path = temp_dir.path().join("initial.txt");
@@ -157,7 +164,7 @@ fn test_modified_file() {
     index.add_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(
         context
@@ -171,6 +178,7 @@ fn test_modified_file() {
 #[test]
 fn test_deleted_file() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Delete the initial file
     let initial_file_path = temp_dir.path().join("initial.txt");
@@ -180,7 +188,7 @@ fn test_deleted_file() {
     index.remove_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(context
         .staged_files
@@ -191,6 +199,7 @@ fn test_deleted_file() {
 #[test]
 fn test_binary_file() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Create a binary file (a simple PNG file)
     let binary_file_path = temp_dir.path().join("image.png");
@@ -209,7 +218,7 @@ fn test_binary_file() {
     index.add_path(Path::new("image.png")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
 
     // Check if the binary file is in staged files
     assert!(context
@@ -232,6 +241,7 @@ fn test_binary_file() {
 #[test]
 fn test_get_git_info_with_excluded_files() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Create files that should be excluded
     fs::create_dir_all(temp_dir.path().join("node_modules")).unwrap();
@@ -262,7 +272,7 @@ fn test_get_git_info_with_excluded_files() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
 
     // Check excluded files
     let excluded_files: Vec<_> = context
@@ -274,7 +284,9 @@ fn test_get_git_info_with_excluded_files() {
     assert!(!excluded_files.is_empty(), "Should have excluded files");
 
     println!("{:?}", excluded_files);
-    assert!(excluded_files.iter().any(|file| file.path == "package-lock.json"));
+    assert!(excluded_files
+        .iter()
+        .any(|file| file.path == "package-lock.json"));
 
     for file in &excluded_files {
         assert_eq!(file.diff, "[Content excluded]");
@@ -300,6 +312,7 @@ fn test_get_git_info_with_excluded_files() {
 #[test]
 fn test_multiple_staged_files_with_exclusions() {
     let temp_dir = setup_git_repo();
+    let config = Config::default();
 
     // Create files that should be excluded
     fs::create_dir_all(temp_dir.path().join(".vscode")).unwrap();
@@ -331,7 +344,7 @@ fn test_multiple_staged_files_with_exclusions() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path()).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).unwrap();
 
     assert_eq!(context.staged_files.len(), 5);
 
@@ -360,4 +373,109 @@ fn test_multiple_staged_files_with_exclusions() {
         assert_ne!(file.diff, "[Content excluded]");
         assert_ne!(file.analysis, vec!["[Analysis excluded]"]);
     }
+}
+
+#[test]
+fn test_token_optimization_integration() {
+    let temp_dir = setup_git_repo();
+    let repo_path = temp_dir.path();
+
+    let mut config = Config::default();
+    let provider = "openai";
+
+    // Set a small token limit for the OpenAI provider to force truncation
+    let small_token_limit = 200;
+    config
+        .providers
+        .get_mut(provider)
+        .unwrap()
+        .custom_token_limit = Some(small_token_limit);
+
+    let context = get_git_info(repo_path, &config).unwrap();
+
+    let prompt = create_prompt(&context, &config, provider, false).unwrap();
+
+    // Check that the prompt is within the token limit
+    let optimizer = TokenOptimizer::new(small_token_limit);
+    let token_count = optimizer.count_tokens(&prompt);
+
+    println!("Token count: {}", token_count);
+    println!("Token limit: {}", small_token_limit);
+    println!("Prompt:\n{}", prompt);
+
+    assert!(
+        token_count <= small_token_limit,
+        "Prompt exceeds token limit. Token count: {}, Limit: {}",
+        token_count,
+        small_token_limit
+    );
+
+    // Check that the prompt contains essential information
+    assert!(
+        prompt.contains("Git commit message"),
+        "Prompt should contain instructions"
+    );
+
+    // The following assertions may fail due to truncation, so we'll make them optional
+    if token_count < small_token_limit {
+        assert!(
+            prompt.contains("Branch:"),
+            "Prompt should contain branch information"
+        );
+        assert!(
+            prompt.contains("Recent commits:"),
+            "Prompt should mention recent commits"
+        );
+        assert!(
+            prompt.contains("Staged changes:"),
+            "Prompt should mention staged changes"
+        );
+    }
+
+    // Check that the prompt ends with the truncation indicator
+    assert!(
+        prompt.ends_with('…'),
+        "Prompt should end with truncation indicator"
+    );
+
+    // Test with a larger token limit
+    let large_token_limit = 5000;
+    config
+        .providers
+        .get_mut(provider)
+        .unwrap()
+        .custom_token_limit = Some(large_token_limit);
+
+    let large_prompt = create_prompt(&context, &config, provider, false).unwrap();
+    let large_token_count = optimizer.count_tokens(&large_prompt);
+
+    println!("Large token count: {}", large_token_count);
+    println!("Large token limit: {}", large_token_limit);
+
+    assert!(
+        large_token_count <= large_token_limit,
+        "Large prompt exceeds token limit. Token count: {}, Limit: {}",
+        large_token_count,
+        large_token_limit
+    );
+
+    // The larger prompt should contain more information
+    assert!(
+        large_prompt.contains("Branch:"),
+        "Large prompt should contain branch information"
+    );
+    assert!(
+        large_prompt.contains("Recent commits:"),
+        "Large prompt should mention recent commits"
+    );
+    assert!(
+        large_prompt.contains("Staged changes:"),
+        "Large prompt should mention staged changes"
+    );
+
+    // The larger prompt should not end with the truncation indicator
+    assert!(
+        !large_prompt.ends_with('…'),
+        "Large prompt should not end with truncation indicator"
+    );
 }

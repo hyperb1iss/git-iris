@@ -72,6 +72,9 @@ pub enum Commands {
         #[arg(long, help = "Set model for the specified provider")]
         model: Option<String>,
 
+        #[arg(long, help = "Set custom token limit for the specified provider")]
+        token_limit: Option<usize>,
+
         #[arg(
             long,
             help = "Set additional parameters for the specified provider (key=value)"
@@ -157,6 +160,7 @@ pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
             param,
             gitmoji,
             custom_instructions,
+            token_limit,
         } => {
             log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, custom_instructions: {:?}", provider, api_key, model, param, gitmoji, custom_instructions);
             commands::handle_config_command(
@@ -166,6 +170,7 @@ pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
                 param,
                 gitmoji,
                 custom_instructions,
+                token_limit,
             )?;
         }
     }

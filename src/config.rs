@@ -1,4 +1,4 @@
-use crate::llm_provider::LLMProviderConfig;
+use crate::llm_provider::LLMProvider;
 use crate::log_debug;
 use crate::provider_registry::ProviderRegistry;
 use anyhow::{anyhow, Result};
@@ -32,6 +32,8 @@ pub struct ProviderConfig {
     /// Additional parameters for the provider
     #[serde(default)]
     pub additional_params: HashMap<String, String>,
+    /// Custom token limit, if set by the user
+    pub custom_token_limit: Option<usize>,
 }
 
 impl Config {
@@ -86,6 +88,7 @@ impl Config {
         additional_params: Option<HashMap<String, String>>,
         use_gitmoji: Option<bool>,
         custom_instructions: Option<String>,
+        token_limit: Option<usize>,
     ) {
         if let Some(provider) = provider {
             self.default_provider = provider.clone();
@@ -111,6 +114,9 @@ impl Config {
         }
         if let Some(instructions) = custom_instructions {
             self.custom_instructions = instructions;
+        }
+        if let Some(limit) = token_limit {
+            provider_config.custom_token_limit = Some(limit);
         }
 
         log_debug!("Configuration updated: {:?}", self);
@@ -153,12 +159,19 @@ impl ProviderConfig {
             api_key: String::new(),
             model: default_model.to_string(),
             additional_params: HashMap::new(),
+            custom_token_limit: None,
         }
     }
 
+    /// Get the token limit for this provider configuration
+    pub fn get_token_limit(&self, provider: &dyn LLMProvider) -> usize {
+        self.custom_token_limit
+            .unwrap_or_else(|| provider.default_token_limit())
+    }
+
     /// Convert to LLMProviderConfig
-    pub fn to_llm_provider_config(&self) -> LLMProviderConfig {
-        LLMProviderConfig {
+    pub fn to_llm_provider_config(&self) -> crate::llm_provider::LLMProviderConfig {
+        crate::llm_provider::LLMProviderConfig {
             api_key: self.api_key.clone(),
             model: self.model.clone(),
             additional_params: self.additional_params.clone(),

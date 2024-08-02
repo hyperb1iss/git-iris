@@ -2,21 +2,50 @@ use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
+use crate::provider_registry::ProviderRegistry;
 use crate::relevance::RelevanceScorer;
+use crate::token_optimizer::TokenOptimizer;
 use anyhow::Result;
 use std::collections::HashMap;
 
-pub fn create_prompt(context: &CommitContext, config: &Config, verbose: bool) -> Result<String> {
+pub fn create_prompt(
+    context: &CommitContext,
+    config: &Config,
+    provider: &str,
+    verbose: bool,
+) -> Result<String> {
+    let provider_config = config
+        .providers
+        .get(provider)
+        .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in configuration", provider))?;
+
+    // Create the provider instance
+    let provider_registry = ProviderRegistry::default();
+    let provider_instance =
+        provider_registry.create_provider(provider, provider_config.to_llm_provider_config())?;
+
+    // Get the token limit
+    let token_limit = provider_config.get_token_limit(provider_instance.as_ref());
+
+    let optimizer = TokenOptimizer::new(token_limit);
+
     let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
     let user_prompt = create_user_prompt(context, verbose)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
 
+    // Always truncate the full prompt to ensure it doesn't exceed the token limit
+    let truncated_prompt = optimizer.truncate_string(&full_prompt, token_limit);
+
+    let token_count = optimizer.count_tokens(&truncated_prompt);
+
     if verbose {
-        log_debug!("Full Prompt:\n{}", full_prompt);
+        log_debug!("Full Prompt:\n{}", truncated_prompt);
+        log_debug!("Token count: {}", token_count);
+        log_debug!("Token limit for {}: {}", provider, token_limit);
     }
 
-    Ok(full_prompt)
+    Ok(truncated_prompt)
 }
 
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
