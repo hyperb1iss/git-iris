@@ -1,5 +1,4 @@
-
-# 🔮 Git-Iris for Better Commit Messages
+# 🔮 Git-Iris: AI-Powered Commit Messages
 
 <div align="center">
 
@@ -15,35 +14,23 @@
 
 ## ✨ Features
 
-- 🤖 **AI-powered commit message generation**
-- 🔄 **Support for multiple AI providers (OpenAI, Claude)**
-- 🎨 **Optional Gitmoji integration**
-- 🔧 **Customizable prompts and instructions**
-- 📊 **Intelligent analysis of your code changes**
-- 🖥️ **Interactive CLI for reviewing and editing suggestions**
-- 🔐 **Secure handling of API keys**
-
-## 🌈 Screenshots
-<table>
-  <tr>
-    <td><img src="images/commit_generation.png" alt="Commit Generation"/></td>
-    <td><img src="images/interactive_cli.png" alt="Interactive CLI"/></td>
-  </tr>
-  <tr>
-    <td><img src="images/gitmoji_integration.png" alt="Gitmoji Integration"/></td>
-    <td><img src="images/provider_configuration.png" alt="Provider Configuration"/></td>
-  </tr>
-</table>
+- 🤖 **AI-powered commit message generation** using state-of-the-art language models
+- 🔄 **Multi-provider support** (OpenAI GPT-4o, Anthropic Claude)
+- 🎨 **Gitmoji integration** for expressive commit messages
+- 🔧 **Customizable prompts and instructions** to tailor AI output
+- 📊 **Intelligent code change analysis** for context-aware suggestions
+- 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages
+- 🔐 **Secure API key management**
+- 🚀 **Optimized for performance** with efficient token management
 
 ## 🛠️ Installation
-<a name="installation"></a>
 
 ### Prerequisites
 
-- Rust and Cargo installed on your system
+- Rust and Cargo (latest stable version)
 - Git 2.23.0 or newer
 
-### Cargo Installation (Recommended)
+### Via Cargo (Recommended)
 
 ```bash
 cargo install git-iris
@@ -64,15 +51,14 @@ cargo install git-iris
    ```
 
 ## ⚙️ Configuration
-<a name="configuration"></a>
 
-Configure your preferred AI provider:
+Git-Iris uses a configuration file located at `~/.config/git-iris/config.toml`. You can set up your preferred AI provider using the following commands:
 
 ```bash
 # For OpenAI
 git-iris config --provider openai --api-key YOUR_OPENAI_API_KEY
 
-# For Claude
+# For Anthropic Claude
 git-iris config --provider claude --api-key YOUR_CLAUDE_API_KEY
 ```
 
@@ -83,22 +69,27 @@ Additional configuration options:
 git-iris config --gitmoji true
 
 # Set custom instructions
-git-iris config --custom-instructions "Please ensure all commit messages are professional."
+git-iris config --custom-instructions "Ensure all commit messages are concise and descriptive."
+
+# Set token limit (example for 5000 tokens)
+git-iris config --token-limit 5000
 ```
 
-## 📖 Usage
-<a name="usage"></a>
+For more detailed configuration information, please refer to our [Configuration Guide](CONFIG.md).
 
-Generate a commit message using AI:
+## 📖 Usage
+
+Generate an AI-powered commit message:
 
 ```bash
 git-iris gen
 ```
 
 Options:
-- `--verbose`: Enable verbose mode.
-- `--gitmoji`: Override use_gitmoji setting.
-- `--provider`: Override default LLM provider.
+- `--verbose`: Enable detailed output
+- `--gitmoji`: Override Gitmoji setting
+- `--provider`: Specify an LLM provider
+- `--auto-commit`: Automatically commit with the generated message
 
 Example:
 ```bash
@@ -107,38 +98,26 @@ git-iris gen --verbose --gitmoji --provider openai
 
 ### Interactive Commit Process
 
-The interactive commit process allows you to refine and finalize commit messages step-by-step. Use the arrow keys to navigate, 'e' to edit the message, 'i' to edit instructions, Enter to commit, and Esc to cancel.
+The interactive CLI allows you to refine and perfect your commit messages:
 
-### Gitmoji
+- Use arrow keys to navigate through suggestions
+- Press 'e' to edit the current message
+- Press 'i' to modify AI instructions
+- Press 'r' to regenerate the message
+- Press Enter to commit
+- Press Esc to cancel
 
-If Gitmoji support is enabled, you can include Gitmojis in your commit messages. Gitmojis add visual representation to your commit messages, making them easier to understand at a glance.
+### Gitmoji Support
 
-## Examples
+When enabled, Gitmoji adds visual flair to your commit messages, making them more expressive and easier to categorize at a glance.
 
-### Generating a Commit Message with Custom Instructions
-```bash
-git-iris gen --custom-instructions "Focus on the impact of the changes."
-```
-
-### Configuring OpenAI as the Default Provider
-```bash
-git-iris config --provider openai --api-key YOUR_API_KEY --model gpt-4
-```
-
-### Interactive Commit Process
-```bash
-git-iris gen
-```
-
-Navigate with arrow keys, edit messages and instructions, and finalize your commit.
+For more detailed usage information and advanced features, please refer to our [Usage Guide](USAGE.md).
 
 ## 🤝 Contributing
-<a name="contributing"></a>
 
-Contributions are what make the open-source community such a fantastic place to learn, inspire, and create. Any contributions you make are **greatly appreciated**. Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file for more details on how to get started.
+We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get started, our code of conduct, and the process for submitting pull requests.
 
 ## 📄 License
-<a name="license"></a>
 
 Distributed under the Apache 2.0 License. See `LICENSE` for more information.
 
@@ -152,8 +131,8 @@ Distributed under the Apache 2.0 License. See `LICENSE` for more information.
 
 ## 💖 Acknowledgements
 
-- [OpenAI](https://openai.com/) and [Anthropic](https://www.anthropic.com/) for their powerful language models
-- The Rust community for the amazing ecosystem and tools
+- [OpenAI](https://openai.com/) and [Anthropic](https://www.anthropic.com/) for their cutting-edge language models
+- The Rust community for the robust ecosystem and tooling
 
 ---
 
@@ -161,7 +140,7 @@ Distributed under the Apache 2.0 License. See `LICENSE` for more information.
 
 Created by [Stefanie Jane 🌠](https://github.com/hyperb1iss)
 
-If you find this project useful, [buy me a Monster Ultra Violet!](https://ko-fi.com/hyperb1iss)! ⚡️
+If you find Git-Iris useful, consider [buying me a Monster Ultra Violet](https://ko-fi.com/hyperb1iss)! ⚡️
 
 </div>
 

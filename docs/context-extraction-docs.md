@@ -1,97 +1,206 @@
-# Git-LLM Context Extraction Process
+# Git-Iris Context Extraction System
 
-## Overview
+## 1. Overview
 
-The git-llm tool extracts comprehensive context from the current Git repository to provide rich, relevant information to the Language Model (LLM) for generating accurate commit messages. This document outlines the context extraction process.
+The Context Extraction System is a core component of Git-Iris, responsible for gathering and processing relevant information from the Git repository to provide rich, meaningful context for AI-generated commit messages. This system plays a crucial role in enhancing the quality and accuracy of the generated messages.
 
-## Context Components
+## 2. Purpose
 
-The context extraction process gathers the following components:
+The main purposes of the Context Extraction System are:
 
-1. Current Branch
-2. Recent Commits
-3. Staged Files and Their Changes
-4. Unstaged Files
-5. Project Root Directory
+1. To collect comprehensive information about the current state of the Git repository
+2. To analyze changes in staged files and provide meaningful insights
+3. To extract project metadata for better understanding of the codebase
+4. To optimize the extracted information for use with Language Models (LLMs)
 
-## Extraction Process
+## 3. Components
 
-### 1. Current Branch
+### 3.1 Git Information Extractor
 
-- **Function**: `get_current_branch()`
-- **Command Used**: `git rev-parse --abbrev-ref HEAD`
-- **Purpose**: Identifies the branch on which the commit will be made, providing important context for the commit message.
+This component interfaces with the Git repository to extract essential information:
 
-### 2. Recent Commits
+- Current branch
+- Recent commits
+- Staged files and their changes
+- Unstaged files
+- Project root directory
 
-- **Function**: `get_recent_commits(count: usize)`
-- **Command Used**: `git log -[count] --oneline`
-- **Purpose**: Retrieves the last `count` commits (default is 5) to provide historical context for the current changes.
+### 3.2 File Analyzers
 
-### 3. Staged Files and Their Changes
+Language-specific analyzers that process the content and changes in staged files:
 
-- **Function**: `get_staged_files_with_diff()`
-- **Commands Used**:
-  - `git status --porcelain`: To identify staged files and their status
-  - `git diff --cached [file]`: To get the diff for each staged file
-- **Process**:
-  1. Parse the output of `git status --porcelain` to identify staged files.
-  2. For each staged file, determine its status:
-     - 'A': Added
-     - 'M': Modified
-     - 'D': Deleted
-  3. Fetch the diff for each staged file.
-  4. Store the file path, status, and diff in a `HashMap`.
-- **Purpose**: Provides detailed information about what changes are being committed, which is crucial for generating an accurate commit message.
+- Implement the `FileAnalyzer` trait
+- Provide detailed analysis of file changes
+- Extract relevant metadata from files
 
-### 4. Unstaged Files
+### 3.3 Project Metadata Extractor
 
-- **Function**: `get_unstaged_files()`
-- **Command Used**: `git ls-files --others --exclude-standard`
-- **Purpose**: Lists files that are in the working directory but not staged. This provides context about the state of the repository beyond the current commit.
+Gathers overall project information:
 
-### 5. Project Root Directory
+- Programming languages used
+- Frameworks and libraries
+- Version information
+- Build systems and test frameworks
 
-- **Function**: `get_project_root()`
-- **Command Used**: `git rev-parse --show-toplevel`
-- **Purpose**: Identifies the root directory of the Git repository, providing context about the project structure.
+### 3.4 Token Optimizer
 
-## Data Structure
+Ensures the extracted context fits within the token limits of the LLM:
 
-All extracted information is stored in a `GitInfo` struct:
+- Implements intelligent truncation strategies
+- Prioritizes the most relevant information
+
+## 4. Context Extraction Process
+
+### 4.1 Git Repository Analysis
+
+1. Determine the current branch
+2. Fetch recent commits (default: last 5)
+3. Identify staged and unstaged files
+4. Extract diffs for staged files
+
+### 4.2 File Analysis
+
+For each staged file:
+
+1. Determine the file type
+2. Apply the appropriate `FileAnalyzer`
+3. Extract relevant changes and metadata
+4. Generate a summary of modifications
+
+### 4.3 Project Metadata Extraction
+
+1. Scan the project directory for relevant files (e.g., package.json, Cargo.toml)
+2. Extract project-wide information
+3. Identify primary programming languages and frameworks
+
+### 4.4 Context Optimization
+
+1. Combine all extracted information
+2. Apply token optimization strategies
+3. Ensure the context fits within the specified token limit
+
+## 5. Data Structures
+
+### 5.1 CommitContext
+
+The main structure holding all extracted context:
 
 ```rust
-pub struct GitInfo {
+pub struct CommitContext {
     pub branch: String,
-    pub recent_commits: Vec<String>,
-    pub staged_files: HashMap<String, FileChange>,
+    pub recent_commits: Vec<RecentCommit>,
+    pub staged_files: Vec<StagedFile>,
     pub unstaged_files: Vec<String>,
-    pub project_root: String,
-}
-
-pub struct FileChange {
-    pub status: String,
-    pub diff: String,
+    pub project_metadata: ProjectMetadata,
 }
 ```
 
-## Prompt Creation
+### 5.2 StagedFile
 
-The extracted context is used to create a comprehensive prompt for the LLM:
+Represents a staged file and its analysis:
 
-1. The project root and current branch are included for high-level context.
-2. Recent commits are listed to provide historical context.
-3. Staged files are detailed with their status and a truncated diff (limited to 500 characters per file to manage prompt length).
-4. Unstaged files are listed to give a complete picture of the repository state.
+```rust
+pub struct StagedFile {
+    pub path: String,
+    pub change_type: ChangeType,
+    pub diff: String,
+    pub analysis: Vec<String>,
+    pub content_excluded: bool,
+}
+```
 
-## Considerations
+### 5.3 ProjectMetadata
 
-- **Performance**: The context extraction process involves multiple Git commands, which may impact performance for very large repositories or when there are many changed files.
-- **Privacy**: Care should be taken when using this tool in repositories with sensitive information, as file contents are sent to the LLM as part of the diff.
-- **LLM Token Limits**: The amount of context extracted may need to be adjusted based on the token limits of the LLM being used.
+Holds project-wide information:
 
-## Future Improvements
+```rust
+pub struct ProjectMetadata {
+    pub language: Option<String>,
+    pub framework: Option<String>,
+    pub dependencies: Vec<String>,
+    pub version: Option<String>,
+    pub build_system: Option<String>,
+    pub test_framework: Option<String>,
+    pub plugins: Vec<String>,
+}
+```
 
-- Implement caching mechanisms to improve performance for repeated runs.
-- Add options to customize the amount of context extracted (e.g., number of recent commits, diff truncation length).
-- Implement filters to exclude certain files or directories from the context.
+## 6. Key Functions
+
+### 6.1 get_git_info
+
+```rust
+pub fn get_git_info(repo_path: &Path, config: &Config) -> Result<CommitContext>
+```
+
+This function orchestrates the entire context extraction process:
+
+1. Opens the Git repository
+2. Extracts branch, commits, and file statuses
+3. Analyzes staged files
+4. Gathers project metadata
+5. Optimizes the context based on token limits
+
+### 6.2 analyze_staged_file
+
+```rust
+fn analyze_staged_file(file: &StagedFile, analyzer: &dyn FileAnalyzer) -> Vec<String>
+```
+
+Applies a specific `FileAnalyzer` to a staged file and returns the analysis results.
+
+### 6.3 extract_project_metadata
+
+```rust
+fn extract_project_metadata(repo_path: &Path) -> Result<ProjectMetadata>
+```
+
+Scans the repository for project-specific files and extracts relevant metadata.
+
+## 7. Token Optimization Strategies
+
+The Context Extraction System employs several strategies to optimize token usage:
+
+1. Truncation of long diffs while preserving the most relevant parts
+2. Summarization of repeated patterns in changes
+3. Prioritization of recent commits and more significant changes
+4. Exclusion of binary files or large generated files
+
+## 8. Extensibility
+
+The Context Extraction System is designed for easy extensibility:
+
+1. New `FileAnalyzer` implementations can be added for additional file types
+2. The project metadata extraction can be extended to support new build systems or frameworks
+3. Additional optimization strategies can be implemented in the `TokenOptimizer`
+
+## 9. Performance Considerations
+
+To ensure optimal performance:
+
+1. File analysis is performed only on staged files
+2. Large repositories use pagination for fetching commits and file statuses
+3. Caching mechanisms can be implemented for frequently analyzed files or projects
+
+## 10. Future Improvements
+
+Potential areas for enhancement include:
+
+1. Integration with code quality tools for additional context
+2. Support for analyzing commit history patterns
+3. Machine learning-based relevance scoring for extracted information
+4. Parallel processing of file analysis for large changesets
+
+## 11. Example Usage
+
+Here's a simplified example of how the Context Extraction System is used in Git-Iris:
+
+```rust
+let config = Config::load()?;
+let repo_path = std::env::current_dir()?;
+let context = get_git_info(&repo_path, &config)?;
+
+// Use the extracted context to generate a commit message
+let commit_message = generate_commit_message(&context, &config)?;
+```
+

@@ -1,156 +1,157 @@
-# File Analyzers System Documentation
+# Git-Iris File Analyzer System
 
-## Table of Contents
-1. Introduction
-2. Rationale
-3. System Architecture
-4. File Type Analyzers
-   4.1 Rust Analyzer
-   4.2 JavaScript/TypeScript Analyzer
-   4.3 Python Analyzer
-   4.4 YAML Analyzer
-   4.5 JSON Analyzer
-   4.6 Markdown Analyzer
-5. Default Analyzer
-6. Extensibility
-7. Conclusion
+## 1. Overview
 
-## 1. Introduction
+The File Analyzer System is a core component of Git-Iris, responsible for extracting meaningful information from changed files in a Git repository. This system plays a crucial role in providing context for AI-generated commit messages.
 
-The File Analyzers System is a crucial component of the Git-Iris project, designed to provide intelligent analysis of changes made to different types of files in a Git repository. This system enhances the commit message generation process by offering context-aware insights into the modifications made across various file types.
+## 2. Purpose
 
-## 2. Rationale
+The main purposes of the File Analyzer System are:
 
-The primary goal of the File Analyzers System is to improve the quality and specificity of generated commit messages. By analyzing the changes made to different file types, the system can provide more detailed and accurate information about the nature of the modifications. This context-rich analysis enables the AI to generate more meaningful and descriptive commit messages, enhancing the overall clarity and usefulness of the Git history.
+1. To analyze the content and structure of changed files
+2. To extract relevant information that can inform the commit message generation process
+3. To provide language-specific insights for improved context
 
-Key benefits of the File Analyzers System include:
-- Language-specific analysis for more accurate insights
-- Detection of structural changes (e.g., function modifications, class updates)
-- Identification of changes to configuration files and documentation
-- Improved context for AI-generated commit messages
+## 3. Components
 
-## 3. System Architecture
+### 3.1 FileAnalyzer Trait
 
-The File Analyzers System is built on a modular architecture, allowing for easy extension and maintenance. The core components include:
+The `FileAnalyzer` trait defines the interface for all file analyzers:
 
-1. `FileAnalyzer` trait: Defines the interface for all file analyzers
-2. `get_analyzer` function: Factory method to return the appropriate analyzer based on file extension
-3. Individual analyzer implementations for each supported file type
-4. Default analyzer for unsupported file types
+```rust
+pub trait FileAnalyzer {
+    fn analyze(&self, file: &str, staged_file: &StagedFile) -> Vec<String>;
+    fn get_file_type(&self) -> &'static str;
+    fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata;
+}
+```
 
-The system is designed to be easily extendable, allowing new file type analyzers to be added with minimal changes to the existing codebase.
+### 3.2 Language-Specific Analyzers
 
-## 4. File Type Analyzers
+Git-Iris implements several language-specific analyzers, including:
 
-### 4.1 Rust Analyzer
+- Rust Analyzer
+- JavaScript/TypeScript Analyzer
+- Python Analyzer
+- Java Analyzer
+- C/C++ Analyzer
+- Go Analyzer
+- YAML Analyzer
+- JSON Analyzer
+- Markdown Analyzer
 
-The Rust Analyzer is responsible for analyzing changes in Rust source files (`.rs`).
+Each analyzer implements the `FileAnalyzer` trait with language-specific logic.
 
-Key features:
-- Detects modifications to functions, structs, and traits
-- Identifies changes to import statements
-- Provides information about added, modified, or removed Rust-specific constructs
+### 3.3 Default Analyzer
 
-Implementation details:
-- Uses regex patterns to identify Rust-specific syntax
-- Extracts names of modified functions, structs, and traits
-- Checks for changes in use statements and extern crate declarations
+A default analyzer is provided for unsupported file types, ensuring that all files can be processed even if detailed analysis is not available.
 
-### 4.2 JavaScript/TypeScript Analyzer
+### 3.4 Analyzer Factory
 
-The JavaScript/TypeScript Analyzer handles changes in JavaScript and TypeScript files (`.js`, `.ts`).
+The `get_analyzer` function serves as a factory, returning the appropriate analyzer based on the file extension:
 
-Key features:
-- Detects modifications to functions and classes
-- Identifies changes to import/export statements
-- Recognizes updates to React components (both class and functional)
+```rust
+pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
+    // Logic to select and return the appropriate analyzer
+}
+```
 
-Implementation details:
-- Utilizes regex patterns to capture JavaScript/TypeScript syntax
-- Extracts names of modified functions, classes, and React components
-- Checks for changes in import and export statements
-- Distinguishes between regular functions and React functional components
+## 4. Functionality
 
-### 4.3 Python Analyzer
+### 4.1 File Analysis
 
-The Python Analyzer is responsible for analyzing changes in Python source files (`.py`).
+Each analyzer implements the `analyze` method, which:
 
-Key features:
-- Detects modifications to functions and classes
-- Identifies changes to import statements
-- Recognizes updates to decorators
+1. Examines the file's diff
+2. Identifies important changes (e.g., modified functions, classes, or structures)
+3. Extracts relevant information
+4. Returns a vector of strings describing the changes
 
-Implementation details:
-- Uses regex patterns to identify Python-specific syntax
-- Extracts names of modified functions and classes
-- Checks for changes in import statements
-- Identifies modifications to decorator usage
+### 4.2 Metadata Extraction
 
-### 4.4 YAML Analyzer
+The `extract_metadata` method is responsible for:
 
-The YAML Analyzer handles changes in YAML configuration files (`.yaml`, `.yml`).
+1. Identifying the programming language
+2. Detecting frameworks or libraries in use
+3. Extracting version information (if available)
+4. Identifying build systems or test frameworks
 
-Key features:
-- Detects modifications to top-level keys
-- Identifies changes to list structures
-- Recognizes updates to nested structures
+### 4.3 File Type Identification
 
-Implementation details:
-- Utilizes regex patterns to capture YAML syntax
-- Extracts names of modified top-level keys
-- Checks for changes in list structures and nested objects
+The `get_file_type` method returns a human-readable description of the file type, useful for generating more informative commit messages.
 
-### 4.5 JSON Analyzer
+## 5. Integration with Git-Iris
 
-The JSON Analyzer is responsible for analyzing changes in JSON files (`.json`).
+The File Analyzer System integrates with other components of Git-Iris:
 
-Key features:
-- Detects modifications to top-level keys
-- Identifies changes to array structures
-- Recognizes updates to nested objects
-
-Implementation details:
-- Uses regex patterns to identify JSON syntax
-- Extracts names of modified top-level keys
-- Checks for changes in array structures and nested objects
-
-### 4.6 Markdown Analyzer
-
-The Markdown Analyzer handles changes in Markdown documentation files (`.md`).
-
-Key features:
-- Detects modifications to headers
-- Identifies changes to list structures
-- Recognizes updates to code blocks and links
-
-Implementation details:
-- Utilizes regex patterns to capture Markdown syntax
-- Extracts modified headers
-- Checks for changes in list structures, code blocks, and links
-
-## 5. Default Analyzer
-
-The Default Analyzer is used for file types that are not specifically supported by the system. It provides a basic analysis without any file-type-specific insights.
-
-Key features:
-- Provides a generic analysis for unsupported file types
-- Returns the file type as "Unknown file type"
-
-Implementation details:
-- Returns an empty vector of analysis results
-- Acts as a fallback for any file type not recognized by the system
+1. The Git Integration component provides diffs and file information to the analyzers.
+2. Analysis results are used by the Prompt Management component to construct informative prompts for LLMs.
+3. The Token Optimization component may prioritize or truncate analyzer output based on relevance and token limits.
 
 ## 6. Extensibility
 
-The File Analyzers System is designed to be easily extendable. To add support for a new file type:
+The File Analyzer System is designed for easy extensibility:
 
-1. Create a new struct implementing the `FileAnalyzer` trait
-2. Implement the `analyze` and `get_file_type` methods for the new analyzer
-3. Update the `get_analyzer` function in `mod.rs` to return the new analyzer for the appropriate file extension
+1. New language analyzers can be added by implementing the `FileAnalyzer` trait.
+2. The analyzer factory can be extended to support new file types.
+3. Existing analyzers can be enhanced to provide more detailed analysis.
 
-This modular design allows for easy addition of new file type support without modifying existing analyzers.
+## 7. Performance Considerations
 
-## 7. Conclusion
+To ensure optimal performance:
 
-The File Analyzers System is a powerful and flexible component of the Git-Iris project. By providing detailed, language-specific analysis of file changes, it significantly enhances the context available for generating meaningful commit messages. The system's modular architecture ensures easy maintenance and extensibility, allowing for future improvements and additions to support new file types as needed.
+1. Analyzers focus on extracting high-value information efficiently.
+2. Large files or diffs may be partially analyzed to stay within reasonable time and memory constraints.
+3. Caching mechanisms can be implemented for frequently analyzed files or projects.
 
+## 8. Future Improvements
+
+Potential areas for enhancement include:
+
+1. Machine learning-based analysis for more accurate change detection
+2. Support for more programming languages and file types
+3. Integration with abstract syntax tree (AST) parsers for deeper code understanding
+4. Collaborative filtering to improve analysis based on user feedback
+
+## 9. Example: Rust Analyzer
+
+Here's a simplified example of how the Rust Analyzer might be implemented:
+
+```rust
+pub struct RustAnalyzer;
+
+impl FileAnalyzer for RustAnalyzer {
+    fn analyze(&self, _file: &str, staged_file: &StagedFile) -> Vec<String> {
+        let mut analysis = Vec::new();
+
+        if let Some(functions) = extract_modified_functions(&staged_file.diff) {
+            analysis.push(format!("Modified functions: {}", functions.join(", ")));
+        }
+
+        if let Some(structs) = extract_modified_structs(&staged_file.diff) {
+            analysis.push(format!("Modified structs: {}", structs.join(", ")));
+        }
+
+        // Additional Rust-specific analysis...
+
+        analysis
+    }
+
+    fn get_file_type(&self) -> &'static str {
+        "Rust source file"
+    }
+
+    fn extract_metadata(&self, _file: &str, content: &str) -> ProjectMetadata {
+        let mut metadata = ProjectMetadata::default();
+        metadata.language = Some("Rust".to_string());
+
+        // Extract Rust-specific metadata...
+
+        metadata
+    }
+}
+```
+
+This example demonstrates how language-specific analysis can be implemented to provide valuable context for commit message generation.
+
+The File Analyzer System is a critical component in Git-Iris's ability to generate meaningful, context-aware commit messages across various programming languages and file types.
