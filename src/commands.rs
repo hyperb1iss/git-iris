@@ -13,26 +13,29 @@ use std::time::Duration;
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
     verbose: bool,
-    gitmoji: Option<bool>,
+    use_gitmoji: bool,
     provider: Option<String>,
-    _auto_commit: bool,
+    auto_commit: bool,
+    instructions: Option<String>,
 ) -> Result<()> {
     log_debug!(
-        "Starting 'gen' command with verbose: {}, gitmoji: {:?}, provider: {:?}",
+        "Starting 'gen' command with verbose: {}, use_gitmoji: {}, provider: {:?}, auto_commit: {}, instructions: {:?}",
         verbose,
-        gitmoji,
-        provider
+        use_gitmoji,
+        provider,
+        auto_commit,
+        instructions
     );
 
     let config = Arc::new(Config::load()?);
 
     // Check environment prerequisites
     if let Err(e) = Config::check_environment() {
-        println!("Error: {}", e);
-        println!("\nPlease ensure the following:");
-        println!("1. Git is installed and accessible from the command line.");
-        println!("2. You are running this command from within a Git repository.");
-        println!("3. You have set up your configuration using 'git-iris config'.");
+        crate::cli::print_error(&format!("Error: {}", e));
+        crate::cli::print_info("\nPlease ensure the following:");
+        crate::cli::print_info("1. Git is installed and accessible from the command line.");
+        crate::cli::print_info("2. You are running this command from within a Git repository.");
+        crate::cli::print_info("3. You have set up your configuration using 'git-iris config'.");
         return Ok(());
     }
 
@@ -42,7 +45,7 @@ pub async fn handle_gen_command(
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
 
     if provider_config.api_key.is_empty() {
-        println!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider);
+        crate::cli::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider));
         return Ok(());
     }
 
@@ -50,14 +53,14 @@ pub async fn handle_gen_command(
     let git_info = get_git_info(current_dir.as_path(), &config)?;
 
     if git_info.staged_files.is_empty() {
-        println!(
-            "No staged changes. Please stage your changes before generating a commit message."
+        crate::cli::print_warning(
+            "No staged changes. Please stage your changes before generating a commit message.",
         );
-        println!("You can stage changes using 'git add <file>' or 'git add .'");
+        crate::cli::print_info("You can stage changes using 'git add <file>' or 'git add .'");
         return Ok(());
     }
 
-    let use_gitmoji = gitmoji.unwrap_or(config.use_gitmoji);
+    let use_gitmoji = use_gitmoji && config.use_gitmoji;
 
     // Display a spinner while generating the message
     let spinner = ProgressBar::new_spinner();
@@ -68,8 +71,8 @@ pub async fn handle_gen_command(
     );
     spinner.enable_steady_tick(Duration::from_millis(100));
 
-    // Get custom instructions
-    let custom_instructions = config.custom_instructions.clone();
+    // Get instructions
+    let instructions = instructions.unwrap_or_else(|| config.instructions.clone());
 
     // Generate the initial message
     let initial_message = get_refined_message(
@@ -78,7 +81,7 @@ pub async fn handle_gen_command(
         &provider,
         use_gitmoji,
         verbose,
-        &custom_instructions,
+        &instructions,
     )
     .await?;
 
@@ -87,20 +90,20 @@ pub async fn handle_gen_command(
     // Initialize interactive commit process with program name and version
     let mut interactive_commit = InteractiveCommit::new(
         initial_message,
-        custom_instructions,
+        instructions,
         crate_name!().to_string(),
         crate_version!().to_string(),
     );
 
     // Run the interactive commit process
     let commit_performed = interactive_commit
-        .run(move |custom_instructions| {
+        .run(move |instructions| {
             let config = Arc::clone(&config);
             let provider = Arc::clone(&provider);
             let current_dir = Arc::clone(&current_dir);
             let use_gitmoji = use_gitmoji;
             let verbose = verbose;
-            let custom_instructions = custom_instructions.to_string();
+            let instructions = instructions.to_string();
             async move {
                 let git_info = get_git_info(current_dir.as_path(), &config)?;
                 get_refined_message(
@@ -109,7 +112,7 @@ pub async fn handle_gen_command(
                     &provider,
                     use_gitmoji,
                     verbose,
-                    &custom_instructions,
+                    &instructions,
                 )
                 .await
             }
@@ -132,10 +135,10 @@ pub fn handle_config_command(
     model: Option<String>,
     param: Option<Vec<String>>,
     gitmoji: Option<bool>,
-    custom_instructions: Option<String>,
+    instructions: Option<String>,
     token_limit: Option<usize>,
 ) -> Result<()> {
-    log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, custom_instructions: {:?}", provider, api_key, model, param, gitmoji, custom_instructions);
+    log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
 
     let mut config = Config::load()?;
 
@@ -148,24 +151,24 @@ pub fn handle_config_command(
         model,
         additional_params,
         gitmoji,
-        custom_instructions,
+        instructions,
         token_limit,
     );
     config.save()?;
-    println!("Configuration updated successfully.");
-    println!(
-        "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nCustom Instructions: {}",
+    crate::cli::print_success("Configuration updated successfully.");
+    crate::cli::print_info(&format!(
+        "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nInstructions: {}",
         config.default_provider,
         config.use_gitmoji,
-        if config.custom_instructions.is_empty() {
+        if config.instructions.is_empty() {
             "None".to_string()
         } else {
-            config.custom_instructions.replace('\n', ", ")
+            config.instructions.replace('\n', ", ")
         }
-    );
+    ));
     for (provider, provider_config) in &config.providers {
-        println!(
-            "\nProvider: {}\nAPI Key: {}\nModel: {}\nAdditional Parameters: {:?}",
+        crate::cli::print_info(&format!(
+            "\nProvider: {}\nAPI Key: {}\nModel: {}\nToken Limit: {}\nAdditional Parameters: {:?}",
             provider,
             if provider_config.api_key.is_empty() {
                 "Not set"
@@ -173,8 +176,11 @@ pub fn handle_config_command(
                 "Set"
             },
             provider_config.model,
+            provider_config
+                .token_limit
+                .map_or("Default".to_string(), |limit| limit.to_string()),
             provider_config.additional_params
-        );
+        ));
     }
 
     Ok(())

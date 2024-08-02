@@ -389,7 +389,7 @@ fn test_token_optimization_integration() {
         .providers
         .get_mut(provider)
         .unwrap()
-        .custom_token_limit = Some(small_token_limit);
+        .token_limit = Some(small_token_limit);
 
     let context = get_git_info(repo_path, &config).unwrap();
 
@@ -444,7 +444,7 @@ fn test_token_optimization_integration() {
         .providers
         .get_mut(provider)
         .unwrap()
-        .custom_token_limit = Some(large_token_limit);
+        .token_limit = Some(large_token_limit);
 
     let large_prompt = create_prompt(&context, &config, provider, false).unwrap();
     let large_token_count = optimizer.count_tokens(&large_prompt);

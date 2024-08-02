@@ -16,11 +16,11 @@ pub struct Config {
     /// Provider-specific configurations
     pub providers: HashMap<String, ProviderConfig>,
     /// Flag indicating whether to use Gitmoji
-    #[serde(default)]
+    #[serde(default = "default_gitmoji")]
     pub use_gitmoji: bool,
-    /// Custom instructions for commit messages
+    /// Instructions for commit messages
     #[serde(default)]
-    pub custom_instructions: String,
+    pub instructions: String,
 }
 
 /// Provider-specific configuration structure
@@ -33,8 +33,13 @@ pub struct ProviderConfig {
     /// Additional parameters for the provider
     #[serde(default)]
     pub additional_params: HashMap<String, String>,
-    /// Custom token limit, if set by the user
-    pub custom_token_limit: Option<usize>,
+    /// Token limit, if set by the user
+    pub token_limit: Option<usize>,
+}
+
+/// Default function for use_gitmoji
+fn default_gitmoji() -> bool {
+    true
 }
 
 impl Config {
@@ -61,7 +66,8 @@ impl Config {
 
     /// Get the path to the configuration file
     fn get_config_path() -> Result<PathBuf> {
-        let mut path = config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
+        let mut path =
+            config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
         path.push("git-iris");
         std::fs::create_dir_all(&path)?;
         path.push("config.toml");
@@ -90,7 +96,7 @@ impl Config {
         model: Option<String>,
         additional_params: Option<HashMap<String, String>>,
         use_gitmoji: Option<bool>,
-        custom_instructions: Option<String>,
+        instructions: Option<String>,
         token_limit: Option<usize>,
     ) {
         if let Some(provider) = provider {
@@ -115,11 +121,11 @@ impl Config {
         if let Some(gitmoji) = use_gitmoji {
             self.use_gitmoji = gitmoji;
         }
-        if let Some(instructions) = custom_instructions {
-            self.custom_instructions = instructions;
+        if let Some(instr) = instructions {
+            self.instructions = instr;
         }
         if let Some(limit) = token_limit {
-            provider_config.custom_token_limit = Some(limit);
+            provider_config.token_limit = Some(limit);
         }
 
         log_debug!("Configuration updated: {:?}", self);
@@ -140,8 +146,8 @@ impl Default for Config {
         Config {
             default_provider: "openai".to_string(),
             providers,
-            use_gitmoji: false,
-            custom_instructions: String::new(),
+            use_gitmoji: true,
+            instructions: String::new(),
         }
     }
 }
@@ -155,20 +161,20 @@ impl ProviderConfig {
                 panic!(
                     "Default model for provider '{}' not found in registry",
                     provider
-                );
+                )
             });
 
         ProviderConfig {
             api_key: String::new(),
             model: default_model.to_string(),
             additional_params: HashMap::new(),
-            custom_token_limit: None,
+            token_limit: None,
         }
     }
 
     /// Get the token limit for this provider configuration
     pub fn get_token_limit(&self, provider: &dyn LLMProvider) -> usize {
-        self.custom_token_limit
+        self.token_limit
             .unwrap_or_else(|| provider.default_token_limit())
     }
 

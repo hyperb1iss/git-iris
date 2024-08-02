@@ -16,7 +16,7 @@
 
 - 🤖 **AI-powered commit message generation** using state-of-the-art language models
 - 🔄 **Multi-provider support** (OpenAI GPT-4o, Anthropic Claude)
-- 🎨 **Gitmoji integration** for expressive commit messages
+- 🎨 **Gitmoji integration** for expressive commit messages (enabled by default)
 - 🔧 **Customizable prompts and instructions** to tailor AI output
 - 📊 **Intelligent code change analysis** for context-aware suggestions
 - 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages
@@ -65,11 +65,11 @@ git-iris config --provider claude --api-key YOUR_CLAUDE_API_KEY
 Additional configuration options:
 
 ```bash
-# Enable Gitmoji
-git-iris config --gitmoji true
+# Disable Gitmoji (enabled by default)
+git-iris config --gitmoji false
 
-# Set custom instructions
-git-iris config --custom-instructions "Ensure all commit messages are concise and descriptive."
+# Set instructions
+git-iris config --instructions "Ensure all commit messages are concise and descriptive."
 
 # Set token limit (example for 5000 tokens)
 git-iris config --token-limit 5000
@@ -86,14 +86,15 @@ git-iris gen
 ```
 
 Options:
-- `--verbose`: Enable detailed output
-- `--gitmoji`: Override Gitmoji setting
+- `-l`, `--log`: Enable logging to file
+- `-a`, `--auto-commit`: Automatically commit with the generated message
+- `-i`, `--instructions`: Provide custom instructions for this commit
 - `--provider`: Specify an LLM provider
-- `--auto-commit`: Automatically commit with the generated message
+- `--no-gitmoji`: Disable Gitmoji for this commit
 
 Example:
 ```bash
-git-iris gen --verbose --gitmoji --provider openai
+git-iris gen -a -i "Focus on performance improvements" --provider openai
 ```
 
 ### Interactive Commit Process
@@ -109,7 +110,7 @@ The interactive CLI allows you to refine and perfect your commit messages:
 
 ### Gitmoji Support
 
-When enabled, Gitmoji adds visual flair to your commit messages, making them more expressive and easier to categorize at a glance.
+Gitmoji is enabled by default, adding visual flair to your commit messages and making them more expressive and easier to categorize at a glance. Use the `--no-gitmoji` flag to disable it for a specific commit.
 
 For more detailed usage information and advanced features, please refer to our [Usage Guide](USAGE.md).
 

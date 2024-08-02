@@ -82,7 +82,7 @@ fn test_create_prompt_with_gitmoji() {
 fn test_create_prompt_with_custom_instructions() {
     let commit_context = create_mock_commit_context();
     let mut config = Config::default();
-    config.custom_instructions = "Always mention the ticket number".to_string();
+    config.instructions = "Always mention the ticket number".to_string();
     let provider = "openai";
 
     let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();

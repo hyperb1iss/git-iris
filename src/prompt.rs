@@ -29,7 +29,7 @@ pub fn create_prompt(
 
     let optimizer = TokenOptimizer::new(token_limit);
 
-    let system_prompt = create_system_prompt(config.use_gitmoji, &config.custom_instructions);
+    let system_prompt = create_system_prompt(config.use_gitmoji, &config.instructions);
     let user_prompt = create_user_prompt(context, verbose)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);

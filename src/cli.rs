@@ -17,15 +17,6 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
 
-    /// Automatically commit with the generated message
-    #[arg(
-        short,
-        long,
-        global = true,
-        help = "Automatically commit with the generated message"
-    )]
-    pub auto_commit: bool,
-
     /// Log debug messages to a file
     #[arg(
         short = 'l',
@@ -54,42 +45,59 @@ pub enum Commands {
         after_help = "Default LLM provider: openai\nAvailable providers: claude, openai"
     )]
     Gen {
-        #[arg(short = 'g', long, help = "Override use_gitmoji setting")]
-        gitmoji: Option<bool>,
+        /// Automatically commit with the generated message
+        #[arg(short, long, help = "Automatically commit with the generated message")]
+        auto_commit: bool,
 
+        /// Custom instructions for this commit
+        #[arg(short, long, help = "Custom instructions for this commit")]
+        instructions: Option<String>,
+
+        /// Override default LLM provider
         #[arg(long, help = "Override default LLM provider")]
         provider: Option<String>,
+
+        /// Disable Gitmoji for this commit
+        #[arg(long, help = "Disable Gitmoji for this commit")]
+        no_gitmoji: bool,
     },
     /// Configure the AI-assisted Git commit message generator
     #[command(about = "Configure the AI-assisted Git commit message generator")]
     Config {
+        /// Set default LLM provider
         #[arg(long, help = "Set default LLM provider")]
         provider: Option<String>,
 
+        /// Set API key for the specified provider
         #[arg(long, help = "Set API key for the specified provider")]
         api_key: Option<String>,
 
+        /// Set model for the specified provider
         #[arg(long, help = "Set model for the specified provider")]
         model: Option<String>,
 
-        #[arg(long, help = "Set custom token limit for the specified provider")]
+        /// Set token limit for the specified provider
+        #[arg(long, help = "Set token limit for the specified provider")]
         token_limit: Option<usize>,
 
+        /// Set additional parameters for the specified provider
         #[arg(
             long,
             help = "Set additional parameters for the specified provider (key=value)"
         )]
         param: Option<Vec<String>>,
 
-        #[arg(short = 'g', long, help = "Set use_gitmoji preference")]
+        /// Set Gitmoji usage preference
+        #[arg(long, help = "Enable or disable Gitmoji")]
         gitmoji: Option<bool>,
 
+        /// Set instructions for the commit message generation
         #[arg(
-            short = 'c',
+            short,
             long,
-            help = "Set custom instructions for the commit message generation"
+            help = "Set instructions for the commit message generation"
         )]
-        custom_instructions: Option<String>,
+        instructions: Option<String>,
     },
 }
 
@@ -108,6 +116,16 @@ pub fn print_warning(message: &str) {
     println!("{}", message.yellow());
 }
 
+/// Print an error message with red color
+pub fn print_error(message: &str) {
+    eprintln!("{}", message.red());
+}
+
+/// Print a success message with green color
+pub fn print_success(message: &str) {
+    println!("{}", message.green());
+}
+
 /// List available LLM providers
 pub fn list_providers() -> Vec<String> {
     // Query the provider registry to get the list of available providers
@@ -118,7 +136,8 @@ pub fn list_providers() -> Vec<String> {
 pub fn print_dynamic_help() {
     let providers = list_providers();
     let provider_list = providers.join(", ");
-    println!("Available providers: {}", provider_list);
+    println!("{}", "Available providers:".blue());
+    println!("{}", provider_list.green());
 }
 
 /// Main function to parse arguments and handle the command
@@ -126,7 +145,7 @@ pub async fn main() -> anyhow::Result<()> {
     let cli = parse_args();
 
     if cli.version {
-        println!("Version: {}", crate_version!());
+        println!("{} {}", "Version:".blue(), crate_version!().green());
         return Ok(());
     }
 
@@ -143,15 +162,20 @@ pub async fn main() -> anyhow::Result<()> {
 pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Commands::Gen {
-            gitmoji,
+            auto_commit,
+            instructions,
             provider,
+            no_gitmoji,
         } => {
             log_debug!(
-                "Handling 'gen' command with gitmoji: {:?}, provider: {:?}",
-                gitmoji,
-                provider
+                "Handling 'gen' command with auto_commit: {}, instructions: {:?}, provider: {:?}, no_gitmoji: {}",
+                auto_commit,
+                instructions,
+                provider,
+                no_gitmoji
             );
-            commands::handle_gen_command(cli.log, gitmoji, provider, cli.auto_commit).await?;
+            commands::handle_gen_command(cli.log, !no_gitmoji, provider, auto_commit, instructions)
+                .await?;
         }
         Commands::Config {
             provider,
@@ -159,17 +183,17 @@ pub async fn handle_command(cli: Cli) -> anyhow::Result<()> {
             model,
             param,
             gitmoji,
-            custom_instructions,
+            instructions,
             token_limit,
         } => {
-            log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, custom_instructions: {:?}", provider, api_key, model, param, gitmoji, custom_instructions);
+            log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
             commands::handle_config_command(
                 provider,
                 api_key,
                 model,
                 param,
                 gitmoji,
-                custom_instructions,
+                instructions,
                 token_limit,
             )?;
         }
