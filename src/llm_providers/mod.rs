@@ -1,86 +1,65 @@
-mod claude_provider;
-mod openai_provider;
-pub mod provider_registry;
-pub use crate::llm_providers::provider_registry::ProviderRegistry;
-
-use crate::log_debug;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
+use strum_macros::{EnumIter, AsRefStr};
+use strum::IntoEnumIterator;
 
+pub mod openai;
+pub mod claude;
 
-/// Trait defining the interface for LLM providers
-#[async_trait]
-pub trait LLMProvider: Send + Sync {
-    /// Generate a message based on the system and user prompts
-    async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String>;
-    /// Check if the provider is unsupported
-    fn is_unsupported(&self) -> bool {
-        false
-    }
-    /// Get the name of the provider
-    fn provider_name(&self) -> &str;
-    fn default_token_limit(&self) -> usize {
-        4000 // Default fallback value
-    }
+#[derive(Debug, Clone, PartialEq, EnumIter, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+pub enum LLMProviderType {
+    OpenAI,
+    Claude,
 }
 
-/// Manager for handling multiple LLM providers
-pub struct LLMProviderManager {
-    providers: HashMap<String, Arc<dyn LLMProvider>>,
-}
-
-impl LLMProviderManager {
-    /// Create a new LLMProviderManager
-    pub fn new() -> Self {
-        LLMProviderManager {
-            providers: HashMap::new(),
+impl LLMProviderType {
+    pub fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "openai" => Ok(LLMProviderType::OpenAI),
+            "claude" => Ok(LLMProviderType::Claude),
+            _ => Err(anyhow!("Unsupported provider: {}", s)),
         }
     }
 
-    /// Register a new LLM provider
-    pub fn register_provider(&mut self, name: String, provider: Arc<dyn LLMProvider>) {
-        self.providers.insert(name.clone(), provider);
-        log_debug!("Registered provider: {}", name);
-    }
-
-    /// Get a registered LLM provider by name
-    pub fn get_provider(&self, name: &str) -> Option<&Arc<dyn LLMProvider>> {
-        self.providers.get(name)
-    }
-
-    /// Clear all registered providers
-    pub fn clear_providers(&mut self) {
-        self.providers.clear();
-        log_debug!("Cleared all registered providers");
+    pub fn available_providers() -> Vec<String> {
+        Self::iter().map(|p| p.as_ref().to_string()).collect()
     }
 }
 
-impl fmt::Display for dyn LLMProvider {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.provider_name())
-    }
+#[async_trait]
+pub trait LLMProvider: Send + Sync {
+    async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String>;
+    fn provider_name(&self) -> &'static str;
+    fn default_model(&self) -> &'static str;
+    fn default_token_limit(&self) -> usize;
 }
 
-/// Configuration structure for an LLM provider
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct LLMProviderConfig {
     pub api_key: String,
     pub model: String,
     pub additional_params: HashMap<String, String>,
 }
 
-/// Implementation of OpenAI provider
-pub struct OpenAIProvider {
-    pub(crate) _config: LLMProviderConfig,
+pub fn create_provider(provider_type: LLMProviderType, config: LLMProviderConfig) -> Result<Box<dyn LLMProvider>> {
+    match provider_type {
+        LLMProviderType::OpenAI => Ok(Box::new(openai::OpenAIProvider::new(config)?)),
+        LLMProviderType::Claude => Ok(Box::new(claude::ClaudeProvider::new(config)?)),
+    }
 }
 
-/// Implementation of Claude provider
-pub struct ClaudeProvider {
-    pub(crate) _config: LLMProviderConfig,
+pub fn get_default_model(provider_type: &LLMProviderType) -> &'static str {
+    match provider_type {
+        LLMProviderType::OpenAI => "gpt-4o",
+        LLMProviderType::Claude => "claude-3-5-sonnet-20240620",
+    }
 }
 
-/// Type alias for a map of provider names to provider instances
-pub type ProviderMap = HashMap<String, Arc<dyn LLMProvider>>;
+pub fn get_default_token_limit(provider_type: &LLMProviderType) -> usize {
+    match provider_type {
+        LLMProviderType::OpenAI => 100000,
+        LLMProviderType::Claude => 150000,
+    }
+}

@@ -1,4 +1,4 @@
-use crate::llm_providers::{LLMProvider, LLMProviderConfig};
+use super::{LLMProvider, LLMProviderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -7,17 +7,16 @@ use serde_json::json;
 /// Represents the OpenAI LLM provider
 pub struct OpenAIProvider {
     config: LLMProviderConfig,
+    client: Client,
 }
 
 impl OpenAIProvider {
     /// Creates a new instance of OpenAIProvider with the given configuration
-    pub fn new(config: LLMProviderConfig) -> Self {
-        Self { config }
-    }
-
-    /// Returns the default model name for the OpenAI provider
-    pub fn default_model() -> &'static str {
-        "gpt-4"
+    pub fn new(config: LLMProviderConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            client: Client::new(),
+        })
     }
 }
 
@@ -25,8 +24,6 @@ impl OpenAIProvider {
 impl LLMProvider for OpenAIProvider {
     /// Generates a message using the OpenAI API
     async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
-        let client = Client::new();
-
         let mut request_body = json!({
             "model": self.config.model,
             "messages": [
@@ -41,7 +38,7 @@ impl LLMProvider for OpenAIProvider {
         }
 
         // Make the API request
-        let response = client
+        let response = self.client
             .post("https://api.openai.com/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
@@ -70,8 +67,12 @@ impl LLMProvider for OpenAIProvider {
     }
 
     /// Returns the provider name
-    fn provider_name(&self) -> &str {
+    fn provider_name(&self) -> &'static str {
         "OpenAI"
+    }
+
+    fn default_model(&self) -> &'static str {
+        "gpt-4o"
     }
 
     fn default_token_limit(&self) -> usize {

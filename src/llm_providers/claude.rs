@@ -1,4 +1,4 @@
-use crate::llm_providers::{LLMProvider, LLMProviderConfig};
+use super::{LLMProvider, LLMProviderConfig};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -7,17 +7,16 @@ use serde_json::json;
 /// Represents the Claude LLM provider
 pub struct ClaudeProvider {
     config: LLMProviderConfig,
+    client: Client,
 }
 
 impl ClaudeProvider {
     /// Creates a new instance of ClaudeProvider with the given configuration
-    pub fn new(config: LLMProviderConfig) -> Self {
-        Self { config }
-    }
-
-    /// Returns the default model name for the Claude provider
-    pub fn default_model() -> &'static str {
-        "claude-3-5-sonnet-20240620"
+    pub fn new(config: LLMProviderConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            client: Client::new(),
+        })
     }
 }
 
@@ -25,8 +24,6 @@ impl ClaudeProvider {
 impl LLMProvider for ClaudeProvider {
     /// Generates a message using the Claude API
     async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
-        let client = Client::new();
-
         let mut request_body = json!({
             "model": self.config.model,
             "system": system_prompt, // Top-level system parameter
@@ -42,7 +39,7 @@ impl LLMProvider for ClaudeProvider {
         }
 
         // Make the API request
-        let response = client
+        let response = self.client
             .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &self.config.api_key)
             .header("anthropic-version", "2023-06-01")
@@ -79,8 +76,12 @@ impl LLMProvider for ClaudeProvider {
     }
 
     /// Returns the provider name
-    fn provider_name(&self) -> &str {
+    fn provider_name(&self) -> &'static str {
         "Claude"
+    }
+
+    fn default_model(&self) -> &'static str {
+        "claude-3-5-sonnet-20240620"
     }
 
     fn default_token_limit(&self) -> usize {

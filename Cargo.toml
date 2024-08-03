@@ -39,6 +39,8 @@ enum-map = "2.7.3"
 "unicode-width" = "0.1.13"
 "walkdir" = "2.5.0"
 "tiktoken-rs" = "0.5.9"
+strum = "0.26.3"
+strum_macros = "0.26.4"
 
 
 [package.metadata.deb]

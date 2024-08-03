@@ -1,5 +1,4 @@
-use crate::llm_providers::LLMProvider;
-use crate::llm_providers::ProviderRegistry;
+use crate::llm_providers::{LLMProviderConfig, LLMProviderType};
 use crate::log_debug;
 use anyhow::{anyhow, Result};
 use dirs::config_dir;
@@ -155,32 +154,30 @@ impl Default for Config {
 impl ProviderConfig {
     /// Create a default provider configuration for a given provider
     pub fn default_for(provider: &str) -> Self {
-        let default_model = ProviderRegistry::default()
-            .get_default_model(provider)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Default model for provider '{}' not found in registry",
-                    provider
-                )
-            });
+        let provider_type = LLMProviderType::from_str(provider).unwrap_or(LLMProviderType::OpenAI);
+        let default_model = crate::llm_providers::get_default_model(&provider_type);
+        let default_token_limit = crate::llm_providers::get_default_token_limit(&provider_type);
 
         ProviderConfig {
             api_key: String::new(),
             model: default_model.to_string(),
             additional_params: HashMap::new(),
-            token_limit: None,
+            token_limit: Some(default_token_limit),
         }
     }
 
     /// Get the token limit for this provider configuration
-    pub fn get_token_limit(&self, provider: &dyn LLMProvider) -> usize {
-        self.token_limit
-            .unwrap_or_else(|| provider.default_token_limit())
+    pub fn get_token_limit(&self) -> usize {
+        self.token_limit.unwrap_or_else(|| {
+            let provider_type =
+                LLMProviderType::from_str(self.model.as_str()).unwrap_or(LLMProviderType::OpenAI);
+            crate::llm_providers::get_default_token_limit(&provider_type)
+        })
     }
 
     /// Convert to LLMProviderConfig
-    pub fn to_llm_provider_config(&self) -> crate::llm_providers::LLMProviderConfig {
-        crate::llm_providers::LLMProviderConfig {
+    pub fn to_llm_provider_config(&self) -> LLMProviderConfig {
+        LLMProviderConfig {
             api_key: self.api_key.clone(),
             model: self.model.clone(),
             additional_params: self.additional_params.clone(),

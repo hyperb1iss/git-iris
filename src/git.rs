@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
-use crate::llm_providers::ProviderRegistry;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
@@ -43,15 +42,8 @@ pub fn get_git_info(
         project_metadata,
     );
 
-    // Get the provider instance
-    let provider_registry = ProviderRegistry::default();
-    let provider = provider_registry.create_provider(
-        &config.default_provider,
-        config.providers[&config.default_provider].to_llm_provider_config(),
-    )?;
-
     // Get the token limit for the default provider
-    let token_limit = config.providers[&config.default_provider].get_token_limit(provider.as_ref());
+    let token_limit = config.providers[&config.default_provider].get_token_limit();
 
     if let Some(cb) = progress_callback {
         cb("Optimizing context...");

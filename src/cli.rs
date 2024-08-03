@@ -1,4 +1,5 @@
 use crate::commands;
+use crate::llm_providers::LLMProviderType;
 use crate::log_debug;
 use crate::messages;
 use clap::builder::{styling::AnsiColor, Styles};
@@ -148,8 +149,10 @@ pub fn print_success(message: &str) {
 
 /// List available LLM providers
 pub fn list_providers() -> Vec<String> {
-    // Query the provider registry to get the list of available providers
-    crate::llm_providers::ProviderRegistry::default().list_providers()
+    LLMProviderType::available_providers()
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 /// Print dynamic help including available LLM providers

@@ -1,22 +1,13 @@
 use crate::config::Config;
 use crate::context::CommitContext;
+use crate::llm_providers::LLMProviderConfig;
+use crate::llm_providers::{create_provider, LLMProviderType};
 use crate::log_debug;
 use crate::prompt;
-use crate::llm_providers::ProviderRegistry;
+use crate::LLMProvider;
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::sync::Arc;
 
-pub use crate::llm_providers::{LLMProvider, LLMProviderConfig, LLMProviderManager};
-
-thread_local! {
-    pub static PROVIDER_MANAGER: RefCell<LLMProviderManager> = RefCell::new(LLMProviderManager::new());
-    pub static PROVIDER_REGISTRY: ProviderRegistry = ProviderRegistry::default();
-}
-
-/// Generate a refined commit message using the specified LLM provider
+/// Generates a refined commit message using the specified LLM provider
 pub async fn get_refined_message(
     context: &CommitContext,
     config: &Config,
@@ -25,48 +16,57 @@ pub async fn get_refined_message(
     verbose: bool,
     custom_instructions: &str,
 ) -> Result<String> {
+    get_refined_message_with_provider(
+        context,
+        config,
+        provider,
+        use_gitmoji,
+        verbose,
+        custom_instructions,
+        create_provider,
+    )
+    .await
+}
+
+/// Generates a refined commit message using the specified LLM provider
+/// This version allows for a custom provider creation function, useful for testing
+pub async fn get_refined_message_with_provider(
+    context: &CommitContext,
+    config: &Config,
+    provider: &str,
+    use_gitmoji: bool,
+    verbose: bool,
+    custom_instructions: &str,
+    create_provider_fn: impl Fn(LLMProviderType, LLMProviderConfig) -> Result<Box<dyn LLMProvider>>,
+) -> Result<String> {
+    // Convert provider string to LLMProviderType
+    let provider_type = LLMProviderType::from_str(provider)?;
+
+    // Get provider configuration from the global config
     let provider_config = config
         .get_provider_config(provider)
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
 
-    let provider_instance: Arc<dyn LLMProvider> = PROVIDER_MANAGER
-        .with(|manager| manager.borrow().get_provider(provider).cloned())
-        .unwrap_or_else(|| {
-            PROVIDER_REGISTRY.with(|registry| {
-                let provider_arc = registry
-                    .create_provider(provider, provider_config.to_llm_provider_config())
-                    .unwrap_or_else(|e| {
-                        panic!("Failed to create provider {}: {}", provider, e);
-                    });
-                PROVIDER_MANAGER.with(|manager| {
-                    manager
-                        .borrow_mut()
-                        .register_provider(provider.to_string(), provider_arc.clone());
-                });
-                provider_arc
-            })
-        });
+    // Create the LLM provider instance using the provided function
+    let llm_provider = create_provider_fn(provider_type, provider_config.to_llm_provider_config())?;
 
-    if provider_instance.is_unsupported() {
-        return Err(anyhow!(
-            "Unsupported LLM provider: {}",
-            provider_instance.provider_name()
-        ));
-    }
-
+    // Generate system and user prompts
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
     let user_prompt = prompt::create_prompt(context, config, provider, verbose)?;
 
+    // Log prompts if verbose mode is enabled
     if verbose {
-        log_debug!("Using LLM provider: {}", provider_instance.provider_name());
+        log_debug!("Using LLM provider: {}", llm_provider.provider_name());
         log_debug!("System prompt:\n{}", system_prompt);
         log_debug!("User prompt:\n{}", user_prompt);
     }
 
-    let refined_message = provider_instance
+    // Generate the commit message using the LLM provider
+    let refined_message = llm_provider
         .generate_message(&system_prompt, &user_prompt)
         .await?;
 
+    // Log the generated message if verbose mode is enabled
     if verbose {
         log_debug!("Generated message:\n{}", refined_message);
     }
@@ -74,37 +74,21 @@ pub async fn get_refined_message(
     Ok(refined_message)
 }
 
-/// Struct for handling unsupported providers
-struct UnsupportedProvider(String);
-
-#[async_trait]
-impl LLMProvider for UnsupportedProvider {
-    async fn generate_message(&self, _system_prompt: &str, _user_prompt: &str) -> Result<String> {
-        Err(anyhow!("Unsupported LLM provider: {}", self.0))
-    }
-
-    fn is_unsupported(&self) -> bool {
-        true
-    }
-
-    fn provider_name(&self) -> &str {
-        &self.0
-    }
+/// Returns a list of available LLM providers
+pub fn get_available_providers() -> Vec<String> {
+    LLMProviderType::available_providers()
 }
 
-/// Initialize providers for testing purposes
-pub fn init_providers(providers: HashMap<String, Arc<dyn LLMProvider>>) {
-    PROVIDER_MANAGER.with(|manager| {
-        let mut manager = manager.borrow_mut();
-        for (name, provider) in providers {
-            manager.register_provider(name, provider);
-        }
-    });
+/// Returns the default model for a given provider
+pub fn get_default_model_for_provider(provider: &str) -> Result<&'static str> {
+    let provider_type = LLMProviderType::from_str(provider)?;
+    Ok(crate::llm_providers::get_default_model(&provider_type))
 }
 
-/// Clear all registered providers
-pub fn clear_providers() {
-    PROVIDER_MANAGER.with(|manager| {
-        manager.borrow_mut().clear_providers();
-    });
+/// Returns the default token limit for a given provider
+pub fn get_default_token_limit_for_provider(provider: &str) -> Result<usize> {
+    let provider_type = LLMProviderType::from_str(provider)?;
+    Ok(crate::llm_providers::get_default_token_limit(
+        &provider_type,
+    ))
 }
