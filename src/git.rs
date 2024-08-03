@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
+use crate::messages::{format_callback_message, format_progress, get_callback_message};
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
@@ -15,22 +16,22 @@ pub fn get_git_info(
     let repo = Repository::open(repo_path)?;
 
     if let Some(cb) = progress_callback {
-        cb("Analyzing current branch...");
+        cb(&get_callback_message("analyze_branch").to_string());
     }
     let branch = get_current_branch(&repo)?;
 
     if let Some(cb) = progress_callback {
-        cb("Fetching recent commits...");
+        cb(&get_callback_message("fetch_commits").to_string());
     }
     let recent_commits = get_recent_commits(&repo, 5)?;
 
     if let Some(cb) = progress_callback {
-        cb("Analyzing file statuses...");
+        cb(&get_callback_message("analyze_files").to_string());
     }
     let (staged_files, unstaged_files) = get_file_statuses(&repo, progress_callback)?;
 
     if let Some(cb) = progress_callback {
-        cb("Extracting project metadata...");
+        cb(&get_callback_message("extract_metadata").to_string());
     }
     let project_metadata = get_project_metadata(repo_path)?;
 
@@ -46,7 +47,7 @@ pub fn get_git_info(
     let token_limit = config.providers[&config.default_provider].get_token_limit();
 
     if let Some(cb) = progress_callback {
-        cb("Optimizing context...");
+        cb(&get_callback_message("optimize_context").to_string());
     }
     // Optimize the context based on the token limit
     context.optimize(token_limit);
@@ -126,11 +127,13 @@ fn get_file_statuses(
 
     for (index, entry) in statuses.iter().enumerate() {
         if let Some(cb) = progress_callback {
-            cb(&format!(
-                "Processing file {} of {}...",
-                index + 1,
-                statuses.len()
-            ));
+            let message = format_callback_message(
+                "process_file",
+                &[
+                    format_progress(index + 1, statuses.len()).to_string(),
+                ]
+            );
+            cb(&message.to_string());
         }
 
         let path = entry.path().unwrap();
