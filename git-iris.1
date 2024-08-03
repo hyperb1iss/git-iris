@@ -1,0 +1,102 @@
+.TH GIT-IRIS 1 "August 2024" "git-iris 0.1.0" "User Commands"
+.SH NAME
+git-iris \- AI-assisted Git commit message generator
+.SH SYNOPSIS
+.B git-iris
+[\fIGLOBAL OPTIONS\fR]
+\fICOMMAND \fR[\fICOMMAND OPTIONS\fR]
+.SH DESCRIPTION
+.B git-iris
+is an AI-powered tool designed to generate meaningful and context-aware Git commit messages. It analyzes your code changes and project context to provide high-quality commit messages that accurately describe your work.
+.SH GLOBAL OPTIONS
+.TP
+.BR \-l ", " \-\-log
+Log debug messages to a file
+.TP
+.BR \-v ", " \-\-version
+Display the version
+.SH COMMANDS
+.TP
+.B gen
+Generate a commit message using AI
+.TP
+.B config
+Configure the AI-assisted Git commit message generator
+.SH "GEN COMMAND OPTIONS"
+.TP
+.BR \-a ", " \-\-auto-commit
+Automatically commit with the generated message
+.TP
+.BR \-i ", " \-\-instructions =\fIINSTR\fR
+Custom instructions for this commit
+.TP
+.BR \-\-provider =\fIPROVIDER\fR
+Override default LLM provider
+.TP
+.BR \-\-no-gitmoji
+Disable Gitmoji for this commit
+.SH "CONFIG COMMAND OPTIONS"
+.TP
+.BR \-\-provider =\fIPROVIDER\fR
+Set default LLM provider
+.TP
+.BR \-\-api-key =\fIKEY\fR
+Set API key for the specified provider
+.TP
+.BR \-\-model =\fIMODEL\fR
+Set model for the specified provider
+.TP
+.BR \-\-token-limit =\fILIMIT\fR
+Set token limit for the specified provider
+.TP
+.BR \-\-param =\fIKEY\fR=\fIVALUE\fR
+Set additional parameters for the specified provider
+.TP
+.BR \-\-gitmoji =\fIBOOL\fR
+Enable or disable Gitmoji
+.TP
+.BR \-i ", " \-\-instructions =\fIINSTR\fR
+Set instructions for the commit message generation
+.SH EXAMPLES
+Generate a commit message:
+.PP
+.nf
+.RS
+git-iris gen
+.RE
+.fi
+.PP
+Generate a commit message with custom instructions:
+.PP
+.nf
+.RS
+git-iris gen -i "Focus on performance improvements"
+.RE
+.fi
+.PP
+Configure the OpenAI provider:
+.PP
+.nf
+.RS
+git-iris config --provider openai --api-key YOUR_API_KEY
+.RE
+.fi
+.SH FILES
+.TP
+.I ~/.config/git-iris/config.toml
+Configuration file for Git-Iris
+.SH ENVIRONMENT
+.TP
+.B EDITOR
+The editor to use when editing commit messages. If not set, defaults to vim.
+.SH BUGS
+Report bugs to: https://github.com/hyperb1iss/git-iris/issues
+.SH AUTHOR
+Written by Stefanie Jane and the Git-Iris contributors.
+.SH COPYRIGHT
+Copyright © 2024 Git-Iris Contributors. License Apache-2.0: Apache License, Version 2.0 <https://www.apache.org/licenses/LICENSE-2.0>
+.SH SEE ALSO
+git(1), git-commit(1)
+.PP
+Full documentation and usage examples: <https://github.com/hyperb1iss/git-iris>
+
