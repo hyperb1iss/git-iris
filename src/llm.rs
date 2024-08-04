@@ -54,12 +54,7 @@ pub async fn get_refined_message_with_provider(
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
     let user_prompt = prompt::create_prompt(context, config, provider, verbose)?;
 
-    // Log prompts if verbose mode is enabled
-    if verbose {
-        log_debug!("Using LLM provider: {}", llm_provider.provider_name());
-        log_debug!("System prompt:\n{}", system_prompt);
-        log_debug!("User prompt:\n{}", user_prompt);
-    }
+    log_debug!("Using LLM provider: {}", llm_provider.provider_name());
 
     // Generate the commit message using the LLM provider
     let refined_message = llm_provider

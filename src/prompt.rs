@@ -113,7 +113,6 @@ pub fn create_user_prompt(context: &CommitContext, verbose: bool) -> Result<Stri
 
     if verbose {
         log_debug!("Detailed changes:\n{}", detailed_changes);
-        log_debug!("User Prompt:\n{}", prompt);
     }
 
     Ok(prompt)
