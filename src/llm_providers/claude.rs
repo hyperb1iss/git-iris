@@ -76,15 +76,15 @@ impl LLMProvider for ClaudeProvider {
     }
 
     /// Returns the provider name
-    fn provider_name(&self) -> &'static str {
+    fn provider_name() -> &'static str {
         "Claude"
     }
 
-    fn default_model(&self) -> &'static str {
+    fn default_model() -> &'static str {
         "claude-3-5-sonnet-20240620"
     }
 
-    fn default_token_limit(&self) -> usize {
+    fn default_token_limit() -> usize {
         150000 // Claude can do 200K
     }
 }

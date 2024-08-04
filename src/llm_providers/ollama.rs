@@ -4,14 +4,14 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 
-/// Represents the OpenAI LLM provider
-pub struct OpenAIProvider {
+/// Represents the Ollama LLM provider
+pub struct OllamaProvider {
     config: LLMProviderConfig,
     client: Client,
 }
 
-impl OpenAIProvider {
-    /// Creates a new instance of OpenAIProvider with the given configuration
+impl OllamaProvider {
+    /// Creates a new instance of OllamaProvider with the given configuration
     pub fn new(config: LLMProviderConfig) -> Result<Self> {
         Ok(Self {
             config,
@@ -21,27 +21,19 @@ impl OpenAIProvider {
 }
 
 #[async_trait]
-impl LLMProvider for OpenAIProvider {
-    /// Generates a message using the OpenAI API
+impl LLMProvider for OllamaProvider {
+    /// Generates a message using the Ollama API
     async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
-        let mut request_body = json!({
+        let request_body = json!({
             "model": self.config.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
+            "prompt": format!("{}\n\n{}", system_prompt, user_prompt),
+            "stream": false
         });
 
-        // Add additional parameters from the configuration
-        for (key, value) in &self.config.additional_params {
-            request_body[key] = serde_json::Value::String(value.clone());
-        }
-
         // Make the API request
-        let response = self.client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.config.api_key))
-            .header("Content-Type", "application/json")
+        let response = self
+            .client
+            .post("http://localhost:11434/api/generate")
             .json(&request_body)
             .send()
             .await?;
@@ -51,7 +43,7 @@ impl LLMProvider for OpenAIProvider {
             let status = response.status();
             let text = response.text().await?;
             return Err(anyhow::anyhow!(
-                "OpenAI API request failed with status {}: {}",
+                "Ollama API request failed with status {}: {}",
                 status,
                 text
             ));
@@ -59,23 +51,23 @@ impl LLMProvider for OpenAIProvider {
 
         // Parse the response body
         let response_body: serde_json::Value = response.json().await?;
-        let content = response_body["choices"][0]["message"]["content"]
+        let content = response_body["response"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Failed to extract content from OpenAI API response"))?;
+            .ok_or_else(|| anyhow::anyhow!("Failed to extract content from Ollama API response"))?;
 
         Ok(content.to_string())
     }
 
     /// Returns the provider name
     fn provider_name() -> &'static str {
-        "OpenAI"
+        "Ollama"
     }
 
     fn default_model() -> &'static str {
-        "gpt-4o"
+        "llama3"
     }
 
     fn default_token_limit() -> usize {
-        100000 // GPT-4o can do 128K
+        100000
     }
 }
