@@ -1,4 +1,4 @@
-use super::{LLMProvider, LLMProviderConfig};
+use super::{LLMProvider, LLMProviderConfig, ProviderMetadata};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -38,7 +38,8 @@ impl LLMProvider for OpenAIProvider {
         }
 
         // Make the API request
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.openai.com/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
@@ -65,17 +66,12 @@ impl LLMProvider for OpenAIProvider {
 
         Ok(content.to_string())
     }
+}
 
-    /// Returns the provider name
-    fn provider_name() -> &'static str {
-        "OpenAI"
-    }
-
-    fn default_model() -> &'static str {
-        "gpt-4o"
-    }
-
-    fn default_token_limit() -> usize {
-        100000 // GPT-4o can do 128K
+pub(super) fn get_metadata() -> ProviderMetadata {
+    ProviderMetadata {
+        name: "OpenAI",
+        default_model: "gpt-4o",
+        default_token_limit: 100000,
     }
 }

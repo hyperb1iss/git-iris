@@ -1,4 +1,4 @@
-use super::{LLMProvider, LLMProviderConfig};
+use super::{LLMProvider, LLMProviderConfig, ProviderMetadata};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -39,7 +39,8 @@ impl LLMProvider for ClaudeProvider {
         }
 
         // Make the API request
-        let response = self.client
+        let response = self
+            .client
             .post("https://api.anthropic.com/v1/messages")
             .header("x-api-key", &self.config.api_key)
             .header("anthropic-version", "2023-06-01")
@@ -74,17 +75,12 @@ impl LLMProvider for ClaudeProvider {
 
         Ok(message)
     }
+}
 
-    /// Returns the provider name
-    fn provider_name() -> &'static str {
-        "Claude"
-    }
-
-    fn default_model() -> &'static str {
-        "claude-3-5-sonnet-20240620"
-    }
-
-    fn default_token_limit() -> usize {
-        150000 // Claude can do 200K
+pub(super) fn get_metadata() -> ProviderMetadata {
+    ProviderMetadata {
+        name: "Claude",
+        default_model: "claude-3-5-sonnet-20240620",
+        default_token_limit: 150000,
     }
 }

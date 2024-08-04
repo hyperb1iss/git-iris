@@ -1,4 +1,4 @@
-use super::{LLMProvider, LLMProviderConfig};
+use super::{LLMProvider, LLMProviderConfig, ProviderMetadata};
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
@@ -57,17 +57,12 @@ impl LLMProvider for OllamaProvider {
 
         Ok(content.to_string())
     }
+}
 
-    /// Returns the provider name
-    fn provider_name() -> &'static str {
-        "Ollama"
-    }
-
-    fn default_model() -> &'static str {
-        "llama3"
-    }
-
-    fn default_token_limit() -> usize {
-        100000
+pub(super) fn get_metadata() -> ProviderMetadata {
+    ProviderMetadata {
+        name: "Ollama",
+        default_model: "llama3",
+        default_token_limit: 100000,
     }
 }

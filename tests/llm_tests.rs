@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use git_iris::config::{Config, ProviderConfig};
 use git_iris::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use git_iris::llm::{
-    get_available_providers, get_default_model_for_provider, get_default_token_limit_for_provider,
-    get_refined_message_with_provider,
+    get_available_provider_names, get_default_model_for_provider,
+    get_default_token_limit_for_provider, get_refined_message_with_provider,
 };
 use git_iris::llm_providers::{LLMProvider, LLMProviderConfig, LLMProviderType};
 use mockall::mock;
@@ -17,9 +17,6 @@ mock! {
     #[async_trait]
     impl LLMProvider for LLMProvider {
         async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String>;
-        fn provider_name(&self) -> &'static str;
-        fn default_model(&self) -> &'static str;
-        fn default_token_limit(&self) -> usize;
     }
 }
 
@@ -74,17 +71,11 @@ async fn test_get_refined_message() -> Result<()> {
     let config = create_mock_config();
 
     // Create a closure that returns a new mock provider each time
-    let create_provider = |provider_type: LLMProviderType, _: LLMProviderConfig| {
+    let create_provider = |_provider_type: LLMProviderType, _: LLMProviderConfig| {
         let mut mock_provider = MockLLMProvider::new();
         mock_provider
             .expect_generate_message()
             .returning(|_, _| Ok("Mocked commit message".to_string()));
-        mock_provider
-            .expect_provider_name()
-            .return_const(match provider_type {
-                LLMProviderType::OpenAI => "openai",
-                LLMProviderType::Claude => "claude",
-            });
         Ok(Box::new(mock_provider) as Box<dyn LLMProvider>)
     };
 
@@ -105,7 +96,7 @@ async fn test_get_refined_message() -> Result<()> {
 
 #[test]
 fn test_get_available_providers() {
-    let providers = get_available_providers();
+    let providers = get_available_provider_names();
     assert!(providers.contains(&"openai".to_string()));
     assert!(providers.contains(&"claude".to_string()));
 }

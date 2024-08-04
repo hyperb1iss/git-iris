@@ -1,5 +1,5 @@
 use crate::commands;
-use crate::llm_providers::LLMProviderType;
+use crate::llm::get_available_provider_names;
 use crate::log_debug;
 use crate::messages;
 use clap::builder::{styling::AnsiColor, Styles};
@@ -16,6 +16,7 @@ use std::time::Duration;
     about = "AI-assisted Git commit message generator",
     long_about = None,
     disable_version_flag = true,
+    after_help = get_dynamic_help(),
     styles = get_styles(),
 )]
 pub struct Cli {
@@ -49,7 +50,7 @@ pub enum Commands {
     #[command(
         about = "Generate a commit message using AI",
         long_about = "Generate a commit message using AI based on the current Git context.",
-        after_help = "Default LLM provider: openai\nAvailable providers: claude, openai"
+        after_help = get_dynamic_help()
     )]
     Gen {
         /// Automatically commit with the generated message
@@ -61,7 +62,7 @@ pub enum Commands {
         instructions: Option<String>,
 
         /// Override default LLM provider
-        #[arg(long, help = "Override default LLM provider")]
+        #[arg(long, help = "Override default LLM provider", value_parser = available_providers_parser)]
         provider: Option<String>,
 
         /// Disable Gitmoji for this commit
@@ -72,7 +73,7 @@ pub enum Commands {
     #[command(about = "Configure the AI-assisted Git commit message generator")]
     Config {
         /// Set default LLM provider
-        #[arg(long, help = "Set default LLM provider")]
+        #[arg(long, help = "Set default LLM provider", value_parser = available_providers_parser)]
         provider: Option<String>,
 
         /// Set API key for the specified provider
@@ -147,20 +148,23 @@ pub fn print_success(message: &str) {
     println!("{}", message.green().bold());
 }
 
-/// List available LLM providers
-pub fn list_providers() -> Vec<String> {
-    LLMProviderType::available_providers()
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+/// Generate dynamic help including available LLM providers
+fn get_dynamic_help() -> String {
+    let providers = get_available_provider_names().join(", ");
+    format!("Available providers: {}", providers)
 }
 
-/// Print dynamic help including available LLM providers
-pub fn print_dynamic_help() {
-    let providers = list_providers();
-    let provider_list = providers.join(", ");
-    println!("{}", "Available providers:".cyan().bold());
-    println!("{}", provider_list.green());
+/// Validate provider input against available providers
+fn available_providers_parser(s: &str) -> Result<String, String> {
+    let available_providers = get_available_provider_names();
+    if available_providers.contains(&s.to_lowercase()) {
+        Ok(s.to_lowercase())
+    } else {
+        Err(format!(
+            "Invalid provider. Available providers are: {}",
+            available_providers.join(", ")
+        ))
+    }
 }
 
 /// Print the version information

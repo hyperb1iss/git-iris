@@ -1,7 +1,9 @@
 use crate::config::Config;
 use crate::context::CommitContext;
-use crate::llm_providers::LLMProviderConfig;
-use crate::llm_providers::{create_provider, LLMProviderType};
+use crate::llm_providers::{
+    create_provider, get_available_providers, get_provider_metadata, LLMProviderConfig,
+    LLMProviderType,
+};
 use crate::log_debug;
 use crate::prompt;
 use crate::LLMProvider;
@@ -54,7 +56,7 @@ pub async fn get_refined_message_with_provider(
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
     let user_prompt = prompt::create_prompt(context, config, provider, verbose)?;
 
-    log_debug!("Using LLM provider: {}", llm_provider.provider_name());
+    log_debug!("Using LLM provider: {}", provider);
 
     // Generate the commit message using the LLM provider
     let refined_message = llm_provider
@@ -69,21 +71,22 @@ pub async fn get_refined_message_with_provider(
     Ok(refined_message)
 }
 
-/// Returns a list of available LLM providers
-pub fn get_available_providers() -> Vec<String> {
-    LLMProviderType::available_providers()
+/// Returns a list of available LLM providers as strings
+pub fn get_available_provider_names() -> Vec<String> {
+    get_available_providers()
+        .into_iter()
+        .map(|p| p.to_string())
+        .collect()
 }
 
 /// Returns the default model for a given provider
 pub fn get_default_model_for_provider(provider: &str) -> Result<&'static str> {
     let provider_type = LLMProviderType::from_str(provider)?;
-    Ok(crate::llm_providers::get_default_model(&provider_type))
+    Ok(get_provider_metadata(&provider_type).default_model)
 }
 
 /// Returns the default token limit for a given provider
 pub fn get_default_token_limit_for_provider(provider: &str) -> Result<usize> {
     let provider_type = LLMProviderType::from_str(provider)?;
-    Ok(crate::llm_providers::get_default_token_limit(
-        &provider_type,
-    ))
+    Ok(get_provider_metadata(&provider_type).default_token_limit)
 }

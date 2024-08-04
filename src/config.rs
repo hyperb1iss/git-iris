@@ -1,4 +1,4 @@
-use crate::llm_providers::{LLMProviderConfig, LLMProviderType};
+use crate::llm_providers::{LLMProviderConfig, LLMProviderType, get_available_providers, get_provider_metadata};
 use crate::log_debug;
 use anyhow::{anyhow, Result};
 use dirs::config_dir;
@@ -65,8 +65,7 @@ impl Config {
 
     /// Get the path to the configuration file
     fn get_config_path() -> Result<PathBuf> {
-        let mut path =
-            config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
+        let mut path = config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
         path.push("git-iris");
         std::fs::create_dir_all(&path)?;
         path.push("config.toml");
@@ -139,11 +138,12 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         let mut providers = HashMap::new();
-        providers.insert("openai".to_string(), ProviderConfig::default_for("openai"));
-        providers.insert("claude".to_string(), ProviderConfig::default_for("claude"));
+        for provider in get_available_providers() {
+            providers.insert(provider.to_string(), ProviderConfig::default_for(&provider.to_string()));
+        }
 
         Config {
-            default_provider: "openai".to_string(),
+            default_provider: get_available_providers().first().unwrap().to_string(),
             providers,
             use_gitmoji: true,
             instructions: String::new(),
@@ -154,24 +154,21 @@ impl Default for Config {
 impl ProviderConfig {
     /// Create a default provider configuration for a given provider
     pub fn default_for(provider: &str) -> Self {
-        let provider_type = LLMProviderType::from_str(provider).unwrap_or(LLMProviderType::OpenAI);
-        let default_model = crate::llm_providers::get_default_model(&provider_type);
-        let default_token_limit = crate::llm_providers::get_default_token_limit(&provider_type);
-
+        let provider_type = LLMProviderType::from_str(provider).unwrap_or_else(|_| get_available_providers()[0]);
+        let metadata = get_provider_metadata(&provider_type);
         ProviderConfig {
             api_key: String::new(),
-            model: default_model.to_string(),
+            model: metadata.default_model.to_string(),
             additional_params: HashMap::new(),
-            token_limit: Some(default_token_limit),
+            token_limit: Some(metadata.default_token_limit),
         }
     }
 
     /// Get the token limit for this provider configuration
     pub fn get_token_limit(&self) -> usize {
         self.token_limit.unwrap_or_else(|| {
-            let provider_type =
-                LLMProviderType::from_str(self.model.as_str()).unwrap_or(LLMProviderType::OpenAI);
-            crate::llm_providers::get_default_token_limit(&provider_type)
+            let provider_type = LLMProviderType::from_str(&self.model).unwrap_or_else(|_| get_available_providers()[0]);
+            get_provider_metadata(&provider_type).default_token_limit
         })
     }
 
