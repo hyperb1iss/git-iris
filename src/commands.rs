@@ -4,9 +4,9 @@ use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
 use crate::log_debug;
 use crate::messages;
+use crate::ui;
 use anyhow::{anyhow, Result};
 use clap::{crate_name, crate_version};
-use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -17,8 +17,6 @@ pub async fn handle_gen_command(
     provider: Option<String>,
     auto_commit: bool,
     instructions: Option<String>,
-    spinner: &ProgressBar,
-    progress_callback: impl Fn(&str),
 ) -> Result<()> {
     log_debug!(
         "Starting 'gen' command with verbose: {}, use_gitmoji: {}, provider: {:?}, auto_commit: {}, instructions: {:?}",
@@ -33,12 +31,11 @@ pub async fn handle_gen_command(
 
     // Check environment prerequisites
     if let Err(e) = Config::check_environment() {
-        spinner.finish_and_clear();
-        crate::cli::print_error(&format!("Error: {}", e));
-        crate::cli::print_info("\nPlease ensure the following:");
-        crate::cli::print_info("1. Git is installed and accessible from the command line.");
-        crate::cli::print_info("2. You are running this command from within a Git repository.");
-        crate::cli::print_info("3. You have set up your configuration using 'git-iris config'.");
+        ui::print_error(&format!("Error: {}", e));
+        ui::print_info("\nPlease ensure the following:");
+        ui::print_info("1. Git is installed and accessible from the command line.");
+        ui::print_info("2. You are running this command from within a Git repository.");
+        ui::print_info("3. You have set up your configuration using 'git-iris config'.");
         return Ok(());
     }
 
@@ -48,31 +45,40 @@ pub async fn handle_gen_command(
         .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
 
     if provider_config.api_key.is_empty() {
-        spinner.finish_and_clear();
-        crate::cli::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider));
+        ui::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider));
         return Ok(());
     }
 
     let current_dir = Arc::new(std::env::current_dir()?);
-    let git_info = get_git_info(current_dir.as_path(), &config, Some(&progress_callback))?;
+
+    let message = messages::get_random_message();
+    let spinner = ui::create_spinner(&message);
+
+    let git_info = get_git_info(
+        current_dir.as_path(),
+        &config,
+        Some(&|progress_msg: &str| {
+            spinner.set_message(progress_msg.to_string());
+        }),
+    )?;
 
     if git_info.staged_files.is_empty() {
         spinner.finish_and_clear();
-        crate::cli::print_warning(
+        ui::print_warning(
             "No staged changes. Please stage your changes before generating a commit message.",
         );
-        crate::cli::print_info("You can stage changes using 'git add <file>' or 'git add .'");
+        ui::print_info("You can stage changes using 'git add <file>' or 'git add .'");
         return Ok(());
     }
 
     let use_gitmoji = use_gitmoji && config.use_gitmoji;
 
-    let message = messages::get_random_message();
-    spinner.set_message(message.clone());
-
     // Get instructions
     let instructions = instructions.unwrap_or_else(|| config.instructions.clone());
 
+    // Update spinner message before generating the initial message
+    spinner.set_message(messages::get_random_message());
+    
     // Generate the initial message
     let initial_message = get_refined_message(
         &git_info,
@@ -154,8 +160,8 @@ pub fn handle_config_command(
         token_limit,
     );
     config.save()?;
-    crate::cli::print_success("Configuration updated successfully.");
-    crate::cli::print_info(&format!(
+    ui::print_success("Configuration updated successfully.");
+    ui::print_info(&format!(
         "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nInstructions: {}",
         config.default_provider,
         config.use_gitmoji,
@@ -166,7 +172,7 @@ pub fn handle_config_command(
         }
     ));
     for (provider, provider_config) in &config.providers {
-        crate::cli::print_info(&format!(
+        ui::print_info(&format!(
             "\nProvider: {}\nAPI Key: {}\nModel: {}\nToken Limit: {}\nAdditional Parameters: {:?}",
             provider,
             if provider_config.api_key.is_empty() {

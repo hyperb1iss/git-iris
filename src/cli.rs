@@ -1,12 +1,9 @@
 use crate::commands;
 use crate::llm::get_available_provider_names;
 use crate::log_debug;
-use crate::messages;
+use crate::ui;
 use clap::builder::{styling::AnsiColor, Styles};
 use clap::{crate_version, Parser, Subcommand};
-use colored::*;
-use indicatif::{ProgressBar, ProgressStyle};
-use std::time::Duration;
 
 /// CLI structure defining the available commands and global arguments
 #[derive(Parser)]
@@ -119,33 +116,11 @@ fn get_styles() -> Styles {
         .valid(AnsiColor::Blue.on_default().bold())
         .invalid(AnsiColor::Red.on_default().bold())
         .error(AnsiColor::Red.on_default().bold())
-        .literal(AnsiColor::Cyan.on_default().bold())
-        .usage(AnsiColor::Green.on_default().bold())
 }
 
 /// Parse the command-line arguments
 pub fn parse_args() -> Cli {
     Cli::parse()
-}
-
-/// Print an informational message with cyan color
-pub fn print_info(message: &str) {
-    println!("{}", message.cyan().bold());
-}
-
-/// Print a warning message with yellow color
-pub fn print_warning(message: &str) {
-    println!("{}", message.yellow().bold());
-}
-
-/// Print an error message with red color
-pub fn print_error(message: &str) {
-    eprintln!("{}", message.red().bold());
-}
-
-/// Print a success message with green color
-pub fn print_success(message: &str) {
-    println!("{}", message.green().bold());
 }
 
 /// Generate dynamic help including available LLM providers
@@ -167,37 +142,12 @@ fn available_providers_parser(s: &str) -> Result<String, String> {
     }
 }
 
-/// Print the version information
-pub fn print_version() {
-    let version = crate_version!();
-    println!(
-        "{} {} {}",
-        "🔮 Git-Iris".magenta().bold(),
-        "version".cyan(),
-        version.green()
-    );
-}
-
-/// Create and return a styled progress bar
-pub fn create_spinner(message: &str) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            .tick_chars("✦✧✶✷✸✹✺✻✼✽")
-            .template("{spinner} {msg}")
-            .unwrap(),
-    );
-    pb.set_message(message.to_string());
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb
-}
-
 /// Main function to parse arguments and handle the command
 pub async fn main() -> anyhow::Result<()> {
     let cli = parse_args();
 
     if cli.version {
-        print_version();
+        ui::print_version(crate_version!());
         return Ok(());
     }
 
@@ -235,27 +185,11 @@ pub async fn handle_command(command: Commands, log: bool) -> anyhow::Result<()> 
                 no_gitmoji
             );
 
-            print_version();
+            ui::print_version(crate_version!());
             println!();
 
-            let message = messages::get_random_message();
-            let spinner = create_spinner(&message);
-
-            // Ensure the spinner is visible before proceeding
-            spinner.tick();
-
-            commands::handle_gen_command(
-                log,
-                !no_gitmoji,
-                provider,
-                auto_commit,
-                instructions,
-                &spinner,
-                |progress_msg| {
-                    spinner.set_message(progress_msg.to_string());
-                },
-            )
-            .await?;
+            commands::handle_gen_command(log, !no_gitmoji, provider, auto_commit, instructions)
+                .await?;
         }
         Commands::Config {
             provider,
@@ -267,7 +201,7 @@ pub async fn handle_command(command: Commands, log: bool) -> anyhow::Result<()> 
             token_limit,
         } => {
             log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
-            print_info("Updating configuration...");
+            ui::print_info("Updating configuration...");
             commands::handle_config_command(
                 provider,
                 api_key,

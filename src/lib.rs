@@ -13,6 +13,7 @@ pub mod prompt;
 pub mod llm_providers;
 pub mod relevance;
 pub mod token_optimizer;
+pub mod ui;
 
 // Re-export important structs and functions for easier testing
 pub use config::Config;

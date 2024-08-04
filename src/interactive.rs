@@ -1,14 +1,12 @@
 use crate::git;
 use crate::log_debug;
-use crate::messages;
+use crate::ui;
 use anyhow::Result;
 use colored::*;
 use console::{Key, Term};
-use indicatif::{ProgressBar, ProgressStyle};
-use std::cmp::max;
 use std::io::Write;
 use std::process::Command;
-use std::time::Duration;
+use textwrap;
 use unicode_width::UnicodeWidthStr;
 
 pub struct InteractiveCommit {
@@ -131,7 +129,10 @@ impl InteractiveCommit {
     }
 
     fn display_header(&self, term: &mut Term, term_width: usize) -> Result<()> {
-        let logo = self.create_gradient_logo();
+        let logo = ui::create_gradient_text(&format!(
+            "🔮 {} v{} 🔮",
+            self.program_name, self.program_version
+        ));
         let logo_width = console::strip_ansi_codes(&logo).width();
         let logo_padding = if term_width > logo_width {
             (term_width - logo_width) / 2
@@ -141,15 +142,12 @@ impl InteractiveCommit {
         writeln!(term, "{}{}", " ".repeat(logo_padding), logo)?;
 
         let star_pattern = "・。.・゜✭・.・✫・゜・";
-        let colored_star_pattern: String = star_pattern
-            .chars()
-            .map(|c| c.to_string().truecolor(147, 112, 219).bold().to_string())
-            .collect();
+        let colored_star_pattern = ui::create_secondary_gradient_text(star_pattern);
         let pattern_width = console::strip_ansi_codes(&star_pattern).width();
         let pattern_padding = if logo_width > pattern_width {
             logo_padding + (logo_width - pattern_width) / 2
         } else {
-            max(logo_padding, (term_width.saturating_sub(pattern_width)) / 2)
+            std::cmp::max(logo_padding, (term_width.saturating_sub(pattern_width)) / 2)
         };
         writeln!(
             term,
@@ -169,7 +167,7 @@ impl InteractiveCommit {
         term_width: usize,
     ) -> Result<()> {
         let title = format!(" {} ", title);
-        let gradient_title = self.create_secondary_gradient_text(&title);
+        let gradient_title = ui::create_secondary_gradient_text(&title);
         let symbol_str = symbol
             .to_string()
             .truecolor(147, 112, 219)
@@ -196,20 +194,17 @@ impl InteractiveCommit {
         let wrapped_message = textwrap::fill(message, max_width);
         let lines: Vec<&str> = wrapped_message.lines().collect();
 
-        let border_color = Color::TrueColor {
-            r: 147,
-            g: 112,
-            b: 219,
-        };
-        let content_color = Color::TrueColor {
-            r: 173,
-            g: 216,
-            b: 230,
-        }; // Light blue
+        let border_color = (147, 112, 219); // Purple
+        let content_color = (173, 216, 230); // Light blue
 
-        let top_border = "┏".color(border_color).to_string()
-            + &"━".color(border_color).to_string().repeat(max_width + 2)
-            + &"┓".color(border_color).to_string();
+        let top_border = format!(
+            "{}{}{}",
+            "┏".truecolor(border_color.0, border_color.1, border_color.2),
+            "━"
+                .truecolor(border_color.0, border_color.1, border_color.2)
+                .repeat(max_width + 2),
+            "┓".truecolor(border_color.0, border_color.1, border_color.2)
+        );
         writeln!(term, "{}", top_border)?;
 
         for line in lines.iter() {
@@ -221,17 +216,23 @@ impl InteractiveCommit {
             };
             let formatted_line = format!(
                 "{} {}{} {}",
-                "┃".color(border_color),
-                line.color(content_color).bold(),
+                "┃".truecolor(border_color.0, border_color.1, border_color.2),
+                line.truecolor(content_color.0, content_color.1, content_color.2)
+                    .bold(),
                 " ".repeat(padding),
-                "┃".color(border_color)
+                "┃".truecolor(border_color.0, border_color.1, border_color.2)
             );
             writeln!(term, "{}", formatted_line)?;
         }
 
-        let bottom_border = "┗".color(border_color).to_string()
-            + &"━".color(border_color).to_string().repeat(max_width + 2)
-            + &"┛".color(border_color).to_string();
+        let bottom_border = format!(
+            "{}{}{}",
+            "┗".truecolor(border_color.0, border_color.1, border_color.2),
+            "━"
+                .truecolor(border_color.0, border_color.1, border_color.2)
+                .repeat(max_width + 2),
+            "┛".truecolor(border_color.0, border_color.1, border_color.2)
+        );
         writeln!(term, "{}", bottom_border)?;
 
         Ok(())
@@ -265,53 +266,9 @@ impl InteractiveCommit {
         let term_width = term.size().1 as usize;
         let padded_hint_line = format!("{:^width$}", hint_line, width = term_width);
 
-        term.write_line(&padded_hint_line)?;
+        writeln!(term, "{}", padded_hint_line)?;
 
         Ok(())
-    }
-
-    fn create_gradient_logo(&self) -> String {
-        let logo = format!("🔮 {} v{} 🔮", self.program_name, self.program_version);
-        self.create_gradient_text(&logo)
-    }
-
-    fn create_gradient_text(&self, text: &str) -> String {
-        let gradient = vec![
-            (129, 0, 255), // Deep purple
-            (134, 51, 255),
-            (139, 102, 255),
-            (144, 153, 255),
-            (149, 204, 255), // Light cyan
-        ];
-
-        self.apply_gradient(text, &gradient)
-    }
-
-    fn create_secondary_gradient_text(&self, text: &str) -> String {
-        let gradient = vec![
-            (75, 0, 130),   // Indigo
-            (106, 90, 205), // Slate blue
-            (138, 43, 226), // Blue violet
-            (148, 0, 211),  // Dark violet
-            (153, 50, 204), // Dark orchid
-        ];
-
-        self.apply_gradient(text, &gradient)
-    }
-
-    fn apply_gradient(&self, text: &str, gradient: &[(u8, u8, u8)]) -> String {
-        let chars: Vec<char> = text.chars().collect();
-        let step = (gradient.len() - 1) as f32 / (chars.len() - 1) as f32;
-
-        chars
-            .iter()
-            .enumerate()
-            .map(|(i, &c)| {
-                let index = (i as f32 * step) as usize;
-                let (r, g, b) = gradient[index];
-                format!("{}", c.to_string().truecolor(r, g, b))
-            })
-            .collect()
     }
 
     async fn regenerate_message<F, Fut>(&mut self, generate_message: &F) -> Result<()>
@@ -319,14 +276,7 @@ impl InteractiveCommit {
         F: Fn(&str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
-        let spinner = ProgressBar::new_spinner();
-        let random_message = messages::get_random_message();
-        spinner.set_style(
-            ProgressStyle::default_spinner()
-                .tick_chars("✦✧✶✷✸✹✺✻✼✽")
-                .template(&format!("{{spinner}} {}", random_message))?,
-        );
-        spinner.enable_steady_tick(Duration::from_millis(100));
+        let spinner = ui::create_spinner(&crate::messages::get_random_message());
 
         let new_message = generate_message(&self.custom_instructions).await?;
         self.messages.push(new_message);
@@ -338,7 +288,7 @@ impl InteractiveCommit {
 
     fn edit_message(&self) -> Result<Option<String>> {
         let mut file = tempfile::NamedTempFile::new()?;
-        write!(file, "{}", self.messages[self.current_index])?;
+        std::io::Write::write_all(&mut file, self.messages[self.current_index].as_bytes())?;
 
         let path = file.into_temp_path();
         let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
@@ -350,7 +300,7 @@ impl InteractiveCommit {
             log_debug!("✏️ Message edited: {}", edited_message);
             Ok(Some(edited_message))
         } else {
-            println!("🌠 Message editing cancelled.");
+            ui::print_info("🌠 Message editing cancelled.");
             Ok(None)
         }
     }
@@ -361,7 +311,7 @@ impl InteractiveCommit {
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut file = tempfile::NamedTempFile::new()?;
-        write!(file, "{}", self.custom_instructions)?;
+        std::io::Write::write_all(&mut file, self.custom_instructions.as_bytes())?;
 
         let path = file.into_temp_path();
         let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
@@ -374,20 +324,14 @@ impl InteractiveCommit {
             self.custom_instructions = edited_instructions;
             self.regenerate_message(generate_message).await?;
         } else {
-            println!("🌠 Editing custom instructions cancelled.");
+            ui::print_info("🌠 Editing custom instructions cancelled.");
         }
 
         Ok(())
     }
 
     fn perform_commit(&self) -> Result<bool> {
-        let spinner = ProgressBar::new_spinner();
-        spinner.set_style(
-            ProgressStyle::default_spinner()
-                .tick_chars("✦✧✶✷✸✹✺✻✼✽")
-                .template("{spinner} 💫 Committing changes...")?,
-        );
-        spinner.enable_steady_tick(Duration::from_millis(100));
+        let spinner = ui::create_spinner("💫 Committing changes...");
 
         let commit_message = &self.messages[self.current_index];
         let repo_path = std::env::current_dir()?;
@@ -397,21 +341,12 @@ impl InteractiveCommit {
 
         match result {
             Ok(_) => {
-                println!(
-                    "{}",
-                    "✨ Commit successful! The stars have aligned."
-                        .truecolor(147, 112, 219)
-                        .bold()
-                );
+                ui::print_success("✨ Commit successful! The stars have aligned.");
                 log_debug!("✨ Commit successful with message: {}", commit_message);
                 Ok(true)
             }
             Err(e) => {
-                println!(
-                    "{} {}",
-                    "🌠 Commit failed:".truecolor(255, 20, 147).bold(),
-                    e
-                );
+                ui::print_error(&format!("🌠 Commit failed: {}", e));
                 log_debug!("🌠 Commit failed: {}", e);
                 Ok(false)
             }
