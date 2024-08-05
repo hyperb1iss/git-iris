@@ -17,7 +17,7 @@ Git-Iris is a Rust-based command-line tool that leverages AI to generate meaning
 - Applies the final commit message
 
 ### 2.3 LLM Provider System
-- Manages communication with various LLM APIs (OpenAI, Claude)
+- Manages communication with various LLM APIs (OpenAI, Claude, Ollama)
 - Handles API authentication and rate limiting
 - Implements a plugin-like system for easy addition of new providers
 
@@ -43,18 +43,28 @@ Git-Iris is a Rust-based command-line tool that leverages AI to generate meaning
 - Provides optional Gitmoji support for commit messages
 - Manages Gitmoji mappings and integration logic
 
+### 2.9 File Analyzers
+- Implements language-specific analyzers for various file types
+- Extracts relevant information from changed files to provide better context
+
+### 2.10 Relevance Scoring
+- Implements a scoring system to determine the relevance of changes
+- Helps prioritize information for inclusion in the commit message
+
 ## 3. Data Flow
 
 1. User invokes Git-Iris via CLI
 2. CLI Interface parses input and retrieves configuration from `~/.config/git-iris/config.toml`
 3. Git Integration extracts repository information
 4. Context Extraction analyzes changes and builds context
-5. Token Optimization ensures context fits within limits
-6. Prompt Management constructs the full prompt
-7. LLM Provider System sends the prompt to the selected LLM API
-8. CLI Interface presents the generated message to the user
-9. Interactive process allows user refinement
-10. Git Integration applies the final commit (if confirmed)
+5. File Analyzers process changed files and extract relevant information
+6. Relevance Scoring prioritizes the extracted information
+7. Token Optimization ensures context fits within limits
+8. Prompt Management constructs the full prompt
+9. LLM Provider System sends the prompt to the selected LLM API
+10. CLI Interface presents the generated message to the user
+11. Interactive process allows user refinement
+12. Git Integration applies the final commit (if confirmed)
 
 ## 4. Key Design Patterns and Principles
 
@@ -136,77 +146,55 @@ graph TD
     B --> E[Context Extraction]
     E --> F[File Analyzers]
     E --> G[Token Optimization]
+    E --> K[Relevance Scoring]
     D --> H[Prompt Management]
     H --> I[Gitmoji Integration]
     G --> H
+    K --> H
     E --> H
     C -->|Reads/Writes| J[~/.config/git-iris/config.toml]
 ```
 
-## 13. Configuration File Management
+## 13. LLM Provider System
 
-The configuration file (`~/.config/git-iris/config.toml`) is a crucial part of Git-Iris. Here's how it's managed:
+The LLM Provider System is designed to be extensible and support multiple AI providers:
 
-- The `Config` struct in `config.rs` is responsible for loading, parsing, and saving the configuration file.
-- The `get_config_path()` function determines the correct path for the configuration file:
-  ```rust
-  fn get_config_path() -> Result<PathBuf> {
-      let mut path = config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
-      path.push("git-iris");
-      std::fs::create_dir_all(&path)?;
-      path.push("config.toml");
-      Ok(path)
-  }
-  ```
-- This ensures that the configuration file is stored in the standard location for user-specific configuration files across different operating systems.
-- The `Config::load()` method reads and parses the configuration file, creating a default configuration if the file doesn't exist.
-- The `Config::save()` method writes the current configuration back to the file.
+- Implements a common `LLMProvider` trait for all providers
+- Currently supports OpenAI, Claude, and Ollama
+- Each provider has its own implementation of API communication
+- Providers can have custom configuration options
 
-## 14. Error Handling Strategy
+## 14. File Analyzer System
 
-Git-Iris employs a robust error handling strategy:
+The File Analyzer System allows for language-specific analysis of changed files:
 
-- The `anyhow` crate is used for flexible error handling and propagation.
-- Custom error types are defined for specific error cases where more context is needed.
-- Errors are logged and presented to the user in a friendly format.
-- In verbose mode, more detailed error information is provided for debugging purposes.
+- Implements a `FileAnalyzer` trait for all file type analyzers
+- Supports various languages and file types (Rust, JavaScript, Python, Java, C/C++, etc.)
+- Extracts relevant information such as modified functions, classes, and structures
+- Provides context for more accurate commit message generation
 
-## 15. Asynchronous Operations
+## 15. Token Optimization
 
-Git-Iris uses asynchronous programming to improve performance and responsiveness:
+The Token Optimization system ensures that the context provided to LLMs fits within token limits:
 
-- The `tokio` runtime is used for asynchronous operations.
-- API calls to LLM providers are made asynchronously.
-- The main application logic remains synchronous for simplicity, with async operations contained within specific components.
+- Implements intelligent truncation strategies
+- Prioritizes the most relevant information
+- Ensures the most important context is preserved within token limits
 
-## 16. Resource Management
+## 16. Interactive Commit Process
 
-Git-Iris is designed to be efficient with system resources:
+The Interactive Commit Process provides a user-friendly interface for reviewing and refining commit messages:
 
-- Memory usage is optimized by processing Git diffs and file contents in chunks where possible.
-- Temporary files are used for large diffs or file contents to avoid excessive memory usage.
-- Resources like API connections are managed using Rust's RAII principles to ensure proper cleanup.
+- Allows navigation through multiple generated messages
+- Provides options for editing messages and regenerating with new instructions
+- Implements a visually appealing CLI interface with color coding and formatting
 
-## 17. Internationalization and Localization
+## 17. Relevance Scoring
 
-While not currently implemented, the architecture is designed to easily support internationalization in the future:
+The Relevance Scoring system helps prioritize information for inclusion in commit messages:
 
-- User-facing strings are centralized for easy translation.
-- The CLI interface is structured to allow for language-specific output.
+- Assigns scores to different types of changes (e.g., new files, modified functions)
+- Uses heuristics to determine the importance of specific changes
+- Helps focus the AI on the most significant aspects of the commit
 
-## 18. Logging and Diagnostics
-
-Git-Iris includes a comprehensive logging system:
-
-- Log messages are categorized by severity (debug, info, warning, error).
-- In verbose mode, detailed logs are written to a file for debugging purposes.
-- The logging system is designed to be non-intrusive during normal operation but highly informative when needed for troubleshooting.
-
-## 19. Update Mechanism
-
-While not part of the initial release, the architecture includes considerations for future self-update capabilities:
-
-- A version check mechanism can be implemented to compare the current version with the latest release.
-- An update command can be added to the CLI to facilitate easy updates.
-
-This architecture design provides a solid foundation for Git-Iris, allowing for maintainability, extensibility, and robust performance as the project grows and evolves. The use of standard configuration file locations and well-structured components ensures that Git-Iris integrates well with users' existing workflows and system expectations.
+This architecture provides a solid foundation for Git-Iris, allowing for maintainability, extensibility, and robust performance as the project grows and evolves. The modular design and use of well-established design patterns ensure that the system can be easily extended and modified as new requirements emerge.

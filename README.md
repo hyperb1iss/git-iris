@@ -2,9 +2,9 @@
 
 <div align="center">
 
-[![Crates.io][crates-shield]][crates]
+[![CI/CD](https://github.com/hyperb1iss/git-iris/actions/workflows/cicd.yml/badge.svg)](https://github.com/hyperb1iss/git-iris/actions)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub Release][releases-shield]][releases]
-[![License][license-shield]](LICENSE)
 
 *Elevate your Git commit messages with the power of AI* 🚀
 
@@ -12,15 +12,24 @@
 
 </div>
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-1.png" alt="Git-Iris Screenshot 1" width="48%">
+  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-2.png" alt="Git-Iris Screenshot 2" width="48%">
+</div>
+
+*Git-Iris in action: AI-powered commit message generation and interactive refinement*
+
 ## ✨ Features
 
 - 🤖 **AI-powered commit message generation** using state-of-the-art language models
-- 🔄 **Multi-provider support** (OpenAI GPT-4o, Anthropic Claude)
-- 🎨 **Gitmoji integration** for expressive commit messages (enabled by default)
+- 🔄 **Multi-provider support** (OpenAI GPT-4o, Anthropic Claude, Ollama)
+- 🎨 **Gitmoji integration** for expressive commit messages
+- 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages (*vibes included*)
 - 🔧 **Customizable prompts and instructions** to tailor AI output
+- 🧠 **Smart context extraction** from Git repositories
 - 📊 **Intelligent code change analysis** for context-aware suggestions
-- 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages
-- 🔐 **Secure API key management**
+- 🔍 **Relevance scoring** to prioritize important changes
+- 📝 **Support for multiple programming languages** including Rust, JavaScript, Python, Java, and more
 - 🚀 **Optimized for performance** with efficient token management
 
 ## 🛠️ Installation
@@ -52,7 +61,7 @@ cargo install git-iris
 
 ## ⚙️ Configuration
 
-Git-Iris uses a configuration file located at `~/.config/git-iris/config.toml`. You can set up your preferred AI provider using the following commands:
+Git-Iris uses a configuration file located at `~/.config/git-iris/config.toml`. Set up your preferred AI provider:
 
 ```bash
 # For OpenAI
@@ -60,19 +69,31 @@ git-iris config --provider openai --api-key YOUR_OPENAI_API_KEY
 
 # For Anthropic Claude
 git-iris config --provider claude --api-key YOUR_CLAUDE_API_KEY
+
+# For Ollama (no API key required)
+git-iris config --provider ollama
 ```
 
 Additional configuration options:
 
 ```bash
-# Disable Gitmoji (enabled by default)
-git-iris config --gitmoji false
+# Set default provider
+git-iris config --default-provider openai
 
-# Set instructions
-git-iris config --instructions "Ensure all commit messages are concise and descriptive."
+# Enable/Disable Gitmoji
+git-iris config --gitmoji true
 
-# Set token limit (example for 5000 tokens)
-git-iris config --token-limit 5000
+# Set custom instructions
+git-iris config --instructions "Always mention the ticket number in the commit message"
+
+# Set token limit for a provider
+git-iris config --provider openai --token-limit 4000
+
+# Set model for a provider
+git-iris config --provider openai --model gpt-4o
+
+# Set additional parameters for a provider
+git-iris config --provider openai --param temperature=0.7 --param max_tokens=150
 ```
 
 For more detailed configuration information, please refer to our [Configuration Guide](CONFIG.md).
@@ -86,15 +107,15 @@ git-iris gen
 ```
 
 Options:
-- `-l`, `--log`: Enable logging to file
 - `-a`, `--auto-commit`: Automatically commit with the generated message
 - `-i`, `--instructions`: Provide custom instructions for this commit
-- `--provider`: Specify an LLM provider
+- `--provider`: Specify an LLM provider (openai, claude, ollama)
 - `--no-gitmoji`: Disable Gitmoji for this commit
+- `-l`, `--log`: Enable logging to file
 
 Example:
 ```bash
-git-iris gen -a -i "Focus on performance improvements" --provider openai
+git-iris gen -a -i "Focus on performance improvements" --provider claude
 ```
 
 ### Interactive Commit Process
@@ -108,11 +129,61 @@ The interactive CLI allows you to refine and perfect your commit messages:
 - Press Enter to commit
 - Press Esc to cancel
 
-### Gitmoji Support
 
-Gitmoji is enabled by default, adding visual flair to your commit messages and making them more expressive and easier to categorize at a glance. Use the `--no-gitmoji` flag to disable it for a specific commit.
+## 🎛️ Custom Instructions
 
-For more detailed usage information and advanced features, please refer to our [Usage Guide](USAGE.md).
+Git-Iris allows you to provide custom instructions to guide the AI in generating commit messages. These instructions can be set globally in the configuration or provided on a per-commit basis.
+
+### Setting Global Custom Instructions
+
+```bash
+git-iris config --instructions "Always include the ticket number and mention performance impacts"
+```
+
+### Providing Per-Commit Instructions
+
+```bash
+git-iris gen -i "Emphasize security implications of this change"
+```
+
+### Examples of Custom Instructions
+
+1. **Ticket Number Integration**
+   ```
+   Always start the commit message with the JIRA ticket number in square brackets
+   ```
+
+2. **Language-Specific Conventions**
+   ```
+   For Rust files, mention any changes to public APIs or use of unsafe code
+   ```
+
+3. **Team-Specific Guidelines**
+   ```
+   Follow the Angular commit message format: <type>(<scope>): <subject>
+   ```
+
+4. **Project-Specific Context**
+   ```
+   For the authentication module, always mention if there are changes to the user model or permissions
+   ```
+
+5. **Performance Considerations**
+   ```
+   Highlight any changes that might affect application performance, including database queries
+   ```
+
+6. **Documentation Updates**
+   ```
+   If documentation files are changed, start the commit message with 'docs:'
+   ```
+
+7. **Breaking Changes**
+   ```
+   Clearly indicate any breaking changes in the commit message, starting with 'BREAKING CHANGE:'
+   ```
+
+Custom instructions allow you to tailor Git-Iris to your specific project needs, team conventions, or personal preferences. They provide a powerful way to ensure consistency and capture important context in your commit messages.
 
 ## 🤝 Contributing
 
