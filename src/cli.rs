@@ -158,7 +158,7 @@ pub async fn main() -> anyhow::Result<()> {
     }
 
     match cli.command {
-        Some(command) => handle_command(command, cli.log).await?,
+        Some(command) => handle_command(command).await?,
         None => {
             // If no subcommand is provided, print the help
             let _ = Cli::parse_from(&["git-iris", "--help"]);
@@ -169,7 +169,7 @@ pub async fn main() -> anyhow::Result<()> {
 }
 
 /// Handle the command based on parsed arguments
-pub async fn handle_command(command: Commands, log: bool) -> anyhow::Result<()> {
+pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
     match command {
         Commands::Gen {
             auto_commit,
@@ -188,8 +188,7 @@ pub async fn handle_command(command: Commands, log: bool) -> anyhow::Result<()> 
             ui::print_version(crate_version!());
             println!();
 
-            commands::handle_gen_command(log, !no_gitmoji, provider, auto_commit, instructions)
-                .await?;
+            commands::handle_gen_command(!no_gitmoji, provider, auto_commit, instructions).await?;
         }
         Commands::Config {
             provider,

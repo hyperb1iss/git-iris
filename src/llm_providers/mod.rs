@@ -31,6 +31,7 @@ pub struct ProviderMetadata {
     pub name: &'static str,
     pub default_model: &'static str,
     pub default_token_limit: usize,
+    pub requires_api_key: bool,
 }
 
 #[derive(Clone, Debug)]

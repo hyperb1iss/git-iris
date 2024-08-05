@@ -82,5 +82,6 @@ pub(super) fn get_metadata() -> ProviderMetadata {
         name: "Claude",
         default_model: "claude-3-5-sonnet-20240620",
         default_token_limit: 150000,
+        requires_api_key: true,
     }
 }

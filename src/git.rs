@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
-use crate::messages::{format_callback_message, format_progress, get_callback_message};
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
@@ -10,32 +9,16 @@ use walkdir::WalkDir;
 
 pub fn get_git_info(
     repo_path: &Path,
-    config: &Config,
-    progress_callback: Option<&dyn Fn(&str)>,
+    _config: &Config,
 ) -> Result<CommitContext> {
     let repo = Repository::open(repo_path)?;
 
-    if let Some(cb) = progress_callback {
-        cb(&get_callback_message("analyze_branch").to_string());
-    }
     let branch = get_current_branch(&repo)?;
-
-    if let Some(cb) = progress_callback {
-        cb(&get_callback_message("fetch_commits").to_string());
-    }
     let recent_commits = get_recent_commits(&repo, 5)?;
-
-    if let Some(cb) = progress_callback {
-        cb(&get_callback_message("analyze_files").to_string());
-    }
-    let (staged_files, unstaged_files) = get_file_statuses(&repo, progress_callback)?;
-
-    if let Some(cb) = progress_callback {
-        cb(&get_callback_message("extract_metadata").to_string());
-    }
+    let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
     let project_metadata = get_project_metadata(repo_path)?;
 
-    let mut context = CommitContext::new(
+    let context = CommitContext::new(
         branch,
         recent_commits,
         staged_files,
@@ -43,14 +26,6 @@ pub fn get_git_info(
         project_metadata,
     );
 
-    // Get the token limit for the default provider
-    let token_limit = config.providers[&config.default_provider].get_token_limit();
-
-    if let Some(cb) = progress_callback {
-        cb(&get_callback_message("optimize_context").to_string());
-    }
-    // Optimize the context based on the token limit
-    context.optimize(token_limit);
 
     Ok(context)
 }
@@ -116,7 +91,6 @@ fn should_exclude_file(path: &str) -> bool {
 
 fn get_file_statuses(
     repo: &Repository,
-    progress_callback: Option<&dyn Fn(&str)>,
 ) -> Result<(Vec<StagedFile>, Vec<String>)> {
     let mut staged_files = Vec::new();
     let mut unstaged_files = Vec::new();
@@ -125,17 +99,7 @@ fn get_file_statuses(
     opts.include_untracked(true);
     let statuses = repo.statuses(Some(&mut opts))?;
 
-    for (index, entry) in statuses.iter().enumerate() {
-        if let Some(cb) = progress_callback {
-            let message = format_callback_message(
-                "process_file",
-                &[
-                    format_progress(index + 1, statuses.len()).to_string(),
-                ]
-            );
-            cb(&message.to_string());
-        }
-
+    for (_index, entry) in statuses.iter().enumerate() {
         let path = entry.path().unwrap();
         let status = entry.status();
 

@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 /// Provider-specific configuration structure
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug, Default)]
 pub struct ProviderConfig {
     /// API key for the provider
     pub api_key: String,
@@ -156,7 +156,7 @@ impl ProviderConfig {
     pub fn default_for(provider: &str) -> Self {
         let provider_type = LLMProviderType::from_str(provider).unwrap_or_else(|_| get_available_providers()[0]);
         let metadata = get_provider_metadata(&provider_type);
-        ProviderConfig {
+        Self {
             api_key: String::new(),
             model: metadata.default_model.to_string(),
             additional_params: HashMap::new(),

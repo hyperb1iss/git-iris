@@ -83,8 +83,7 @@ async fn test_get_refined_message() -> Result<()> {
     let result = get_refined_message_with_provider(
         &commit_context,
         &config,
-        "openai",
-        false,
+        &LLMProviderType::OpenAI,
         false,
         "",
         create_provider,
@@ -103,9 +102,12 @@ fn test_get_available_providers() {
 
 #[test]
 fn test_get_default_model_for_provider() -> Result<()> {
-    assert_eq!(get_default_model_for_provider("openai")?, "gpt-4o");
     assert_eq!(
-        get_default_model_for_provider("claude")?,
+        get_default_model_for_provider(&LLMProviderType::OpenAI)?,
+        "gpt-4o"
+    );
+    assert_eq!(
+        get_default_model_for_provider(&LLMProviderType::Claude)?,
         "claude-3-5-sonnet-20240620"
     );
     Ok(())
@@ -113,8 +115,14 @@ fn test_get_default_model_for_provider() -> Result<()> {
 
 #[test]
 fn test_get_default_token_limit_for_provider() -> Result<()> {
-    assert_eq!(get_default_token_limit_for_provider("openai")?, 100000);
-    assert_eq!(get_default_token_limit_for_provider("claude")?, 150000);
+    assert_eq!(
+        get_default_token_limit_for_provider(&LLMProviderType::OpenAI)?,
+        100000
+    );
+    assert_eq!(
+        get_default_token_limit_for_provider(&LLMProviderType::Claude)?,
+        150000
+    );
     Ok(())
 }
 

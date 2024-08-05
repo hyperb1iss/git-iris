@@ -37,7 +37,7 @@ fn test_create_prompt_basic() {
     let config = Config::default();
     let provider = "openai"; // Use a default provider for testing
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("Initial commit"));
@@ -52,7 +52,7 @@ fn test_create_prompt_with_staged_files() {
     let config = Config::default();
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("file1.rs"));
@@ -67,7 +67,7 @@ fn test_create_prompt_with_gitmoji() {
     config.use_gitmoji = true;
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("✨ - :feat: - Introduce new features"));
     assert!(prompt.contains("🐛 - :fix: - Fix a bug"));
@@ -85,7 +85,7 @@ fn test_create_prompt_with_custom_instructions() {
     config.instructions = "Always mention the ticket number".to_string();
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("Always mention the ticket number"));
 }
@@ -96,7 +96,7 @@ fn test_create_prompt_verbose() {
     let config = Config::default();
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, true).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("Detailed changes"));
 }
@@ -104,7 +104,7 @@ fn test_create_prompt_verbose() {
 #[test]
 fn test_create_user_prompt() {
     let commit_context = create_mock_commit_context();
-    let prompt = create_user_prompt(&commit_context, false).unwrap();
+    let prompt = create_user_prompt(&commit_context).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("Initial commit"));
@@ -128,7 +128,7 @@ fn test_create_prompt_with_multiple_staged_files() {
     let config = Config::default();
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("file1.rs"));
     assert!(prompt.contains("Modified"));
@@ -154,7 +154,7 @@ fn test_create_prompt_with_project_metadata() {
     let config = Config::default();
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("Language: Rust"));
     assert!(prompt.contains("Framework: Rocket"));
@@ -172,7 +172,7 @@ fn test_create_prompt_with_file_analysis() {
     let config = Config::default();
     let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider, false).unwrap();
+    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
 
     assert!(prompt.contains("Modified function: main"));
     assert!(prompt.contains("Added new struct: User"));
@@ -183,8 +183,8 @@ fn test_create_prompt_with_different_providers() {
     let commit_context = create_mock_commit_context();
     let config = Config::default();
 
-    let openai_prompt = create_prompt(&commit_context, &config, "openai", false).unwrap();
-    let claude_prompt = create_prompt(&commit_context, &config, "claude", false).unwrap();
+    let openai_prompt = create_prompt(&commit_context, &config, "openai").unwrap();
+    let claude_prompt = create_prompt(&commit_context, &config, "claude").unwrap();
 
     // The prompts should be similar, but may have slight differences due to provider-specific configurations
     assert!(openai_prompt.contains("Branch: main"));

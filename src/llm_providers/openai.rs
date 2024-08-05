@@ -73,5 +73,6 @@ pub(super) fn get_metadata() -> ProviderMetadata {
         name: "OpenAI",
         default_model: "gpt-4o",
         default_token_limit: 100000,
+        requires_api_key: true,
     }
 }

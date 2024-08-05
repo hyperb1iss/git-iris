@@ -11,7 +11,6 @@ pub fn create_prompt(
     context: &CommitContext,
     config: &Config,
     provider: &str,
-    verbose: bool,
 ) -> Result<String> {
 
     let provider_config = config
@@ -23,7 +22,7 @@ pub fn create_prompt(
     let optimizer = TokenOptimizer::new(token_limit);
 
     let system_prompt = create_system_prompt(config.use_gitmoji, &config.instructions);
-    let user_prompt = create_user_prompt(context, verbose)?;
+    let user_prompt = create_user_prompt(context)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
 
@@ -31,11 +30,9 @@ pub fn create_prompt(
 
     let token_count = optimizer.count_tokens(&truncated_prompt);
 
-    if verbose {
-        log_debug!("Full Prompt:\n{}", truncated_prompt);
-        log_debug!("Token count: {}", token_count);
-        log_debug!("Token limit for {}: {}", provider, token_limit);
-    }
+    log_debug!("Full Prompt:\n{}", truncated_prompt);
+    log_debug!("Token count: {}", token_count);
+    log_debug!("Token limit for {}: {}", provider, token_limit);
 
     Ok(truncated_prompt)
 }
@@ -90,7 +87,7 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
     prompt
 }
 
-pub fn create_user_prompt(context: &CommitContext, verbose: bool) -> Result<String> {
+pub fn create_user_prompt(context: &CommitContext) -> Result<String> {
     let scorer = RelevanceScorer::new();
     let relevance_scores = scorer.score(context);
     let detailed_changes = format_detailed_changes(&context.staged_files, &relevance_scores);
@@ -111,9 +108,7 @@ pub fn create_user_prompt(context: &CommitContext, verbose: bool) -> Result<Stri
         detailed_changes
     );
 
-    if verbose {
-        log_debug!("Detailed changes:\n{}", detailed_changes);
-    }
+    log_debug!("Detailed changes:\n{}", detailed_changes);
 
     Ok(prompt)
 }

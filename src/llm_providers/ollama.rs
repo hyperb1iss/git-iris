@@ -64,5 +64,7 @@ pub(super) fn get_metadata() -> ProviderMetadata {
         name: "Ollama",
         default_model: "llama3",
         default_token_limit: 100000,
+        requires_api_key: false,
     }
 }
+

@@ -13,17 +13,15 @@ use anyhow::{anyhow, Result};
 pub async fn get_refined_message(
     context: &CommitContext,
     config: &Config,
-    provider: &str,
+    provider_type: &LLMProviderType,
     use_gitmoji: bool,
-    verbose: bool,
     custom_instructions: &str,
 ) -> Result<String> {
     get_refined_message_with_provider(
         context,
         config,
-        provider,
+        provider_type,
         use_gitmoji,
-        verbose,
         custom_instructions,
         create_provider,
     )
@@ -35,38 +33,31 @@ pub async fn get_refined_message(
 pub async fn get_refined_message_with_provider(
     context: &CommitContext,
     config: &Config,
-    provider: &str,
+    provider_type: &LLMProviderType,
     use_gitmoji: bool,
-    verbose: bool,
     custom_instructions: &str,
     create_provider_fn: impl Fn(LLMProviderType, LLMProviderConfig) -> Result<Box<dyn LLMProvider>>,
 ) -> Result<String> {
-    // Convert provider string to LLMProviderType
-    let provider_type = LLMProviderType::from_str(provider)?;
-
     // Get provider configuration from the global config
     let provider_config = config
-        .get_provider_config(provider)
-        .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
+        .get_provider_config(&provider_type.to_string())
+        .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
 
     // Create the LLM provider instance using the provided function
-    let llm_provider = create_provider_fn(provider_type, provider_config.to_llm_provider_config())?;
+    let llm_provider = create_provider_fn(provider_type.clone(), provider_config.to_llm_provider_config())?;
 
     // Generate system and user prompts
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
-    let user_prompt = prompt::create_prompt(context, config, provider, verbose)?;
+    let user_prompt = prompt::create_user_prompt(context)?;
 
-    log_debug!("Using LLM provider: {}", provider);
+    log_debug!("Using LLM provider: {}", provider_type);
 
     // Generate the commit message using the LLM provider
     let refined_message = llm_provider
         .generate_message(&system_prompt, &user_prompt)
         .await?;
 
-    // Log the generated message if verbose mode is enabled
-    if verbose {
-        log_debug!("Generated message:\n{}", refined_message);
-    }
+    log_debug!("Generated message:\n{}", refined_message);
 
     Ok(refined_message)
 }
@@ -80,13 +71,73 @@ pub fn get_available_provider_names() -> Vec<String> {
 }
 
 /// Returns the default model for a given provider
-pub fn get_default_model_for_provider(provider: &str) -> Result<&'static str> {
-    let provider_type = LLMProviderType::from_str(provider)?;
-    Ok(get_provider_metadata(&provider_type).default_model)
+pub fn get_default_model_for_provider(provider_type: &LLMProviderType) -> Result<&'static str> {
+    Ok(get_provider_metadata(provider_type).default_model)
 }
 
 /// Returns the default token limit for a given provider
-pub fn get_default_token_limit_for_provider(provider: &str) -> Result<usize> {
-    let provider_type = LLMProviderType::from_str(provider)?;
-    Ok(get_provider_metadata(&provider_type).default_token_limit)
+pub fn get_default_token_limit_for_provider(provider_type: &LLMProviderType) -> Result<usize> {
+    Ok(get_provider_metadata(provider_type).default_token_limit)
+}
+
+/// Checks if a provider requires an API key
+pub fn provider_requires_api_key(provider_type: &LLMProviderType) -> bool {
+    get_provider_metadata(provider_type).requires_api_key
+}
+
+/// Validates the provider configuration
+pub fn validate_provider_config(config: &Config, provider_type: &LLMProviderType) -> Result<()> {
+    let metadata = get_provider_metadata(provider_type);
+    
+    if metadata.requires_api_key {
+        let provider_config = config.get_provider_config(&provider_type.to_string())
+            .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
+
+        if provider_config.api_key.is_empty() {
+            return Err(anyhow!("API key required for provider: {}", provider_type));
+        }
+    }
+
+    Ok(())
+}
+
+/// Combines default, saved, and command-line configurations
+pub fn get_combined_config(
+    config: &Config,
+    provider_type: &LLMProviderType,
+    command_line_args: &LLMProviderConfig,
+) -> LLMProviderConfig {
+    let default_config = LLMProviderConfig {
+        api_key: String::new(),
+        model: get_default_model_for_provider(provider_type).unwrap().to_string(),
+        additional_params: Default::default(),
+    };
+
+    let saved_config = config.get_provider_config(&provider_type.to_string())
+        .cloned()
+        .unwrap_or_default();
+
+    LLMProviderConfig {
+        api_key: if !command_line_args.api_key.is_empty() {
+            command_line_args.api_key.clone()
+        } else if !saved_config.api_key.is_empty() {
+            saved_config.api_key
+        } else {
+            default_config.api_key
+        },
+        model: if !command_line_args.model.is_empty() {
+            command_line_args.model.clone()
+        } else if !saved_config.model.is_empty() {
+            saved_config.model
+        } else {
+            default_config.model
+        },
+        additional_params: if !command_line_args.additional_params.is_empty() {
+            command_line_args.additional_params.clone()
+        } else if !saved_config.additional_params.is_empty() {
+            saved_config.additional_params
+        } else {
+            default_config.additional_params
+        },
+    }
 }

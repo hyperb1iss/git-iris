@@ -2,8 +2,11 @@ use crate::config::Config;
 use crate::git::get_git_info;
 use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
+use crate::llm_providers::{get_available_providers, get_provider_metadata, LLMProviderType};
 use crate::log_debug;
 use crate::messages;
+use crate::prompt;
+use crate::token_optimizer::TokenOptimizer;
 use crate::ui;
 use anyhow::{anyhow, Result};
 use clap::{crate_name, crate_version};
@@ -12,22 +15,20 @@ use std::sync::Arc;
 
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
-    verbose: bool,
     use_gitmoji: bool,
     provider: Option<String>,
     auto_commit: bool,
     instructions: Option<String>,
 ) -> Result<()> {
     log_debug!(
-        "Starting 'gen' command with verbose: {}, use_gitmoji: {}, provider: {:?}, auto_commit: {}, instructions: {:?}",
-        verbose,
+        "Starting 'gen' command with use_gitmoji: {}, provider: {:?}, auto_commit: {}, instructions: {:?}",
         use_gitmoji,
         provider,
         auto_commit,
         instructions
     );
 
-    let config = Arc::new(Config::load()?);
+    let config = Config::load()?;
 
     // Check environment prerequisites
     if let Err(e) = Config::check_environment() {
@@ -39,14 +40,23 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let provider = Arc::new(provider.unwrap_or_else(|| config.default_provider.clone()));
-    let provider_config = config
-        .get_provider_config(&provider)
-        .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider))?;
+    let provider_type = if let Some(p) = provider {
+        LLMProviderType::from_str(&p)?
+    } else {
+        LLMProviderType::from_str(&config.default_provider)?
+    };
 
-    if provider_config.api_key.is_empty() {
-        ui::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider, provider));
-        return Ok(());
+    let provider_metadata = get_provider_metadata(&provider_type);
+
+    if provider_metadata.requires_api_key {
+        let provider_config = config
+            .get_provider_config(&provider_type.to_string())
+            .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
+
+        if provider_config.api_key.is_empty() {
+            ui::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider_type, provider_type));
+            return Ok(());
+        }
     }
 
     let current_dir = Arc::new(std::env::current_dir()?);
@@ -54,13 +64,7 @@ pub async fn handle_gen_command(
     let message = messages::get_random_message();
     let spinner = ui::create_spinner(&message);
 
-    let git_info = get_git_info(
-        current_dir.as_path(),
-        &config,
-        Some(&|progress_msg: &str| {
-            spinner.set_message(progress_msg.to_string());
-        }),
-    )?;
+    let git_info = get_git_info(current_dir.as_path(), &config)?;
 
     if git_info.staged_files.is_empty() {
         spinner.finish_and_clear();
@@ -78,15 +82,24 @@ pub async fn handle_gen_command(
 
     // Update spinner message before generating the initial message
     spinner.set_message(messages::get_random_message());
-    
+
+    // Token optimization
+    let token_limit = provider_metadata.default_token_limit;
+    let optimizer = TokenOptimizer::new(token_limit);
+
+    let system_prompt = prompt::create_system_prompt(use_gitmoji, &instructions);
+    let user_prompt = prompt::create_user_prompt(&git_info)?;
+
+    let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
+    let truncated_prompt = optimizer.truncate_string(&full_prompt, token_limit);
+
     // Generate the initial message
     let initial_message = get_refined_message(
         &git_info,
         &config,
-        &provider,
+        &provider_type,
         use_gitmoji,
-        verbose,
-        &instructions,
+        &truncated_prompt,
     )
     .await?;
 
@@ -100,23 +113,23 @@ pub async fn handle_gen_command(
         crate_version!().to_string(),
     );
 
+    let config = Arc::new(config);
+
     // Run the interactive commit process
     let commit_performed = interactive_commit
         .run(move |instructions| {
             let config = Arc::clone(&config);
-            let provider = Arc::clone(&provider);
+            let provider_type = provider_type.clone();
             let current_dir = Arc::clone(&current_dir);
             let use_gitmoji = use_gitmoji;
-            let verbose = verbose;
             let instructions = instructions.to_string();
             async move {
-                let git_info = get_git_info(current_dir.as_path(), &config, None)?;
+                let git_info = get_git_info(current_dir.as_path(), &config)?;
                 get_refined_message(
                     &git_info,
                     &config,
-                    &provider,
+                    &provider_type,
                     use_gitmoji,
-                    verbose,
                     &instructions,
                 )
                 .await
@@ -146,21 +159,74 @@ pub fn handle_config_command(
     log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
 
     let mut config = Config::load()?;
+    let mut changes_made = false;
 
-    let provider = provider.map(|p| p.to_string());
-    let additional_params = param.map(|p| parse_additional_params(&p));
+    if let Some(provider) = provider {
+        if !get_available_providers()
+            .iter()
+            .any(|p| p.to_string() == provider)
+        {
+            return Err(anyhow!("Invalid provider: {}", provider));
+        }
+        if config.default_provider != provider {
+            config.default_provider = provider.clone();
+            changes_made = true;
+        }
+        if !config.providers.contains_key(&provider) {
+            config
+                .providers
+                .insert(provider.clone(), Default::default());
+            changes_made = true;
+        }
+    }
 
-    config.update(
-        provider,
-        api_key,
-        model,
-        additional_params,
-        gitmoji,
-        instructions,
-        token_limit,
-    );
-    config.save()?;
-    ui::print_success("Configuration updated successfully.");
+    let provider_config = config.providers.get_mut(&config.default_provider).unwrap();
+
+    if let Some(key) = api_key {
+        if provider_config.api_key != key {
+            provider_config.api_key = key;
+            changes_made = true;
+        }
+    }
+    if let Some(model) = model {
+        if provider_config.model != model {
+            provider_config.model = model;
+            changes_made = true;
+        }
+    }
+    if let Some(params) = param {
+        let additional_params = parse_additional_params(&params);
+        if provider_config.additional_params != additional_params {
+            provider_config.additional_params = additional_params;
+            changes_made = true;
+        }
+    }
+    if let Some(use_gitmoji) = gitmoji {
+        if config.use_gitmoji != use_gitmoji {
+            config.use_gitmoji = use_gitmoji;
+            changes_made = true;
+        }
+    }
+    if let Some(instr) = instructions {
+        if config.instructions != instr {
+            config.instructions = instr;
+            changes_made = true;
+        }
+    }
+    if let Some(limit) = token_limit {
+        if provider_config.token_limit != Some(limit) {
+            provider_config.token_limit = Some(limit);
+            changes_made = true;
+        }
+    }
+
+    if changes_made {
+        config.save()?;
+        ui::print_success("Configuration updated successfully.");
+    } else {
+        ui::print_info("No changes were made to the configuration.");
+    }
+
     ui::print_info(&format!(
         "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nInstructions: {}",
         config.default_provider,
