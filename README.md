@@ -13,8 +13,9 @@
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-1.png" alt="Git-Iris Screenshot 1" width="48%">
-  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-2.png" alt="Git-Iris Screenshot 2" width="48%">
+  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-1.png" alt="Git-Iris Screenshot 1" width="33%">
+  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-2.png" alt="Git-Iris Screenshot 2" width="33%">
+  <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-3.png" alt="Git-Iris Screenshot 3" width="33%">
 </div>
 
 *Git-Iris in action: AI-powered commit message generation and interactive refinement*
@@ -26,6 +27,7 @@
 - 🎨 **Gitmoji integration** for expressive commit messages
 - 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages (*vibes included*)
 - 🔧 **Customizable prompts and instructions** to tailor AI output
+- 📚 **Flexible instruction presets** for quick, consistent, and customizable commit styles
 - 🧠 **Smart context extraction** from Git repositories
 - 📊 **Intelligent code change analysis** for context-aware suggestions
 - 🔍 **Relevance scoring** to prioritize important changes
@@ -86,6 +88,9 @@ git-iris config --gitmoji true
 # Set custom instructions
 git-iris config --instructions "Always mention the ticket number in the commit message"
 
+# Set default instruction preset
+git-iris config --preset conventional
+
 # Set token limit for a provider
 git-iris config --provider openai --token-limit 4000
 
@@ -110,12 +115,13 @@ Options:
 - `-a`, `--auto-commit`: Automatically commit with the generated message
 - `-i`, `--instructions`: Provide custom instructions for this commit
 - `--provider`: Specify an LLM provider (openai, claude, ollama)
+- `--preset`: Use a specific instruction preset
 - `--no-gitmoji`: Disable Gitmoji for this commit
 - `-l`, `--log`: Enable logging to file
 
 Example:
 ```bash
-git-iris gen -a -i "Focus on performance improvements" --provider claude
+git-iris gen -a -i "Focus on performance improvements" --provider claude --preset detailed
 ```
 
 ### Interactive Commit Process
@@ -129,22 +135,83 @@ The interactive CLI allows you to refine and perfect your commit messages:
 - Press Enter to commit
 - Press Esc to cancel
 
+## 🎛️ Custom Instructions and Presets
 
-## 🎛️ Custom Instructions
+Git-Iris offers two powerful ways to guide the AI in generating commit messages: custom instructions and presets.
 
-Git-Iris allows you to provide custom instructions to guide the AI in generating commit messages. These instructions can be set globally in the configuration or provided on a per-commit basis.
+### Instruction Presets
 
-### Setting Global Custom Instructions
+Presets are predefined sets of instructions that provide a quick way to adjust the commit message style. Git-Iris comes with several built-in presets to suit different commit styles and project needs.
 
+To list available presets:
+
+```bash
+git-iris list-presets
+```
+
+This will display a list of all available presets with a brief description of each.
+
+To view details of a specific preset:
+
+```bash
+git-iris show-preset conventional
+```
+
+This will show you the full instructions associated with the 'conventional' preset.
+
+Some key presets include:
+
+- `default`: Standard commit message style
+- `conventional`: Follows the Conventional Commits specification
+- `detailed`: Provides more context and explanation in commit messages
+- `concise`: Short and to-the-point commit messages
+- `cosmic`: Mystical, space-themed commit messages (aligns with Git-Iris's theme)
+
+To use a preset for a single commit:
+
+```bash
+git-iris gen --preset conventional
+```
+
+To set a default preset for all commits:
+
+```bash
+git-iris config --preset conventional
+```
+
+Presets work seamlessly with other Git-Iris features. For example, if you have Gitmoji enabled, the preset instructions will be applied in addition to adding the appropriate Gitmoji.
+
+### Custom Instructions
+
+Custom instructions allow you to provide specific guidance for commit message generation. These can be set globally or per-commit.
+
+Setting global custom instructions:
 ```bash
 git-iris config --instructions "Always include the ticket number and mention performance impacts"
 ```
 
-### Providing Per-Commit Instructions
-
+Providing per-commit instructions:
 ```bash
 git-iris gen -i "Emphasize security implications of this change"
 ```
+
+### Combining Presets and Custom Instructions
+
+When using both a preset and custom instructions, Git-Iris combines them, with custom instructions taking precedence. This allows you to use a preset as a base and fine-tune it with specific instructions.
+
+```bash
+git-iris gen --preset conventional -i "Mention the JIRA ticket number"
+```
+
+In this case, the commit message will follow the Conventional Commits format and include the JIRA ticket number.
+
+If you've set a default preset in your configuration, you can still override it for individual commits:
+
+```bash
+git-iris gen --preset detailed -i "Focus on performance improvements"
+```
+
+This will use the 'detailed' preset instead of your default, along with the custom instruction.
 
 ### Examples of Custom Instructions
 
@@ -173,17 +240,7 @@ git-iris gen -i "Emphasize security implications of this change"
    Highlight any changes that might affect application performance, including database queries
    ```
 
-6. **Documentation Updates**
-   ```
-   If documentation files are changed, start the commit message with 'docs:'
-   ```
-
-7. **Breaking Changes**
-   ```
-   Clearly indicate any breaking changes in the commit message, starting with 'BREAKING CHANGE:'
-   ```
-
-Custom instructions allow you to tailor Git-Iris to your specific project needs, team conventions, or personal preferences. They provide a powerful way to ensure consistency and capture important context in your commit messages.
+Custom instructions and presets allow you to tailor Git-Iris to your specific project needs, team conventions, or personal preferences. They provide a powerful way to ensure consistency and capture important context in your commit messages.
 
 ## 🤝 Contributing
 

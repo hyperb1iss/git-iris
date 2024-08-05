@@ -5,6 +5,7 @@ pub mod context;
 pub mod file_analyzers;
 pub mod git;
 pub mod gitmoji;
+pub mod instruction_presets;
 pub mod interactive;
 pub mod llm;
 pub mod logger;

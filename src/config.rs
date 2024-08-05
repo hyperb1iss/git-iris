@@ -22,6 +22,8 @@ pub struct Config {
     /// Instructions for commit messages
     #[serde(default)]
     pub instructions: String,
+    #[serde(default = "default_instruction_preset")]
+    pub instruction_preset: String,
 }
 
 /// Provider-specific configuration structure
@@ -41,6 +43,11 @@ pub struct ProviderConfig {
 /// Default function for use_gitmoji
 fn default_gitmoji() -> bool {
     true
+}
+
+// Default instruction preset to use
+fn default_instruction_preset() -> String {
+    "default".to_string()
 }
 
 impl Config {
@@ -168,6 +175,7 @@ impl Default for Config {
             providers,
             use_gitmoji: true,
             instructions: String::new(),
+            instruction_preset: default_instruction_preset(),
         }
     }
 }

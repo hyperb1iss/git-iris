@@ -65,6 +65,10 @@ pub enum Commands {
         /// Disable Gitmoji for this commit
         #[arg(long, help = "Disable Gitmoji for this commit")]
         no_gitmoji: bool,
+
+        /// Select an instruction preset
+        #[arg(long, help = "Select an instruction preset")]
+        preset: Option<String>,
     },
     /// Configure the AI-assisted Git commit message generator
     #[command(about = "Configure the AI-assisted Git commit message generator")]
@@ -103,7 +107,14 @@ pub enum Commands {
             help = "Set instructions for the commit message generation"
         )]
         instructions: Option<String>,
+
+        /// Set default instruction preset
+        #[arg(long, help = "Set default instruction preset")]
+        preset: Option<String>,
     },
+    /// List available instruction presets
+    #[command(about = "List available instruction presets")]
+    ListPresets,
 }
 
 /// Define custom styles for Clap
@@ -176,19 +187,22 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             instructions,
             provider,
             no_gitmoji,
+            preset,
         } => {
             log_debug!(
-                "Handling 'gen' command with auto_commit: {}, instructions: {:?}, provider: {:?}, no_gitmoji: {}",
+                "Handling 'gen' command with auto_commit: {}, instructions: {:?}, provider: {:?}, no_gitmoji: {}, preset: {:?}",
                 auto_commit,
                 instructions,
                 provider,
-                no_gitmoji
+                no_gitmoji,
+                preset
             );
 
             ui::print_version(crate_version!());
             println!();
 
-            commands::handle_gen_command(!no_gitmoji, provider, auto_commit, instructions).await?;
+            commands::handle_gen_command(!no_gitmoji, provider, auto_commit, instructions, preset)
+                .await?;
         }
         Commands::Config {
             provider,
@@ -198,8 +212,10 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             gitmoji,
             instructions,
             token_limit,
+            preset,
         } => {
-            log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
+            log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}, preset: {:?}",
+                       provider, api_key, model, param, gitmoji, instructions, token_limit, preset);
             commands::handle_config_command(
                 provider,
                 api_key,
@@ -208,7 +224,12 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
                 gitmoji,
                 instructions,
                 token_limit,
+                preset,
             )?;
+        }
+        Commands::ListPresets => {
+            log_debug!("Handling 'list_presets' command");
+            commands::handle_list_presets_command()?;
         }
     }
 

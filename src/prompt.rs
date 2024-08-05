@@ -16,7 +16,7 @@ pub fn create_prompt(context: &CommitContext, config: &Config) -> Result<String>
     Ok(full_prompt)
 }
 
-pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {
+pub fn create_system_prompt(use_gitmoji: bool, combined_instructions: &str) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
         Your task is to generate clear,concise, and informative commit messages based solely on the provided context. \
@@ -59,10 +59,10 @@ pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> Str
         prompt.push_str(&get_gitmoji_list());
     }
 
-    if !custom_instructions.is_empty() {
+    if !combined_instructions.is_empty() {
         prompt.push_str(&format!(
-            "\n\nAdditional user-supplied instructions:\n{}\n\n",
-            custom_instructions
+            "\n\nAdditional instructions:\n{}\n\n",
+            combined_instructions
         ));
     }
 

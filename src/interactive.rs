@@ -13,7 +13,7 @@ pub struct InteractiveCommit {
     messages: Vec<String>,
     current_index: usize,
     generating: bool,
-    custom_instructions: String,
+    combined_instructions: String,
     program_name: String,
     program_version: String,
 }
@@ -21,7 +21,7 @@ pub struct InteractiveCommit {
 impl InteractiveCommit {
     pub fn new(
         initial_message: String,
-        custom_instructions: String,
+        combined_instructions: String,
         program_name: String,
         program_version: String,
     ) -> Self {
@@ -29,7 +29,7 @@ impl InteractiveCommit {
             messages: vec![initial_message],
             current_index: 0,
             generating: false,
-            custom_instructions,
+            combined_instructions,
             program_name,
             program_version,
         }
@@ -65,7 +65,7 @@ impl InteractiveCommit {
                 }
                 Key::Char('i') | Key::Char('I') => {
                     if !self.generating {
-                        self.edit_custom_instructions(&generate_message).await?;
+                        self.edit_instructions(&generate_message).await?;
                     }
                 }
                 Key::Char('r') | Key::Char('R') => {
@@ -109,9 +109,9 @@ impl InteractiveCommit {
 
         writeln!(term)?;
 
-        if !self.custom_instructions.trim().is_empty() {
-            self.display_title(term, "Custom Instructions", '✧', term_width)?;
-            self.display_message_box(term, &self.custom_instructions, term_width)?;
+        if !self.combined_instructions.trim().is_empty() {
+            self.display_title(term, "Instructions", '✧', term_width)?;
+            self.display_message_box(term, &self.combined_instructions, term_width)?;
             writeln!(term)?;
         }
 
@@ -278,7 +278,7 @@ impl InteractiveCommit {
     {
         let spinner = ui::create_spinner(&crate::messages::get_random_message());
 
-        let new_message = generate_message(&self.custom_instructions).await?;
+        let new_message = generate_message(&self.combined_instructions).await?;
         self.messages.push(new_message);
         self.current_index = self.messages.len() - 1;
 
@@ -305,13 +305,13 @@ impl InteractiveCommit {
         }
     }
 
-    async fn edit_custom_instructions<F, Fut>(&mut self, generate_message: &F) -> Result<()>
+    async fn edit_instructions<F, Fut>(&mut self, generate_message: &F) -> Result<()>
     where
         F: Fn(&str) -> Fut,
         Fut: std::future::Future<Output = Result<String>>,
     {
         let mut file = tempfile::NamedTempFile::new()?;
-        std::io::Write::write_all(&mut file, self.custom_instructions.as_bytes())?;
+        std::io::Write::write_all(&mut file, self.combined_instructions.as_bytes())?;
 
         let path = file.into_temp_path();
         let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
@@ -320,11 +320,11 @@ impl InteractiveCommit {
 
         if status.success() {
             let edited_instructions = std::fs::read_to_string(&path)?;
-            log_debug!("📜 Custom instructions edited: {}", edited_instructions);
-            self.custom_instructions = edited_instructions;
+            log_debug!("📜 Instructions edited: {}", edited_instructions);
+            self.combined_instructions = edited_instructions;
             self.regenerate_message(generate_message).await?;
         } else {
-            ui::print_info("🌠 Editing custom instructions cancelled.");
+            ui::print_info("🌠 Editing instructions cancelled.");
         }
 
         Ok(())

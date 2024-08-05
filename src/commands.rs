@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::git::get_git_info;
+use crate::instruction_presets::get_instruction_preset_library;
 use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
 use crate::llm_providers::{get_available_providers, get_provider_metadata, LLMProviderType};
@@ -10,22 +11,26 @@ use crate::token_optimizer::TokenOptimizer;
 use crate::ui;
 use anyhow::{anyhow, Result};
 use clap::{crate_name, crate_version};
+use colored::*;
 use std::collections::HashMap;
 use std::sync::Arc;
+use unicode_width::UnicodeWidthStr;
 
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
     use_gitmoji: bool,
     provider: Option<String>,
     auto_commit: bool,
-    instructions: Option<String>,
+    custom_instructions: Option<String>,
+    preset: Option<String>,
 ) -> Result<()> {
     log_debug!(
-        "Starting 'gen' command with use_gitmoji: {}, provider: {:?}, auto_commit: {}, instructions: {:?}",
+        "Starting 'gen' command with use_gitmoji: {}, provider: {:?}, auto_commit: {}, custom_instructions: {:?}, preset: {:?}",
         use_gitmoji,
         provider,
         auto_commit,
-        instructions
+        custom_instructions,
+        preset
     );
 
     let config = Config::load()?;
@@ -77,8 +82,20 @@ pub async fn handle_gen_command(
 
     let use_gitmoji = use_gitmoji && config.use_gitmoji;
 
-    // Get instructions
-    let instructions = instructions.unwrap_or_else(|| config.instructions.clone());
+    // Get instructions from preset and/or custom instructions
+    let preset_library = get_instruction_preset_library();
+    let preset_key = preset.unwrap_or(config.instruction_preset.clone());
+    let preset_instructions = preset_library
+        .get_preset(&preset_key)
+        .map(|p| p.instructions.clone())
+        .unwrap_or_default();
+
+    let custom_instructions = custom_instructions.unwrap_or_else(|| config.instructions.clone());
+
+    let combined_instructions = format!(
+        "{}\n\n{}",
+        preset_instructions.trim(), custom_instructions.trim()
+    ).trim().to_string();
 
     // Update spinner message before generating the initial message
     spinner.set_message(messages::get_random_message());
@@ -88,7 +105,7 @@ pub async fn handle_gen_command(
     let optimizer = TokenOptimizer::new(token_limit);
     optimizer.optimize_context(&mut git_info);
 
-    let system_prompt = prompt::create_system_prompt(use_gitmoji, &instructions);
+    let system_prompt = prompt::create_system_prompt(use_gitmoji, &combined_instructions);
     let user_prompt = prompt::create_user_prompt(&git_info)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
@@ -109,7 +126,7 @@ pub async fn handle_gen_command(
     // Initialize interactive commit process with program name and version
     let mut interactive_commit = InteractiveCommit::new(
         initial_message,
-        instructions,
+        combined_instructions.clone(),
         crate_name!().to_string(),
         crate_version!().to_string(),
     );
@@ -118,12 +135,12 @@ pub async fn handle_gen_command(
 
     // Run the interactive commit process
     let commit_performed = interactive_commit
-        .run(move |instructions| {
+        .run(move |edited_instructions| {
             let config = Arc::clone(&config);
             let provider_type = provider_type.clone();
             let current_dir = Arc::clone(&current_dir);
             let use_gitmoji = use_gitmoji;
-            let instructions = instructions.to_string();
+            let instructions = edited_instructions.to_string();
             async move {
                 let git_info = get_git_info(current_dir.as_path(), &config)?;
                 get_refined_message(
@@ -156,8 +173,10 @@ pub fn handle_config_command(
     gitmoji: Option<bool>,
     instructions: Option<String>,
     token_limit: Option<usize>,
+    preset: Option<String>,
 ) -> Result<()> {
-    log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
+    log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}, preset: {:?}",
+               provider, api_key, model, param, gitmoji, instructions, token_limit, preset);
 
     let mut config = Config::load()?;
     let mut changes_made = false;
@@ -220,6 +239,17 @@ pub fn handle_config_command(
             changes_made = true;
         }
     }
+    if let Some(preset) = preset {
+        let preset_library = get_instruction_preset_library();
+        if preset_library.get_preset(&preset).is_some() {
+            if config.instruction_preset != preset {
+                config.instruction_preset = preset;
+                changes_made = true;
+            }
+        } else {
+            return Err(anyhow!("Invalid preset: {}", preset));
+        }
+    }
 
     if changes_made {
         config.save()?;
@@ -227,14 +257,15 @@ pub fn handle_config_command(
     }
 
     ui::print_info(&format!(
-        "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nInstructions: {}",
+        "Current configuration:\nDefault Provider: {}\nUse Gitmoji: {}\nInstructions: {}\nInstruction Preset: {}",
         config.default_provider,
         config.use_gitmoji,
         if config.instructions.is_empty() {
             "None".to_string()
         } else {
             config.instructions.replace('\n', ", ")
-        }
+        },
+        config.instruction_preset
     ));
     for (provider, provider_config) in &config.providers {
         ui::print_info(&format!(
@@ -269,4 +300,48 @@ fn parse_additional_params(params: &[String]) -> HashMap<String, String> {
             }
         })
         .collect()
+}
+
+/// Handle the 'list_presets' command
+pub fn handle_list_presets_command() -> Result<()> {
+    let preset_library = get_instruction_preset_library();
+
+    println!(
+        "{}",
+        "\n🔮 Available Instruction Presets 🔮"
+            .bright_purple()
+            .bold()
+    );
+    println!("{}", "━".repeat(50).bright_purple());
+
+    let mut presets = preset_library.list_presets();
+    presets.sort_by(|a, b| a.0.cmp(b.0)); // Sort alphabetically by key
+
+    let max_key_length = presets
+        .iter()
+        .map(|(key, _)| key.width())
+        .max()
+        .unwrap_or(0);
+
+    for (key, preset) in presets {
+        println!(
+            "{} {:<width$} {}",
+            "•".bright_cyan(),
+            key.bright_green().bold(),
+            preset.name.cyan().italic(),
+            width = max_key_length
+        );
+        println!("  {}", format!("\"{}\"", preset.description).bright_white());
+        println!(); // Add a blank line between presets
+    }
+
+    println!("{}", "━".repeat(50).bright_purple());
+    println!(
+        "{}",
+        "Use with: git-iris gen --preset <preset-name>"
+            .bright_yellow()
+            .italic()
+    );
+
+    Ok(())
 }
