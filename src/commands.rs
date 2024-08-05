@@ -223,8 +223,6 @@ pub fn handle_config_command(
     if changes_made {
         config.save()?;
         ui::print_success("Configuration updated successfully.");
-    } else {
-        ui::print_info("No changes were made to the configuration.");
     }
 
     ui::print_info(&format!(

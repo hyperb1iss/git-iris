@@ -200,7 +200,6 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             token_limit,
         } => {
             log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}", provider, api_key, model, param, gitmoji, instructions, token_limit);
-            ui::print_info("Updating configuration...");
             commands::handle_config_command(
                 provider,
                 api_key,
