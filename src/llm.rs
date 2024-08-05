@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, ProviderConfig};
 use crate::context::CommitContext;
 use crate::llm_providers::{
     create_provider, get_available_providers, get_provider_metadata, LLMProviderConfig,
@@ -38,13 +38,23 @@ pub async fn get_refined_message_with_provider(
     custom_instructions: &str,
     create_provider_fn: impl Fn(LLMProviderType, LLMProviderConfig) -> Result<Box<dyn LLMProvider>>,
 ) -> Result<String> {
-    // Get provider configuration from the global config
-    let provider_config = config
-        .get_provider_config(&provider_type.to_string())
-        .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
+    let provider_metadata = get_provider_metadata(provider_type);
+
+    let provider_config = if provider_metadata.requires_api_key {
+        config
+            .get_provider_config(&provider_type.to_string())
+            .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?
+            .clone()
+    } else {
+        // Use default configuration for providers that don't require an API key
+        ProviderConfig::default_for(&provider_type.to_string())
+    };
 
     // Create the LLM provider instance using the provided function
-    let llm_provider = create_provider_fn(provider_type.clone(), provider_config.to_llm_provider_config())?;
+    let llm_provider = create_provider_fn(
+        provider_type.clone(),
+        provider_config.to_llm_provider_config(),
+    )?;
 
     // Generate system and user prompts
     let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
@@ -88,9 +98,10 @@ pub fn provider_requires_api_key(provider_type: &LLMProviderType) -> bool {
 /// Validates the provider configuration
 pub fn validate_provider_config(config: &Config, provider_type: &LLMProviderType) -> Result<()> {
     let metadata = get_provider_metadata(provider_type);
-    
+
     if metadata.requires_api_key {
-        let provider_config = config.get_provider_config(&provider_type.to_string())
+        let provider_config = config
+            .get_provider_config(&provider_type.to_string())
             .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
 
         if provider_config.api_key.is_empty() {
@@ -109,11 +120,14 @@ pub fn get_combined_config(
 ) -> LLMProviderConfig {
     let default_config = LLMProviderConfig {
         api_key: String::new(),
-        model: get_default_model_for_provider(provider_type).unwrap().to_string(),
+        model: get_default_model_for_provider(provider_type)
+            .unwrap()
+            .to_string(),
         additional_params: Default::default(),
     };
 
-    let saved_config = config.get_provider_config(&provider_type.to_string())
+    let saved_config = config
+        .get_provider_config(&provider_type.to_string())
         .cloned()
         .unwrap_or_default();
 

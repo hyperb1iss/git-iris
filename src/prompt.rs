@@ -3,38 +3,21 @@ use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, S
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 use crate::log_debug;
 use crate::relevance::RelevanceScorer;
-use crate::token_optimizer::TokenOptimizer;
 use anyhow::Result;
 use std::collections::HashMap;
 
 pub fn create_prompt(
     context: &CommitContext,
     config: &Config,
-    provider: &str,
 ) -> Result<String> {
-
-    let provider_config = config
-        .providers
-        .get(provider)
-        .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found in configuration", provider))?;
-
-    let token_limit = provider_config.get_token_limit();
-    let optimizer = TokenOptimizer::new(token_limit);
 
     let system_prompt = create_system_prompt(config.use_gitmoji, &config.instructions);
     let user_prompt = create_user_prompt(context)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
+    log_debug!("Full prompt:\n{}", full_prompt);
 
-    let truncated_prompt = optimizer.truncate_string(&full_prompt, token_limit);
-
-    let token_count = optimizer.count_tokens(&truncated_prompt);
-
-    log_debug!("Full Prompt:\n{}", truncated_prompt);
-    log_debug!("Token count: {}", token_count);
-    log_debug!("Token limit for {}: {}", provider, token_limit);
-
-    Ok(truncated_prompt)
+    Ok(full_prompt)
 }
 
 pub fn create_system_prompt(use_gitmoji: bool, custom_instructions: &str) -> String {

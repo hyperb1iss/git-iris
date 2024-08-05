@@ -35,9 +35,8 @@ fn create_mock_commit_context() -> CommitContext {
 fn test_create_prompt_basic() {
     let commit_context = create_mock_commit_context();
     let config = Config::default();
-    let provider = "openai"; // Use a default provider for testing
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("Initial commit"));
@@ -50,9 +49,8 @@ fn test_create_prompt_basic() {
 fn test_create_prompt_with_staged_files() {
     let commit_context = create_mock_commit_context();
     let config = Config::default();
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("file1.rs"));
@@ -65,9 +63,8 @@ fn test_create_prompt_with_gitmoji() {
     let commit_context = create_mock_commit_context();
     let mut config = Config::default();
     config.use_gitmoji = true;
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("✨ - :feat: - Introduce new features"));
     assert!(prompt.contains("🐛 - :fix: - Fix a bug"));
@@ -83,9 +80,8 @@ fn test_create_prompt_with_custom_instructions() {
     let commit_context = create_mock_commit_context();
     let mut config = Config::default();
     config.instructions = "Always mention the ticket number".to_string();
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("Always mention the ticket number"));
 }
@@ -94,9 +90,8 @@ fn test_create_prompt_with_custom_instructions() {
 fn test_create_prompt_verbose() {
     let commit_context = create_mock_commit_context();
     let config = Config::default();
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("Detailed changes"));
 }
@@ -126,9 +121,8 @@ fn test_create_prompt_with_multiple_staged_files() {
     });
 
     let config = Config::default();
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("file1.rs"));
     assert!(prompt.contains("Modified"));
@@ -152,9 +146,8 @@ fn test_create_prompt_with_project_metadata() {
     };
 
     let config = Config::default();
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("Language: Rust"));
     assert!(prompt.contains("Framework: Rocket"));
@@ -170,25 +163,10 @@ fn test_create_prompt_with_file_analysis() {
     ];
 
     let config = Config::default();
-    let provider = "openai";
 
-    let prompt = create_prompt(&commit_context, &config, provider).unwrap();
+    let prompt = create_prompt(&commit_context, &config).unwrap();
 
     assert!(prompt.contains("Modified function: main"));
     assert!(prompt.contains("Added new struct: User"));
 }
 
-#[test]
-fn test_create_prompt_with_different_providers() {
-    let commit_context = create_mock_commit_context();
-    let config = Config::default();
-
-    let openai_prompt = create_prompt(&commit_context, &config, "openai").unwrap();
-    let claude_prompt = create_prompt(&commit_context, &config, "claude").unwrap();
-
-    // The prompts should be similar, but may have slight differences due to provider-specific configurations
-    assert!(openai_prompt.contains("Branch: main"));
-    assert!(claude_prompt.contains("Branch: main"));
-    assert!(openai_prompt.contains("file1.rs"));
-    assert!(claude_prompt.contains("file1.rs"));
-}

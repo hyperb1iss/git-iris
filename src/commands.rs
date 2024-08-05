@@ -64,7 +64,7 @@ pub async fn handle_gen_command(
     let message = messages::get_random_message();
     let spinner = ui::create_spinner(&message);
 
-    let git_info = get_git_info(current_dir.as_path(), &config)?;
+    let mut git_info = get_git_info(current_dir.as_path(), &config)?;
 
     if git_info.staged_files.is_empty() {
         spinner.finish_and_clear();
@@ -86,6 +86,7 @@ pub async fn handle_gen_command(
     // Token optimization
     let token_limit = provider_metadata.default_token_limit;
     let optimizer = TokenOptimizer::new(token_limit);
+    optimizer.optimize_context(&mut git_info);
 
     let system_prompt = prompt::create_system_prompt(use_gitmoji, &instructions);
     let user_prompt = prompt::create_user_prompt(&git_info)?;

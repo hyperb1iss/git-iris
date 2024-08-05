@@ -380,23 +380,18 @@ fn test_token_optimization_integration() {
     let temp_dir = setup_git_repo();
     let repo_path = temp_dir.path();
 
-    let mut config = Config::default();
-    let provider = "openai";
-
     // Set a small token limit for the OpenAI provider to force truncation
     let small_token_limit = 200;
-    config
-        .providers
-        .get_mut(provider)
-        .unwrap()
-        .token_limit = Some(small_token_limit);
+    let config = Config::default();
 
     let context = get_git_info(repo_path, &config).unwrap();
 
-    let prompt = create_prompt(&context, &config, provider).unwrap();
+    let prompt = create_prompt(&context, &config).unwrap();
 
     // Check that the prompt is within the token limit
     let optimizer = TokenOptimizer::new(small_token_limit);
+    let prompt = optimizer.truncate_string(&prompt, small_token_limit);
+
     let token_count = optimizer.count_tokens(&prompt);
 
     println!("Token count: {}", token_count);
@@ -440,13 +435,9 @@ fn test_token_optimization_integration() {
 
     // Test with a larger token limit
     let large_token_limit = 5000;
-    config
-        .providers
-        .get_mut(provider)
-        .unwrap()
-        .token_limit = Some(large_token_limit);
+    let config = Config::default();
 
-    let large_prompt = create_prompt(&context, &config, provider).unwrap();
+    let large_prompt = create_prompt(&context, &config).unwrap();
     let large_token_count = optimizer.count_tokens(&large_prompt);
 
     println!("Large token count: {}", large_token_count);

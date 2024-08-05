@@ -1,4 +1,6 @@
-use crate::llm_providers::{LLMProviderConfig, LLMProviderType, get_available_providers, get_provider_metadata};
+use crate::llm_providers::{
+    get_available_providers, get_provider_metadata, LLMProviderConfig, LLMProviderType,
+};
 use crate::log_debug;
 use anyhow::{anyhow, Result};
 use dirs::config_dir;
@@ -65,7 +67,8 @@ impl Config {
 
     /// Get the path to the configuration file
     fn get_config_path() -> Result<PathBuf> {
-        let mut path = config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
+        let mut path =
+            config_dir().ok_or_else(|| anyhow!("Unable to determine config directory"))?;
         path.push("git-iris");
         std::fs::create_dir_all(&path)?;
         path.push("config.toml");
@@ -100,8 +103,13 @@ impl Config {
         if let Some(provider) = provider {
             self.default_provider = provider.clone();
             if !self.providers.contains_key(&provider) {
-                self.providers
-                    .insert(provider.clone(), ProviderConfig::default_for(&provider));
+                // Only insert a new provider if it requires configuration
+                let provider_type = LLMProviderType::from_str(&provider)
+                    .unwrap_or_else(|_| LLMProviderType::OpenAI);
+                if get_provider_metadata(&provider_type).requires_api_key {
+                    self.providers
+                        .insert(provider.clone(), ProviderConfig::default_for(&provider));
+                }
             }
         }
 
@@ -131,7 +139,17 @@ impl Config {
 
     /// Get the configuration for a specific provider
     pub fn get_provider_config(&self, provider: &str) -> Option<&ProviderConfig> {
-        self.providers.get(provider)
+        self.providers.get(provider).or_else(|| {
+            // If the provider is not in the config, check if it's a valid provider
+            if LLMProviderType::from_str(provider).is_ok() {
+                // Return None for valid providers not in the config
+                // This allows the code to use default values for providers like Ollama
+                None
+            } else {
+                // Return None for invalid providers
+                None
+            }
+        })
     }
 }
 
@@ -139,7 +157,10 @@ impl Default for Config {
     fn default() -> Self {
         let mut providers = HashMap::new();
         for provider in get_available_providers() {
-            providers.insert(provider.to_string(), ProviderConfig::default_for(&provider.to_string()));
+            providers.insert(
+                provider.to_string(),
+                ProviderConfig::default_for(&provider.to_string()),
+            );
         }
 
         Config {
@@ -154,7 +175,8 @@ impl Default for Config {
 impl ProviderConfig {
     /// Create a default provider configuration for a given provider
     pub fn default_for(provider: &str) -> Self {
-        let provider_type = LLMProviderType::from_str(provider).unwrap_or_else(|_| get_available_providers()[0]);
+        let provider_type =
+            LLMProviderType::from_str(provider).unwrap_or_else(|_| get_available_providers()[0]);
         let metadata = get_provider_metadata(&provider_type);
         Self {
             api_key: String::new(),
@@ -167,7 +189,8 @@ impl ProviderConfig {
     /// Get the token limit for this provider configuration
     pub fn get_token_limit(&self) -> usize {
         self.token_limit.unwrap_or_else(|| {
-            let provider_type = LLMProviderType::from_str(&self.model).unwrap_or_else(|_| get_available_providers()[0]);
+            let provider_type = LLMProviderType::from_str(&self.model)
+                .unwrap_or_else(|_| get_available_providers()[0]);
             get_provider_metadata(&provider_type).default_token_limit
         })
     }
