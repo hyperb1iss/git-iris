@@ -47,6 +47,51 @@ fn create_test_context() -> CommitContext {
     }
 }
 
+#[test]
+fn test_token_optimizer_extremely_small_limit() {
+    let mut context = create_test_context();
+    let optimizer = TokenOptimizer::new(5); // Extremely small token limit
+
+    optimizer.optimize_context(&mut context);
+
+    print_debug_info(&context, &optimizer);
+
+    // Check total tokens
+    let total_tokens = count_total_tokens(&context, &optimizer);
+    assert!(
+        total_tokens <= 5,
+        "Total tokens ({}) exceeds limit of 5",
+        total_tokens
+    );
+
+    // Check that we have at least one item in each category
+    assert!(!context.recent_commits.is_empty(), "Should have at least one commit");
+    assert!(!context.staged_files.is_empty(), "Should have at least one staged file");
+    // In extremely small token limits, it's possible to have no unstaged files
+    if !context.unstaged_files.is_empty() {
+        for file in &context.unstaged_files {
+            assert!(
+                file.ends_with('…'),
+                "Unstaged file name should be truncated"
+            );
+        }
+    }
+
+    // Check that all remaining strings were truncated
+    for commit in &context.recent_commits {
+        assert!(
+            commit.message.ends_with('…') || commit.message.len() <= 1,
+            "Commit message should be truncated or be at most 1 character long"
+        );
+    }
+    for file in &context.staged_files {
+        assert!(
+            file.diff.ends_with('…') || file.diff.len() <= 1,
+            "Staged file diff should be truncated or be at most 1 character long"
+        );
+    }
+}
+
 fn print_debug_info(context: &CommitContext, optimizer: &TokenOptimizer) {
     println!("Commits: {}", context.recent_commits.len());
     for (i, commit) in context.recent_commits.iter().enumerate() {
