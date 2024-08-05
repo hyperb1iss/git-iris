@@ -69,6 +69,10 @@ pub enum Commands {
         /// Select an instruction preset
         #[arg(long, help = "Select an instruction preset")]
         preset: Option<String>,
+
+        /// Print the generated message to stdout and exit
+        #[arg(short, long, help = "Print the generated message to stdout and exit")]
+        print: bool,
     },
     /// Configure the AI-assisted Git commit message generator
     #[command(about = "Configure the AI-assisted Git commit message generator")]
@@ -188,21 +192,30 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             provider,
             no_gitmoji,
             preset,
+            print,
         } => {
             log_debug!(
-                "Handling 'gen' command with auto_commit: {}, instructions: {:?}, provider: {:?}, no_gitmoji: {}, preset: {:?}",
+                "Handling 'gen' command with auto_commit: {}, instructions: {:?}, provider: {:?}, no_gitmoji: {}, preset: {:?}, print: {}",
                 auto_commit,
                 instructions,
                 provider,
                 no_gitmoji,
-                preset
+                preset,
+                print
             );
 
             ui::print_version(crate_version!());
             println!();
 
-            commands::handle_gen_command(!no_gitmoji, provider, auto_commit, instructions, preset)
-                .await?;
+            commands::handle_gen_command(
+                !no_gitmoji,
+                provider,
+                auto_commit,
+                instructions,
+                preset,
+                print,
+            )
+            .await?;
         }
         Commands::Config {
             provider,

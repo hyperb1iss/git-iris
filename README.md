@@ -118,10 +118,17 @@ Options:
 - `--preset`: Use a specific instruction preset
 - `--no-gitmoji`: Disable Gitmoji for this commit
 - `-l`, `--log`: Enable logging to file
+- `-p`, `--print`: Print the generated message to stdout and exit
 
 Example:
 ```bash
 git-iris gen -a -i "Focus on performance improvements" --provider claude --preset detailed
+```
+
+To generate a commit message and print it to stdout without starting the interactive process:
+
+```bash
+git-iris gen --print
 ```
 
 ### Interactive Commit Process

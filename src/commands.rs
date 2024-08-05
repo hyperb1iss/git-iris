@@ -17,20 +17,23 @@ use std::sync::Arc;
 use unicode_width::UnicodeWidthStr;
 
 /// Handle the 'gen' command
+/// Handle the 'gen' command
 pub async fn handle_gen_command(
     use_gitmoji: bool,
     provider: Option<String>,
     auto_commit: bool,
     custom_instructions: Option<String>,
     preset: Option<String>,
+    print: bool,
 ) -> Result<()> {
     log_debug!(
-        "Starting 'gen' command with use_gitmoji: {}, provider: {:?}, auto_commit: {}, custom_instructions: {:?}, preset: {:?}",
+        "Starting 'gen' command with use_gitmoji: {}, provider: {:?}, auto_commit: {}, custom_instructions: {:?}, preset: {:?}, print: {}",
         use_gitmoji,
         provider,
         auto_commit,
         custom_instructions,
-        preset
+        preset,
+        print
     );
 
     let config = Config::load()?;
@@ -94,8 +97,11 @@ pub async fn handle_gen_command(
 
     let combined_instructions = format!(
         "{}\n\n{}",
-        preset_instructions.trim(), custom_instructions.trim()
-    ).trim().to_string();
+        preset_instructions.trim(),
+        custom_instructions.trim()
+    )
+    .trim()
+    .to_string();
 
     // Update spinner message before generating the initial message
     spinner.set_message(messages::get_random_message());
@@ -122,6 +128,12 @@ pub async fn handle_gen_command(
     .await?;
 
     spinner.finish_and_clear();
+
+    if print {
+        // Print the generated message to stdout and exit
+        println!("{}", initial_message);
+        return Ok(());
+    }
 
     // Initialize interactive commit process with program name and version
     let mut interactive_commit = InteractiveCommit::new(
