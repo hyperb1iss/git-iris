@@ -1,8 +1,7 @@
 use anyhow::Result;
-use git2::{Repository, Signature};
+use git2::Repository;
 use git_iris::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use git_iris::config::Config;
-use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -10,7 +9,7 @@ fn setup_test_repo() -> Result<(TempDir, Repository)> {
     let temp_dir = TempDir::new()?;
     let repo = Repository::init(temp_dir.path())?;
 
-    let signature = Signature::now("Test User", "test@example.com")?;
+    let signature = git2::Signature::now("Test User", "test@example.com")?;
 
     // Create initial commit
     {
@@ -40,7 +39,7 @@ fn setup_test_repo() -> Result<(TempDir, Repository)> {
     }
 
     // Create a new file and commit
-    fs::write(temp_dir.path().join("file1.txt"), "Hello, world!")?;
+    std::fs::write(temp_dir.path().join("file1.txt"), "Hello, world!")?;
     {
         let mut index = repo.index()?;
         index.add_path(Path::new("file1.txt"))?;
@@ -87,32 +86,12 @@ async fn test_changelog_generation() -> Result<()> {
     )
     .await?;
 
-    println!("Generated changelog: {}", changelog);
-
-    assert!(
-        changelog.contains("Test response from model 'test-model'"),
-        "Changelog should contain the test model response"
-    );
-    assert!(
-        changelog.contains("System prompt:"),
-        "Changelog should contain the system prompt"
-    );
-    assert!(
-        changelog.contains("User prompt:"),
-        "Changelog should contain the user prompt"
-    );
-    assert!(
-        changelog.contains("v1.0.0"),
-        "User prompt should mention the starting tag"
-    );
-    assert!(
-        changelog.contains("v1.1.0"),
-        "User prompt should mention the ending tag"
-    );
-    assert!(
-        changelog.contains("Add file1.txt"),
-        "User prompt should mention the added file"
-    );
+    assert!(changelog.contains("Test response from model 'test-model'"));
+    assert!(changelog.contains("System prompt:"));
+    assert!(changelog.contains("User prompt:"));
+    assert!(changelog.contains("v1.0.0"));
+    assert!(changelog.contains("v1.1.0"));
+    assert!(changelog.contains("Add file1.txt"));
 
     Ok(())
 }
@@ -132,32 +111,12 @@ async fn test_release_notes_generation() -> Result<()> {
     )
     .await?;
 
-    println!("Generated release notes: {}", release_notes);
-
-    assert!(
-        release_notes.contains("Test response from model 'test-model'"),
-        "Release notes should contain the test model response"
-    );
-    assert!(
-        release_notes.contains("System prompt:"),
-        "Release notes should contain the system prompt"
-    );
-    assert!(
-        release_notes.contains("User prompt:"),
-        "Release notes should contain the user prompt"
-    );
-    assert!(
-        release_notes.contains("v1.0.0"),
-        "User prompt should mention the starting tag"
-    );
-    assert!(
-        release_notes.contains("v1.1.0"),
-        "User prompt should mention the ending tag"
-    );
-    assert!(
-        release_notes.contains("Add file1.txt"),
-        "User prompt should mention the added file"
-    );
+    assert!(release_notes.contains("Test response from model 'test-model'"));
+    assert!(release_notes.contains("System prompt:"));
+    assert!(release_notes.contains("User prompt:"));
+    assert!(release_notes.contains("v1.0.0"));
+    assert!(release_notes.contains("v1.1.0"));
+    assert!(release_notes.contains("Add file1.txt"));
 
     Ok(())
 }

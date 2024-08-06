@@ -33,17 +33,15 @@ impl<'a> ChangeAnalyzer<'a> {
             None,
         )?;
 
-        let stats = diff.stats()?;
-        let impact_score = self.calculate_impact_score(&stats, &file_changes);
+        let metrics = self.calculate_metrics(&diff)?;
+        let impact_score = self.calculate_impact_score(&metrics, &file_changes);
 
         Ok(AnalyzedChange {
             commit_hash: commit.id().to_string(),
             commit_message: commit.message().unwrap_or("").to_string(),
             author: commit.author().name().unwrap_or("").to_string(),
             file_changes,
-            insertions: stats.insertions(),
-            deletions: stats.deletions(),
-            files_changed: stats.files_changed(),
+            metrics,
             impact_score,
         })
     }
@@ -77,27 +75,52 @@ impl<'a> ChangeAnalyzer<'a> {
         })
     }
 
-    fn get_file_diff(&self, _delta: &DiffDelta) -> Result<String> {
+    fn get_file_diff(&self, delta: &DiffDelta) -> Result<String> {
         let mut diff_content = String::new();
-        let diff = self.repo.diff_tree_to_tree(None, None, None)?;
-        diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-            let prefix = match line.origin() {
-                '+' => "+",
-                '-' => "-",
-                _ => " ",
-            };
-            diff_content.push_str(&format!(
-                "{}{}",
-                prefix,
-                std::str::from_utf8(line.content()).unwrap()
-            ));
+        let old_file = delta.old_file();
+        let new_file = delta.new_file();
+
+        let old_oid = old_file.id();
+        let new_oid = new_file.id();
+
+        let old_tree = self.repo.find_tree(old_oid).ok();
+        let new_tree = self.repo.find_tree(new_oid).ok();
+
+        let diff = self
+            .repo
+            .diff_tree_to_tree(old_tree.as_ref(), new_tree.as_ref(), None)?;
+
+        diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
+            if delta.new_file().path() == new_file.path() {
+                let prefix = match line.origin() {
+                    '+' => "+",
+                    '-' => "-",
+                    _ => " ",
+                };
+                diff_content.push_str(&format!(
+                    "{}{}",
+                    prefix,
+                    std::str::from_utf8(line.content()).unwrap()
+                ));
+            }
             true
         })?;
+
         Ok(diff_content)
     }
 
-    fn calculate_impact_score(&self, stats: &git2::DiffStats, file_changes: &[FileChange]) -> f32 {
-        let base_score = (stats.insertions() + stats.deletions()) as f32 / 100.0;
+    fn calculate_metrics(&self, diff: &git2::Diff) -> Result<ChangeMetrics> {
+        let stats = diff.stats()?;
+        Ok(ChangeMetrics {
+            files_changed: stats.files_changed(),
+            insertions: stats.insertions(),
+            deletions: stats.deletions(),
+            total_lines_changed: stats.insertions() + stats.deletions(),
+        })
+    }
+
+    fn calculate_impact_score(&self, metrics: &ChangeMetrics, file_changes: &[FileChange]) -> f32 {
+        let base_score = (metrics.total_lines_changed as f32) / 100.0;
         let file_score = file_changes.len() as f32 / 10.0;
         let analysis_score = file_changes
             .iter()
@@ -113,10 +136,15 @@ pub struct AnalyzedChange {
     pub commit_message: String,
     pub author: String,
     pub file_changes: Vec<FileChange>,
+    pub metrics: ChangeMetrics,
+    pub impact_score: f32,
+}
+
+pub struct ChangeMetrics {
+    pub files_changed: usize,
     pub insertions: usize,
     pub deletions: usize,
-    pub files_changed: usize,
-    pub impact_score: f32,
+    pub total_lines_changed: usize,
 }
 
 pub struct FileChange {

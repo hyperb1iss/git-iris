@@ -1,11 +1,10 @@
 use crate::config::{Config, ProviderConfig};
 use crate::llm_providers::{
-    get_available_providers, get_provider_metadata, LLMProviderConfig,
-    LLMProviderType, create_provider,
+    create_provider, get_available_providers, get_provider_metadata, LLMProviderConfig,
+    LLMProviderType,
 };
 use crate::log_debug;
 use anyhow::{anyhow, Result};
-
 
 /// Generates a message using the given configuration
 pub async fn get_refined_message(
@@ -35,11 +34,17 @@ pub async fn get_refined_message(
 
     // Append custom instructions to the user prompt if provided
     let final_system_prompt = match custom_instructions {
-        Some(instructions) => format!("{}\n\nAdditional instructions: {}", system_prompt, instructions),
+        Some(instructions) => format!(
+            "{}\n\nAdditional instructions: {}",
+            system_prompt, instructions
+        ),
         None => system_prompt.to_string(),
     };
-    
-    log_debug!("Generating refined message using provider: {}", provider_type);
+
+    log_debug!(
+        "Generating refined message using provider: {}",
+        provider_type
+    );
     log_debug!("System prompt: {}", final_system_prompt);
     log_debug!("User prompt: {}", user_prompt);
 
