@@ -1,3 +1,5 @@
+pub mod changelog;
+pub mod changelog_prompts;
 pub mod cli;
 pub mod commands;
 pub mod config;

@@ -57,6 +57,38 @@ fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<RecentCommi
     Ok(commits)
 }
 
+
+pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec<CommitContext>> {
+    let repo = Repository::open(repo_path)?;
+    let from_commit = repo.revparse_single(from)?.peel_to_commit()?;
+    let to_commit = repo.revparse_single(to)?.peel_to_commit()?;
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push(to_commit.id())?;
+    revwalk.hide(from_commit.id())?;
+
+    let commits: Vec<CommitContext> = revwalk
+        .filter_map(|id| id.ok())
+        .filter_map(|id| repo.find_commit(id).ok())
+        .map(|commit| {
+            CommitContext::new(
+                "".to_string(), // branch name (not relevant for changelog)
+                vec![RecentCommit {
+                    hash: commit.id().to_string(),
+                    message: commit.message().unwrap_or("").to_string(),
+                    author: commit.author().name().unwrap_or("").to_string(),
+                    timestamp: commit.time().seconds().to_string(),
+                }],
+                vec![], // staged_files (not relevant for changelog)
+                vec![], // unstaged_files (not relevant for changelog)
+                ProjectMetadata::default(),
+            )
+        })
+        .collect();
+
+    Ok(commits)
+}
+
 fn should_exclude_file(path: &str) -> bool {
     let exclude_patterns = vec![
         String::from(r"\.git"),

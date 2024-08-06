@@ -11,7 +11,6 @@ pub fn create_prompt(context: &CommitContext, config: &Config) -> Result<String>
     let user_prompt = create_user_prompt(context)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
-    log_debug!("Full prompt:\n{}", full_prompt);
 
     Ok(full_prompt)
 }

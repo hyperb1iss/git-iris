@@ -1,42 +1,19 @@
 use crate::config::{Config, ProviderConfig};
-use crate::context::CommitContext;
 use crate::llm_providers::{
-    create_provider, get_available_providers, get_provider_metadata, LLMProviderConfig,
-    LLMProviderType,
+    get_available_providers, get_provider_metadata, LLMProviderConfig,
+    LLMProviderType, create_provider,
 };
 use crate::log_debug;
-use crate::prompt;
-use crate::LLMProvider;
 use anyhow::{anyhow, Result};
 
-/// Generates a refined commit message using the specified LLM provider
-pub async fn get_refined_message(
-    context: &CommitContext,
-    config: &Config,
-    provider_type: &LLMProviderType,
-    use_gitmoji: bool,
-    custom_instructions: &str,
-) -> Result<String> {
-    get_refined_message_with_provider(
-        context,
-        config,
-        provider_type,
-        use_gitmoji,
-        custom_instructions,
-        create_provider,
-    )
-    .await
-}
 
-/// Generates a refined commit message using the specified LLM provider
-/// This version allows for a custom provider creation function, useful for testing
-pub async fn get_refined_message_with_provider(
-    context: &CommitContext,
+/// Generates a message using the given configuration
+pub async fn get_refined_message(
     config: &Config,
     provider_type: &LLMProviderType,
-    use_gitmoji: bool,
-    custom_instructions: &str,
-    create_provider_fn: impl Fn(LLMProviderType, LLMProviderConfig) -> Result<Box<dyn LLMProvider>>,
+    system_prompt: &str,
+    user_prompt: &str,
+    custom_instructions: Option<&str>,
 ) -> Result<String> {
     let provider_metadata = get_provider_metadata(provider_type);
 
@@ -51,23 +28,25 @@ pub async fn get_refined_message_with_provider(
     };
 
     // Create the LLM provider instance using the provided function
-    let llm_provider = create_provider_fn(
+    let llm_provider = create_provider(
         provider_type.clone(),
         provider_config.to_llm_provider_config(),
     )?;
 
-    // Generate system and user prompts
-    let system_prompt = prompt::create_system_prompt(use_gitmoji, custom_instructions);
-    let user_prompt = prompt::create_user_prompt(context)?;
+    // Append custom instructions to the user prompt if provided
+    let final_system_prompt = match custom_instructions {
+        Some(instructions) => format!("{}\n\nAdditional instructions: {}", system_prompt, instructions),
+        None => system_prompt.to_string(),
+    };
+    
+    log_debug!("Generating refined message using provider: {}", provider_type);
+    log_debug!("System prompt: {}", final_system_prompt);
+    log_debug!("User prompt: {}", user_prompt);
 
-    log_debug!("Using LLM provider: {}", provider_type);
-
-    // Generate the commit message using the LLM provider
+    // Generate the message using the LLM provider
     let refined_message = llm_provider
-        .generate_message(&system_prompt, &user_prompt)
+        .generate_message(&final_system_prompt, user_prompt)
         .await?;
-
-    log_debug!("Generated message:\n{}", refined_message);
 
     Ok(refined_message)
 }

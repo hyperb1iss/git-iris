@@ -1,3 +1,4 @@
+use crate::changelog::{ChangelogGenerator, ReleaseNotesGenerator};
 use crate::config::Config;
 use crate::git::get_git_info;
 use crate::instruction_presets::get_instruction_preset_library;
@@ -13,10 +14,10 @@ use anyhow::{anyhow, Result};
 use clap::{crate_name, crate_version};
 use colored::*;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::env;
+use std::sync::Arc; // Add this line
 use unicode_width::UnicodeWidthStr;
 
-/// Handle the 'gen' command
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
     use_gitmoji: bool,
@@ -114,16 +115,13 @@ pub async fn handle_gen_command(
     let system_prompt = prompt::create_system_prompt(use_gitmoji, &combined_instructions);
     let user_prompt = prompt::create_user_prompt(&git_info)?;
 
-    let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
-    let truncated_prompt = optimizer.truncate_string(&full_prompt, token_limit);
-
     // Generate the initial message
     let initial_message = get_refined_message(
-        &git_info,
         &config,
         &provider_type,
-        use_gitmoji,
-        &truncated_prompt,
+        &system_prompt,
+        &user_prompt,
+        Some(&combined_instructions)
     )
     .await?;
 
@@ -150,17 +148,16 @@ pub async fn handle_gen_command(
         .run(move |edited_instructions| {
             let config = Arc::clone(&config);
             let provider_type = provider_type.clone();
-            let current_dir = Arc::clone(&current_dir);
-            let use_gitmoji = use_gitmoji;
+            let system_prompt = system_prompt.clone();
+            let user_prompt = user_prompt.clone();
             let instructions = edited_instructions.to_string();
             async move {
-                let git_info = get_git_info(current_dir.as_path(), &config)?;
                 get_refined_message(
-                    &git_info,
                     &config,
                     &provider_type,
-                    use_gitmoji,
-                    &instructions,
+                    &system_prompt,
+                    &user_prompt,
+                    Some(&instructions),
                 )
                 .await
             }
@@ -295,6 +292,57 @@ pub fn handle_config_command(
             provider_config.additional_params
         ));
     }
+
+    Ok(())
+}
+
+pub async fn handle_changelog_command(from: String, to: Option<String>) -> Result<()> {
+    let config = Config::load()?;
+    let spinner = ui::create_spinner("Generating changelog...");
+
+    let repo_path = env::current_dir()?;
+    let to = to.unwrap_or_else(|| "HEAD".to_string());
+    let changelog = ChangelogGenerator::generate(&repo_path, &from, &to, &config).await?;
+
+    spinner.finish_and_clear();
+    
+    // Save changelog to file
+    /*let filename = format!("changelog-{}-to-{}.md", from, to);
+    
+    let file_path = std::path::PathBuf::from(&filename);
+    fs::write(&file_path, &changelog)?;
+    
+    ui::print_success(&format!("Changelog generated and saved to {}", file_path.display()));
+    ui::print_info("\nChangelog Preview:");
+    */
+    println!("{}", "━".repeat(50).bright_purple());
+    println!("{}", &changelog);
+    println!("{}", "━".repeat(50).bright_purple());
+
+    Ok(())
+}
+
+pub async fn handle_release_notes_command(from: String, to: Option<String>) -> Result<()> {
+    let config = Config::load()?;
+    let spinner = ui::create_spinner("Generating release notes...");
+
+    let repo_path = env::current_dir()?;
+    let to = to.unwrap_or_else(|| "HEAD".to_string());
+    let release_notes = ReleaseNotesGenerator::generate(&repo_path, &from, &to, &config).await?;
+
+    spinner.finish_and_clear();
+    
+    // Save release notes to file
+    /*let filename = format!("release-notes-{}-to-{}.md", from, to);
+    let file_path = PathBuf::from(&filename);
+    fs::write(&file_path, &release_notes)?;
+    
+    ui::print_success(&format!("Release notes generated and saved to {}", file_path.display()));
+    ui::print_info("\nRelease Notes Preview:");
+    */
+    println!("{}", "━".repeat(50).bright_purple());
+    println!("{}", &release_notes);
+    println!("{}", "━".repeat(50).bright_purple());
 
     Ok(())
 }

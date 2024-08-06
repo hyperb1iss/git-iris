@@ -119,6 +119,34 @@ pub enum Commands {
     /// List available instruction presets
     #[command(about = "List available instruction presets")]
     ListPresets,
+    /// Generate a changelog
+    #[command(
+        about = "Generate a changelog",
+        long_about = "Generate a changelog between two specified Git references."
+    )]
+    Changelog {
+        /// Starting Git reference (commit hash, tag, or branch name)
+        #[arg(long, required = true)]
+        from: String,
+
+        /// Ending Git reference (commit hash, tag, or branch name). Defaults to HEAD if not specified.
+        #[arg(long)]
+        to: Option<String>,
+    },
+    /// Generate release notes
+    #[command(
+        about = "Generate release notes",
+        long_about = "Generate comprehensive release notes between two specified Git references."
+    )]
+    ReleaseNotes {
+        /// Starting Git reference (commit hash, tag, or branch name)
+        #[arg(long, required = true)]
+        from: String,
+
+        /// Ending Git reference (commit hash, tag, or branch name). Defaults to HEAD if not specified.
+        #[arg(long)]
+        to: Option<String>,
+    },
 }
 
 /// Define custom styles for Clap
@@ -147,7 +175,7 @@ fn get_dynamic_help() -> String {
 /// Validate provider input against available providers
 fn available_providers_parser(s: &str) -> Result<String, String> {
     let available_providers = get_available_provider_names();
-    if available_providers.contains(&s.to_lowercase()) {
+    if available_providers.contains(&s.to_lowercase()) && s.to_lowercase() != "test" {
         Ok(s.to_lowercase())
     } else {
         Err(format!(
@@ -243,6 +271,22 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
         Commands::ListPresets => {
             log_debug!("Handling 'list_presets' command");
             commands::handle_list_presets_command()?;
+        }
+        Commands::Changelog { from, to } => {
+            log_debug!(
+                "Handling 'changelog' command with from: {}, to: {:?}",
+                from,
+                to
+            );
+            commands::handle_changelog_command(from, to).await?;
+        }
+        Commands::ReleaseNotes { from, to } => {
+            log_debug!(
+                "Handling 'release-notes' command with from: {}, to: {:?}",
+                from,
+                to
+            );
+            commands::handle_release_notes_command(from, to).await?;
         }
     }
 
