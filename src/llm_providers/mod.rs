@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::fmt;
+use std::str::FromStr;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, EnumIter};
 mod claude;
@@ -21,6 +22,20 @@ pub enum LLMProviderType {
 impl fmt::Display for LLMProviderType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_ref())
+    }
+}
+
+impl FromStr for LLMProviderType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "openai" => Ok(LLMProviderType::OpenAI),
+            "claude" => Ok(LLMProviderType::Claude),
+            "ollama" => Ok(LLMProviderType::Ollama),
+            "test" => Ok(LLMProviderType::Test),
+            _ => Err(anyhow::anyhow!("Unsupported provider: {}", s)),
+        }
     }
 }
 
@@ -68,14 +83,3 @@ pub fn get_available_providers() -> Vec<LLMProviderType> {
     LLMProviderType::iter().collect()
 }
 
-impl LLMProviderType {
-    pub fn from_str(s: &str) -> Result<Self> {
-        match s.to_lowercase().as_str() {
-            "openai" => Ok(LLMProviderType::OpenAI),
-            "claude" => Ok(LLMProviderType::Claude),
-            "ollama" => Ok(LLMProviderType::Ollama),
-            "test" => Ok(LLMProviderType::Test),
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", s)),
-        }
-    }
-}

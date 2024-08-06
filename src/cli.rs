@@ -132,6 +132,22 @@ pub enum Commands {
         /// Ending Git reference (commit hash, tag, or branch name). Defaults to HEAD if not specified.
         #[arg(long)]
         to: Option<String>,
+
+        /// Custom instructions for changelog generation
+        #[arg(short, long, help = "Custom instructions for changelog generation")]
+        instructions: Option<String>,
+
+        /// Select an instruction preset for changelog generation
+        #[arg(long, help = "Select an instruction preset for changelog generation")]
+        preset: Option<String>,
+
+        /// Set the detail level for the changelog
+        #[arg(long, help = "Set the detail level (minimal, standard, detailed)", default_value = "standard")]
+        detail_level: String,
+
+        /// Enable or disable Gitmoji in the changelog
+        #[arg(long, help = "Enable or disable Gitmoji in the changelog")]
+        gitmoji: Option<bool>,
     },
     /// Generate release notes
     #[command(
@@ -146,6 +162,22 @@ pub enum Commands {
         /// Ending Git reference (commit hash, tag, or branch name). Defaults to HEAD if not specified.
         #[arg(long)]
         to: Option<String>,
+
+        /// Custom instructions for release notes generation
+        #[arg(short, long, help = "Custom instructions for release notes generation")]
+        instructions: Option<String>,
+
+        /// Select an instruction preset for release notes generation
+        #[arg(long, help = "Select an instruction preset for release notes generation")]
+        preset: Option<String>,
+
+        /// Set the detail level for the release notes
+        #[arg(long, help = "Set the detail level (minimal, standard, detailed)", default_value = "standard")]
+        detail_level: String,
+
+        /// Enable or disable Gitmoji in the release notes
+        #[arg(long, help = "Enable or disable Gitmoji in the release notes")]
+        gitmoji: Option<bool>,
     },
 }
 
@@ -272,21 +304,19 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             log_debug!("Handling 'list_presets' command");
             commands::handle_list_presets_command()?;
         }
-        Commands::Changelog { from, to } => {
+        Commands::Changelog { from, to, instructions, preset, detail_level, gitmoji } => {
             log_debug!(
-                "Handling 'changelog' command with from: {}, to: {:?}",
-                from,
-                to
+                "Handling 'changelog' command with from: {}, to: {:?}, instructions: {:?}, preset: {:?}, detail_level: {}, gitmoji: {:?}",
+                from, to, instructions, preset, detail_level, gitmoji
             );
-            commands::handle_changelog_command(from, to).await?;
+            commands::handle_changelog_command(from, to, instructions, preset, detail_level, gitmoji).await?;
         }
-        Commands::ReleaseNotes { from, to } => {
+        Commands::ReleaseNotes { from, to, instructions, preset, detail_level, gitmoji } => {
             log_debug!(
-                "Handling 'release-notes' command with from: {}, to: {:?}",
-                from,
-                to
+                "Handling 'release-notes' command with from: {}, to: {:?}, instructions: {:?}, preset: {:?}, detail_level: {}, gitmoji: {:?}",
+                from, to, instructions, preset, detail_level, gitmoji
             );
-            commands::handle_release_notes_command(from, to).await?;
+            commands::handle_release_notes_command(from, to, instructions, preset, detail_level, gitmoji).await?;
         }
     }
 

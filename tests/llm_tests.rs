@@ -5,6 +5,7 @@ use git_iris::llm::{
     get_default_token_limit_for_provider, get_refined_message,
 };
 use git_iris::llm_providers::LLMProviderType;
+use std::str::FromStr;
 
 #[tokio::test]
 async fn test_get_refined_message() -> Result<()> {

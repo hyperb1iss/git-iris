@@ -1,3 +1,4 @@
+use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm_providers::{
     get_available_providers, get_provider_metadata, LLMProviderConfig, LLMProviderType,
 };
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 /// Configuration structure for the Git-Iris application
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -24,6 +26,10 @@ pub struct Config {
     pub instructions: String,
     #[serde(default = "default_instruction_preset")]
     pub instruction_preset: String,
+    #[serde(skip)]
+    pub temp_instructions: Option<String>,
+    #[serde(skip)]
+    pub temp_preset: Option<String>,
 }
 
 /// Provider-specific configuration structure
@@ -96,6 +102,34 @@ impl Config {
         Ok(())
     }
 
+    pub fn set_temp_instructions(&mut self, instructions: Option<String>) {
+        self.temp_instructions = instructions;
+    }
+
+    pub fn set_temp_preset(&mut self, preset: Option<String>) {
+        self.temp_preset = preset;
+    }
+
+    pub fn get_effective_instructions(&self) -> String {
+        let preset_library = get_instruction_preset_library();
+        let preset_instructions = self
+            .temp_preset
+            .as_ref()
+            .or(Some(&self.instruction_preset))
+            .and_then(|p| preset_library.get_preset(p))
+            .map(|p| p.instructions.clone())
+            .unwrap_or_default();
+
+        let custom_instructions = self
+            .temp_instructions
+            .as_ref()
+            .unwrap_or(&self.instructions);
+
+        format!("{}\n\n{}", preset_instructions, custom_instructions)
+            .trim()
+            .to_string()
+    }
+
     /// Update the configuration with new values
     pub fn update(
         &mut self,
@@ -111,8 +145,8 @@ impl Config {
             self.default_provider = provider.clone();
             if !self.providers.contains_key(&provider) {
                 // Only insert a new provider if it requires configuration
-                let provider_type = LLMProviderType::from_str(&provider)
-                    .unwrap_or_else(|_| LLMProviderType::OpenAI);
+                let provider_type =
+                    LLMProviderType::from_str(&provider).unwrap_or(LLMProviderType::OpenAI);
                 if get_provider_metadata(&provider_type).requires_api_key {
                     self.providers
                         .insert(provider.clone(), ProviderConfig::default_for(&provider));
@@ -176,6 +210,8 @@ impl Default for Config {
             use_gitmoji: true,
             instructions: String::new(),
             instruction_preset: default_instruction_preset(),
+            temp_instructions: None,
+            temp_preset: None,
         }
     }
 }

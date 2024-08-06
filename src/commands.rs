@@ -15,6 +15,7 @@ use clap::{crate_name, crate_version};
 use colored::*;
 use std::collections::HashMap;
 use std::env;
+use std::str::FromStr;
 use std::sync::Arc; // Add this line
 use unicode_width::UnicodeWidthStr;
 
@@ -296,27 +297,37 @@ pub fn handle_config_command(
     Ok(())
 }
 
-pub async fn handle_changelog_command(from: String, to: Option<String>) -> Result<()> {
-    let config = Config::load()?;
+pub async fn handle_changelog_command(
+    from: String,
+    to: Option<String>,
+    instructions: Option<String>,
+    preset: Option<String>,
+    detail_level: String,
+    gitmoji: Option<bool>,
+) -> Result<()> {
+    let mut config = Config::load()?;
     let spinner = ui::create_spinner("Generating changelog...");
 
     let repo_path = env::current_dir()?;
     let to = to.unwrap_or_else(|| "HEAD".to_string());
+
+    // Set temporary instructions and preset
+    config.set_temp_instructions(instructions);
+    config.set_temp_preset(preset);
+
+    // Parse detail level
+    let detail_level = DetailLevel::from_str(&detail_level)?;
+
+    // Override gitmoji setting if provided
+    if let Some(use_gitmoji) = gitmoji {
+        config.use_gitmoji = use_gitmoji;
+    }
+
     let changelog =
-        ChangelogGenerator::generate(&repo_path, &from, &to, &config, DetailLevel::Standard)
-            .await?;
+        ChangelogGenerator::generate(&repo_path, &from, &to, &config, detail_level).await?;
 
     spinner.finish_and_clear();
 
-    // Save changelog to file
-    /*let filename = format!("changelog-{}-to-{}.md", from, to);
-
-    let file_path = std::path::PathBuf::from(&filename);
-    fs::write(&file_path, &changelog)?;
-
-    ui::print_success(&format!("Changelog generated and saved to {}", file_path.display()));
-    ui::print_info("\nChangelog Preview:");
-    */
     println!("{}", "━".repeat(50).bright_purple());
     println!("{}", &changelog);
     println!("{}", "━".repeat(50).bright_purple());
@@ -324,26 +335,37 @@ pub async fn handle_changelog_command(from: String, to: Option<String>) -> Resul
     Ok(())
 }
 
-pub async fn handle_release_notes_command(from: String, to: Option<String>) -> Result<()> {
-    let config = Config::load()?;
+pub async fn handle_release_notes_command(
+    from: String,
+    to: Option<String>,
+    instructions: Option<String>,
+    preset: Option<String>,
+    detail_level: String,
+    gitmoji: Option<bool>,
+) -> Result<()> {
+    let mut config = Config::load()?;
     let spinner = ui::create_spinner("Generating release notes...");
 
     let repo_path = env::current_dir()?;
     let to = to.unwrap_or_else(|| "HEAD".to_string());
+
+    // Set temporary instructions and preset
+    config.set_temp_instructions(instructions);
+    config.set_temp_preset(preset);
+
+    // Parse detail level
+    let detail_level = DetailLevel::from_str(&detail_level)?;
+
+    // Override gitmoji setting if provided
+    if let Some(use_gitmoji) = gitmoji {
+        config.use_gitmoji = use_gitmoji;
+    }
+
     let release_notes =
-        ReleaseNotesGenerator::generate(&repo_path, &from, &to, &config, DetailLevel::Standard)
-            .await?;
+        ReleaseNotesGenerator::generate(&repo_path, &from, &to, &config, detail_level).await?;
 
     spinner.finish_and_clear();
 
-    // Save release notes to file
-    /*let filename = format!("release-notes-{}-to-{}.md", from, to);
-    let file_path = PathBuf::from(&filename);
-    fs::write(&file_path, &release_notes)?;
-
-    ui::print_success(&format!("Release notes generated and saved to {}", file_path.display()));
-    ui::print_info("\nRelease Notes Preview:");
-    */
     println!("{}", "━".repeat(50).bright_purple());
     println!("{}", &release_notes);
     println!("{}", "━".repeat(50).bright_purple());
