@@ -49,10 +49,16 @@ fn test_create_changelog_system_prompt() {
 #[test]
 fn test_create_changelog_user_prompt() {
     let changes = vec![create_mock_analyzed_change()];
+    let readme_summary = Some("This project is a fantastic tool for managing workflows.");
 
     // Test Minimal detail level
-    let minimal_prompt =
-        create_changelog_user_prompt(&changes, DetailLevel::Minimal, "v1.0.0", "v1.1.0");
+    let minimal_prompt = create_changelog_user_prompt(
+        &changes,
+        DetailLevel::Minimal,
+        "v1.0.0",
+        "v1.1.0",
+        readme_summary,
+    );
     assert!(minimal_prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));
     assert!(minimal_prompt.contains("Overall Changes:"));
     assert!(minimal_prompt.contains("Total commits: 1"));
@@ -63,18 +69,33 @@ fn test_create_changelog_user_prompt() {
     assert!(minimal_prompt.contains("Commit: abcdef123456"));
     assert!(minimal_prompt.contains("Impact score: 0.75"));
     assert!(!minimal_prompt.contains("File changes summary:"));
+    assert!(minimal_prompt.contains("Project README Summary:"));
+    assert!(minimal_prompt.contains("This project is a fantastic tool for managing workflows."));
+    assert!(minimal_prompt.contains("generate a concise changelog"));
 
     // Test Standard detail level
-    let standard_prompt =
-        create_changelog_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0");
+    let standard_prompt = create_changelog_user_prompt(
+        &changes,
+        DetailLevel::Standard,
+        "v1.0.0",
+        "v1.1.0",
+        readme_summary,
+    );
     assert!(standard_prompt.contains("File changes summary:"));
     assert!(standard_prompt.contains("src/new.rs (Modified)"));
+    assert!(standard_prompt.contains("generate a comprehensive changelog"));
 
     // Test Detailed detail level
-    let detailed_prompt =
-        create_changelog_user_prompt(&changes, DetailLevel::Detailed, "v1.0.0", "v1.1.0");
+    let detailed_prompt = create_changelog_user_prompt(
+        &changes,
+        DetailLevel::Detailed,
+        "v1.0.0",
+        "v1.1.0",
+        readme_summary,
+    );
     assert!(detailed_prompt.contains("Detailed file changes:"));
     assert!(detailed_prompt.contains("Modified function: process_data"));
+    assert!(detailed_prompt.contains("generate a highly detailed changelog"));
 }
 
 #[test]
@@ -92,24 +113,70 @@ fn test_create_release_notes_system_prompt() {
 fn test_create_release_notes_user_prompt() {
     let changelog =
         "## Features\n- Added new processing capability\n## Bug Fixes\n- Fixed memory leak";
+    let readme_summary = Some("This project is a fantastic tool for managing workflows.");
 
     // Test Minimal detail level
-    let minimal_prompt =
-        create_release_notes_user_prompt(changelog, DetailLevel::Minimal, "v1.0.0", "v1.1.0");
+    let minimal_prompt = create_release_notes_user_prompt(
+        changelog,
+        DetailLevel::Minimal,
+        "v1.0.0",
+        "v1.1.0",
+        readme_summary,
+    );
     assert!(minimal_prompt
         .contains("Based on the following changelog for changes from v1.0.0 to v1.1.0"));
     assert!(minimal_prompt.contains("generate concise release notes"));
     assert!(minimal_prompt.contains("Keep the release notes brief"));
+    assert!(minimal_prompt.contains("Project README Summary:"));
+    assert!(minimal_prompt.contains("This project is a fantastic tool for managing workflows."));
 
     // Test Standard detail level
-    let standard_prompt =
-        create_release_notes_user_prompt(changelog, DetailLevel::Standard, "v1.0.0", "v1.1.0");
+    let standard_prompt = create_release_notes_user_prompt(
+        changelog,
+        DetailLevel::Standard,
+        "v1.0.0",
+        "v1.1.0",
+        readme_summary,
+    );
     assert!(standard_prompt.contains("generate comprehensive release notes"));
     assert!(standard_prompt.contains("Provide a balanced overview"));
 
     // Test Detailed detail level
-    let detailed_prompt =
-        create_release_notes_user_prompt(changelog, DetailLevel::Detailed, "v1.0.0", "v1.1.0");
+    let detailed_prompt = create_release_notes_user_prompt(
+        changelog,
+        DetailLevel::Detailed,
+        "v1.0.0",
+        "v1.1.0",
+        readme_summary,
+    );
     assert!(detailed_prompt.contains("generate highly detailed release notes"));
     assert!(detailed_prompt.contains("Include detailed explanations"));
+}
+
+#[test]
+fn test_changelog_user_prompt_without_readme() {
+    let changes = vec![create_mock_analyzed_change()];
+    let prompt =
+        create_changelog_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
+
+    assert!(!prompt.contains("Project README Summary:"));
+    assert!(prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));
+    assert!(prompt.contains("generate a comprehensive changelog"));
+}
+
+#[test]
+fn test_release_notes_user_prompt_without_readme() {
+    let changelog =
+        "## Features\n- Added new processing capability\n## Bug Fixes\n- Fixed memory leak";
+    let prompt = create_release_notes_user_prompt(
+        changelog,
+        DetailLevel::Standard,
+        "v1.0.0",
+        "v1.1.0",
+        None,
+    );
+
+    assert!(!prompt.contains("Project README Summary:"));
+    assert!(prompt.contains("Based on the following changelog for changes from v1.0.0 to v1.1.0"));
+    assert!(prompt.contains("generate comprehensive release notes"));
 }

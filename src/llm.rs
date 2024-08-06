@@ -53,6 +53,8 @@ pub async fn get_refined_message(
         .generate_message(&final_system_prompt, user_prompt)
         .await?;
 
+    log_debug!("Refined message: {}", refined_message);
+    
     Ok(refined_message)
 }
 

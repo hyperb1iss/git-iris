@@ -5,6 +5,7 @@ use crate::file_analyzers;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
+use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -275,4 +276,18 @@ pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
         &[&parent_commit],
     )?;
     Ok(())
+}
+
+pub fn find_and_read_readme(repo_path: &Path) -> Result<Option<String>> {
+    let readme_patterns = ["README.md", "README.txt", "README", "Readme.md"];
+
+    for pattern in readme_patterns.iter() {
+        let readme_path = repo_path.join(pattern);
+        if readme_path.exists() {
+            let content = fs::read_to_string(readme_path)?;
+            return Ok(Some(content));
+        }
+    }
+
+    Ok(None)
 }
