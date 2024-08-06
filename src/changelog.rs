@@ -1,7 +1,8 @@
 use crate::changelog_prompts;
 use crate::config::Config;
 use crate::git;
-use crate::llm_providers::{create_provider, LLMProviderType};
+use crate::llm;
+use crate::llm_providers::LLMProviderType;
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -13,24 +14,25 @@ impl ChangelogGenerator {
         from: &str,
         to: &str,
         config: &Config,
+        detail_level: DetailLevel,
     ) -> Result<String> {
-        let commits = git::get_commits_between(repo_path, from, to)?;
-        let provider_type = LLMProviderType::from_str(&config.default_provider)?;
+        let analyzed_changes = git::get_commits_between(repo_path, from, to)?;
 
         let system_prompt = changelog_prompts::create_changelog_system_prompt(config);
-        let user_prompt = changelog_prompts::create_changelog_user_prompt(commits);
+        let user_prompt = changelog_prompts::create_changelog_user_prompt(
+            &analyzed_changes,
+            detail_level,
+            from,
+            to,
+        );
 
-        let provider_config = config
-            .get_provider_config(&config.default_provider)
-            .ok_or_else(|| anyhow::anyhow!("Provider configuration not found"))?
-            .to_llm_provider_config();
+        let provider_type = LLMProviderType::from_str(&config.default_provider)
+            .context("Failed to parse default provider")?;
 
-        let llm_provider = create_provider(provider_type, provider_config)?;
-
-        let changelog = llm_provider
-            .generate_message(&system_prompt, &user_prompt)
-            .await
-            .context("Failed to generate changelog")?;
+        let changelog =
+            llm::get_refined_message(config, &provider_type, &system_prompt, &user_prompt, None)
+                .await
+                .context("Failed to generate changelog")?;
 
         Ok(changelog)
     }
@@ -44,27 +46,41 @@ impl ReleaseNotesGenerator {
         from: &str,
         to: &str,
         config: &Config,
+        detail_level: DetailLevel,
     ) -> Result<String> {
-        let changelog = ChangelogGenerator::generate(repo_path, from, to, config).await?;
-        let provider_type = LLMProviderType::from_str(&config.default_provider)?;
+        let changelog =
+            ChangelogGenerator::generate(repo_path, from, to, config, detail_level).await?;
 
         let system_prompt = changelog_prompts::create_release_notes_system_prompt(config);
-        let user_prompt = changelog_prompts::create_release_notes_user_prompt(changelog);
+        let user_prompt =
+            changelog_prompts::create_release_notes_user_prompt(&changelog, detail_level, from, to);
 
-        // Generate release notes summary
+        let provider_type = LLMProviderType::from_str(&config.default_provider)
+            .context("Failed to parse default provider")?;
 
-        let provider_config = config
-            .get_provider_config(&config.default_provider)
-            .ok_or_else(|| anyhow::anyhow!("Provider configuration not found"))?
-            .to_llm_provider_config();
-
-        let llm_provider = create_provider(provider_type, provider_config)?;
-
-        let release_notes = llm_provider
-            .generate_message(&system_prompt, &user_prompt)
-            .await
-            .context("Failed to generate release notes summary")?;
+        let release_notes =
+            llm::get_refined_message(config, &provider_type, &system_prompt, &user_prompt, None)
+                .await
+                .context("Failed to generate release notes summary")?;
 
         Ok(release_notes)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DetailLevel {
+    Minimal,
+    Standard,
+    Detailed,
+}
+
+impl DetailLevel {
+    pub fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "minimal" => Ok(DetailLevel::Minimal),
+            "standard" => Ok(DetailLevel::Standard),
+            "detailed" => Ok(DetailLevel::Detailed),
+            _ => Err(anyhow::anyhow!("Invalid detail level: {}", s)),
+        }
     }
 }

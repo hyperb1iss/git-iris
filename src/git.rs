@@ -1,3 +1,4 @@
+use crate::change_analyzer::{AnalyzedChange, ChangeAnalyzer};
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
@@ -7,10 +8,7 @@ use regex::Regex;
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn get_git_info(
-    repo_path: &Path,
-    _config: &Config,
-) -> Result<CommitContext> {
+pub fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext> {
     let repo = Repository::open(repo_path)?;
 
     let branch = get_current_branch(&repo)?;
@@ -25,7 +23,6 @@ pub fn get_git_info(
         unstaged_files,
         project_metadata,
     );
-
 
     Ok(context)
 }
@@ -57,9 +54,10 @@ fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<RecentCommi
     Ok(commits)
 }
 
-
-pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec<CommitContext>> {
+pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec<AnalyzedChange>> {
     let repo = Repository::open(repo_path)?;
+    let analyzer = ChangeAnalyzer::new(&repo);
+
     let from_commit = repo.revparse_single(from)?.peel_to_commit()?;
     let to_commit = repo.revparse_single(to)?.peel_to_commit()?;
 
@@ -67,26 +65,13 @@ pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec
     revwalk.push(to_commit.id())?;
     revwalk.hide(from_commit.id())?;
 
-    let commits: Vec<CommitContext> = revwalk
+    let analyzed_commits = revwalk
         .filter_map(|id| id.ok())
         .filter_map(|id| repo.find_commit(id).ok())
-        .map(|commit| {
-            CommitContext::new(
-                "".to_string(), // branch name (not relevant for changelog)
-                vec![RecentCommit {
-                    hash: commit.id().to_string(),
-                    message: commit.message().unwrap_or("").to_string(),
-                    author: commit.author().name().unwrap_or("").to_string(),
-                    timestamp: commit.time().seconds().to_string(),
-                }],
-                vec![], // staged_files (not relevant for changelog)
-                vec![], // unstaged_files (not relevant for changelog)
-                ProjectMetadata::default(),
-            )
-        })
+        .filter_map(|commit| analyzer.analyze_commit(&commit).ok())
         .collect();
 
-    Ok(commits)
+    Ok(analyzed_commits)
 }
 
 fn should_exclude_file(path: &str) -> bool {
@@ -121,9 +106,7 @@ fn should_exclude_file(path: &str) -> bool {
     false
 }
 
-fn get_file_statuses(
-    repo: &Repository,
-) -> Result<(Vec<StagedFile>, Vec<String>)> {
+fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)> {
     let mut staged_files = Vec::new();
     let mut unstaged_files = Vec::new();
 

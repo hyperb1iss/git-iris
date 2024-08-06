@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::fmt;
 
 use crate::token_optimizer::TokenOptimizer;
 
@@ -33,6 +34,16 @@ pub enum ChangeType {
     Added,
     Modified,
     Deleted,
+}
+
+impl fmt::Display for ChangeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChangeType::Added => write!(f, "Added"),
+            ChangeType::Modified => write!(f, "Modified"),
+            ChangeType::Deleted => write!(f, "Deleted"),
+        }
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]

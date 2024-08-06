@@ -1,4 +1,4 @@
-use crate::changelog::{ChangelogGenerator, ReleaseNotesGenerator};
+use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use crate::config::Config;
 use crate::git::get_git_info;
 use crate::instruction_presets::get_instruction_preset_library;
@@ -121,7 +121,7 @@ pub async fn handle_gen_command(
         &provider_type,
         &system_prompt,
         &user_prompt,
-        Some(&combined_instructions)
+        Some(&combined_instructions),
     )
     .await?;
 
@@ -302,16 +302,18 @@ pub async fn handle_changelog_command(from: String, to: Option<String>) -> Resul
 
     let repo_path = env::current_dir()?;
     let to = to.unwrap_or_else(|| "HEAD".to_string());
-    let changelog = ChangelogGenerator::generate(&repo_path, &from, &to, &config).await?;
+    let changelog =
+        ChangelogGenerator::generate(&repo_path, &from, &to, &config, DetailLevel::Standard)
+            .await?;
 
     spinner.finish_and_clear();
-    
+
     // Save changelog to file
     /*let filename = format!("changelog-{}-to-{}.md", from, to);
-    
+
     let file_path = std::path::PathBuf::from(&filename);
     fs::write(&file_path, &changelog)?;
-    
+
     ui::print_success(&format!("Changelog generated and saved to {}", file_path.display()));
     ui::print_info("\nChangelog Preview:");
     */
@@ -328,15 +330,17 @@ pub async fn handle_release_notes_command(from: String, to: Option<String>) -> R
 
     let repo_path = env::current_dir()?;
     let to = to.unwrap_or_else(|| "HEAD".to_string());
-    let release_notes = ReleaseNotesGenerator::generate(&repo_path, &from, &to, &config).await?;
+    let release_notes =
+        ReleaseNotesGenerator::generate(&repo_path, &from, &to, &config, DetailLevel::Standard)
+            .await?;
 
     spinner.finish_and_clear();
-    
+
     // Save release notes to file
     /*let filename = format!("release-notes-{}-to-{}.md", from, to);
     let file_path = PathBuf::from(&filename);
     fs::write(&file_path, &release_notes)?;
-    
+
     ui::print_success(&format!("Release notes generated and saved to {}", file_path.display()));
     ui::print_info("\nRelease Notes Preview:");
     */

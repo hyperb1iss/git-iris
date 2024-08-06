@@ -1,3 +1,4 @@
+pub mod change_analyzer;
 pub mod changelog;
 pub mod changelog_prompts;
 pub mod cli;
