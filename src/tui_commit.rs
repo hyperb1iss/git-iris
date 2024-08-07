@@ -32,8 +32,15 @@ enum Mode {
     Normal,
     EditingMessage,
     EditingInstructions,
+    EditingUserInfo,
     SelectingEmoji,
     SelectingPreset,
+}
+
+#[derive(PartialEq)]
+enum UserInfoFocus {
+    Name,
+    Email,
 }
 
 pub struct TuiCommit {
@@ -54,6 +61,7 @@ pub struct TuiCommit {
     user_email: String,
     user_name_textarea: TextArea<'static>,
     user_email_textarea: TextArea<'static>,
+    user_info_focus: UserInfoFocus,
 }
 
 impl TuiCommit {
@@ -119,6 +127,7 @@ impl TuiCommit {
             user_email: String::from("stef@hyperbliss.tech"),
             user_name_textarea,
             user_email_textarea,
+            user_info_focus: UserInfoFocus::Name,
         }
     }
 
@@ -163,6 +172,7 @@ impl TuiCommit {
                         Mode::EditingInstructions => self.handle_editing_instructions(key),
                         Mode::SelectingEmoji => self.handle_selecting_emoji(key),
                         Mode::SelectingPreset => self.handle_selecting_preset(key),
+                        Mode::EditingUserInfo => self.handle_editing_user_info(key),
                     }
                 }
             }
@@ -187,17 +197,58 @@ impl TuiCommit {
                 self.mode = Mode::SelectingPreset;
                 self.status = String::from("Selecting preset. Use arrow keys and Enter to select, Esc to cancel.");
             }
-            KeyCode::Char('r') => {
-                self.status = String::from("Regenerating commit message...");
-                // TODO: Implement regeneration logic
+            KeyCode::Char('u') => {
+                self.mode = Mode::EditingUserInfo;
+                self.status = String::from("Editing user info. Press Tab to switch fields, Enter to save, Esc to cancel.");
             }
-            KeyCode::Enter => {
-                self.status = String::from("Committing changes...");
-                // TODO: Implement commit logic
+            KeyCode::Left => {
+                if self.current_index > 0 {
+                    self.current_index -= 1;
+                    self.status = format!("Viewing commit message {}/{}", self.current_index + 1, self.messages.len());
+                }
+            }
+            KeyCode::Right => {
+                if self.current_index < self.messages.len() - 1 {
+                    self.current_index += 1;
+                    self.status = format!("Viewing commit message {}/{}", self.current_index + 1, self.messages.len());
+                }
             }
             _ => {}
         }
     }
+
+    fn handle_editing_user_info(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                self.mode = Mode::Normal;
+                self.status = String::from("User info editing cancelled.");
+            }
+            KeyCode::Enter => {
+                self.user_name = self.user_name_textarea.lines().join("\n");
+                self.user_email = self.user_email_textarea.lines().join("\n");
+                self.mode = Mode::Normal;
+                self.status = String::from("User info updated.");
+            }
+            KeyCode::Tab => {
+                self.user_info_focus = match self.user_info_focus {
+                    UserInfoFocus::Name => UserInfoFocus::Email,
+                    UserInfoFocus::Email => UserInfoFocus::Name,
+                };
+            }
+            _ => {
+                let input_handled = match self.user_info_focus {
+                    UserInfoFocus::Name => self.user_name_textarea.input(key),
+                    UserInfoFocus::Email => self.user_email_textarea.input(key),
+                };
+                if !input_handled {
+                    // If the input wasn't handled by the textarea, you can add custom handling here
+                    // For now, we'll just update the status
+                    self.status = String::from("Unhandled input in user info editing");
+                }
+            }
+        }
+    }
+
 
     fn handle_editing_message(&mut self, key: KeyEvent) {
         match key.code {
@@ -335,10 +386,11 @@ impl TuiCommit {
         // Navigation bar
         let nav_items = vec![
             ("←→", "Navigate", CELESTIAL_BLUE),
-            ("E", "Edit Message", SOLAR_YELLOW),
-            ("I", "Edit Instructions", AURORA_GREEN),
+            ("E", "Message", SOLAR_YELLOW),
+            ("I", "Instructions", AURORA_GREEN),
             ("G", "Emoji", PLASMA_CYAN),
             ("P", "Preset", COMET_ORANGE),
+            ("U", "User Info", GALAXY_PINK),
             ("R", "Regenerate", METEOR_RED),
             ("⏎", "Commit", STARLIGHT),
         ];
@@ -428,6 +480,8 @@ impl TuiCommit {
             self.render_emoji_popup(f);
         } else if self.mode == Mode::SelectingPreset {
             self.render_preset_popup(f);
+        } else if self.mode == Mode::EditingUserInfo {
+            self.render_user_info_popup(f);
         }
     }
 
@@ -517,7 +571,51 @@ impl TuiCommit {
             .unwrap_or_else(|| "None".to_string())
     }
 
+    fn render_user_info_popup(&mut self, f: &mut Frame) {
+        let popup_block = Block::default()
+            .title(Span::styled("Edit User Info", Style::default().fg(SOLAR_YELLOW).add_modifier(Modifier::BOLD)))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(NEBULA_PURPLE));
 
+        let area = f.size();
+        let popup_area = Rect::new(
+            area.x + 10,
+            area.y + 5,
+            area.width.saturating_sub(20).min(60),
+            area.height.saturating_sub(10).min(10),
+        );
+
+        let popup_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Length(3), // Name
+                    Constraint::Length(3), // Email
+                ]
+                .as_ref(),
+            )
+            .split(popup_area);
+
+        self.user_name_textarea.set_block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(if self.user_info_focus == UserInfoFocus::Name { SOLAR_YELLOW } else { CELESTIAL_BLUE }))
+                .title("Name"),
+        );
+
+        self.user_email_textarea.set_block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(if self.user_info_focus == UserInfoFocus::Email { SOLAR_YELLOW } else { CELESTIAL_BLUE }))
+                .title("Email"),
+        );
+
+        f.render_widget(Clear, popup_area);
+        f.render_widget(popup_block, popup_area);
+        f.render_widget(&self.user_name_textarea, popup_chunks[0]);
+        f.render_widget(&self.user_email_textarea, popup_chunks[1]);
+    }
 }
 
 fn main() -> Result<(), io::Error> {
