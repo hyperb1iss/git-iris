@@ -180,8 +180,29 @@ impl InstructionPresetLibrary {
     pub fn list_presets(&self) -> Vec<(&String, &InstructionPreset)> {
         self.presets.iter().collect()
     }
+
+
 }
 
 pub fn get_instruction_preset_library() -> InstructionPresetLibrary {
     InstructionPresetLibrary::new()
+}
+
+pub fn list_presets_formatted(library: &InstructionPresetLibrary) -> String {
+    let mut presets: Vec<_> = library.list_presets(); // Bind the result to a variable
+    presets.sort_by(|a, b| {
+        if a.1.name == "Default" {
+            std::cmp::Ordering::Less
+        } else if b.1.name == "Default" {
+            std::cmp::Ordering::Greater
+        } else {
+            a.1.name.cmp(&b.1.name)
+        }
+    });
+
+    presets
+        .iter()
+        .map(|(key, preset)| format!("{} - {} - {}", key, preset.name, preset.description))
+        .collect::<Vec<String>>()
+        .join("\n")
 }

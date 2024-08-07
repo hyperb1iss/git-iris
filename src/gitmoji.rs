@@ -12,7 +12,10 @@ fn create_gitmoji_map() -> HashMap<&'static str, (&'static str, &'static str)> {
     m.insert("test", ("✅", "Add or update tests"));
     m.insert("build", ("👷", "Add or update build scripts"));
     m.insert("ci", ("🔧", "Add or update CI configuration"));
-    m.insert("chore", ("🔨", "Other changes that don't modify src or test files"));
+    m.insert(
+        "chore",
+        ("🔨", "Other changes that don't modify src or test files"),
+    );
     m.insert("revert", ("⏪️", "Revert changes"));
     m.insert("wip", ("🚧", "Work in progress"));
     m.insert("dependencies", ("⬆️", "Update dependencies"));
@@ -57,9 +60,16 @@ pub fn apply_gitmoji(commit_message: &str) -> String {
 }
 
 pub fn get_gitmoji_list() -> String {
-    GITMOJI_MAP
+    let mut entries: Vec<_> = GITMOJI_MAP.iter().collect();
+    entries.sort_by_key(|(key, _)| *key);
+
+    let mut emoji_list = entries
         .iter()
-        .map(|(key, (emoji, description))| format!("{} - :{}: - {}", emoji, key, description))
-        .collect::<Vec<String>>()
-        .join("\n")
+        .map(|(key, (emoji, description))| format!("{} {}", emoji, description))
+        .collect::<Vec<String>>();
+
+    // Add "No Emoji" option as the first item
+    emoji_list.insert(0, "No Emoji".to_string());
+
+    emoji_list.join("\n")
 }
