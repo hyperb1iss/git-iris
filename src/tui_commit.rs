@@ -1,3 +1,7 @@
+use crate::gitmoji::get_gitmoji_list;
+use crate::instruction_presets::{get_instruction_preset_library, list_presets_formatted};
+use crate::messages::get_random_message;
+use anyhow::{Error, Result};
 use ratatui::crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
@@ -12,13 +16,10 @@ use ratatui::{
     Frame, Terminal,
 };
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tui_textarea::TextArea;
-
-mod gitmoji;
-use gitmoji::get_gitmoji_list;
-mod instruction_presets;
-use instruction_presets::{get_instruction_preset_library, list_presets_formatted};
 
 // Cosmic color palette
 const STARLIGHT: Color = Color::Rgb(255, 255, 240);
@@ -39,12 +40,33 @@ enum Mode {
     EditingUserInfo,
     SelectingEmoji,
     SelectingPreset,
+    Generating,
 }
 
 #[derive(PartialEq)]
 enum UserInfoFocus {
     Name,
     Email,
+}
+
+struct SpinnerState {
+    frames: Vec<char>,
+    current_frame: usize,
+}
+
+impl SpinnerState {
+    fn new() -> Self {
+        Self {
+            frames: vec!['◐', '◓', '◑', '◒'],
+            current_frame: 0,
+        }
+    }
+
+    fn next_frame(&mut self) -> char {
+        let frame = self.frames[self.current_frame];
+        self.current_frame = (self.current_frame + 1) % self.frames.len();
+        frame
+    }
 }
 
 pub struct TuiCommit {
@@ -66,12 +88,32 @@ pub struct TuiCommit {
     user_name_textarea: TextArea<'static>,
     user_email_textarea: TextArea<'static>,
     user_info_focus: UserInfoFocus,
+    spinner_state: SpinnerState,
+    generate_message: Arc<dyn Fn() + Send + Sync>,
+    perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
+    message_receiver: mpsc::Receiver<Result<String, Error>>,
 }
 
 impl TuiCommit {
-    pub fn new(initial_message: String, custom_instructions: String) -> Self {
+    pub fn new(
+        initial_messages: Vec<String>,
+        custom_instructions: String,
+        user_name: String,
+        user_email: String,
+        generate_message: Arc<dyn Fn() + Send + Sync>,
+        perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
+        message_receiver: mpsc::Receiver<Result<String, Error>>,
+    ) -> Self {
         let mut message_textarea = TextArea::default();
-        message_textarea.insert_str(&initial_message);
+        let messages = if initial_messages.is_empty() {
+            vec![String::new()] // Ensure we always have at least one (empty) message
+        } else {
+            initial_messages
+        };
+        if let Some(first_message) = messages.first() {
+            message_textarea.insert_str(first_message);
+        }
+
         let mut instructions_textarea = TextArea::default();
         instructions_textarea.insert_str(&custom_instructions);
 
@@ -105,16 +147,13 @@ impl TuiCommit {
         let mut preset_list_state = ListState::default();
         preset_list_state.select(Some(0));
 
-        let mut preset_list_state = ListState::default();
-        preset_list_state.select(Some(0));
-
         let mut user_name_textarea = TextArea::default();
-        user_name_textarea.insert_str("Stefanie Jane");
+        user_name_textarea.insert_str(&user_name);
         let mut user_email_textarea = TextArea::default();
-        user_email_textarea.insert_str("stef@hyperbliss.tech");
+        user_email_textarea.insert_str(&user_email);
 
         TuiCommit {
-            messages: vec![initial_message],
+            messages: messages,
             current_index: 0,
             custom_instructions,
             status: String::from("🌌 Cosmic energies aligning. Press 'Esc' to exit."),
@@ -127,11 +166,15 @@ impl TuiCommit {
             emoji_list_state,
             preset_list,
             preset_list_state,
-            user_name: String::from("Stefanie Jane"),
-            user_email: String::from("stef@hyperbliss.tech"),
+            user_name,
+            user_email,
             user_name_textarea,
             user_email_textarea,
             user_info_focus: UserInfoFocus::Name,
+            spinner_state: SpinnerState::new(),
+            generate_message,
+            perform_commit,
+            message_receiver,
         }
     }
 
@@ -142,45 +185,93 @@ impl TuiCommit {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let res = self.run_app(&mut terminal);
+        let result = self.run_app(&mut terminal);
 
         // restore terminal
         disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
         terminal.show_cursor()?;
 
-        if let Err(err) = res {
+        // If there was an error, print it
+        if let Err(ref err) = result {
             println!("{:?}", err)
         }
 
-        Ok(())
+        // Return the result
+        result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
-    fn run_app(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
+    fn run_app(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
         loop {
             terminal.draw(|f| self.ui(f))?;
 
+            // Handle message generation
+            if self.mode == Mode::Generating {
+                match self.message_receiver.try_recv() {
+                    Ok(result) => match result {
+                        Ok(new_message) => {
+                            self.messages.push(new_message);
+                            self.current_index = self.messages.len() - 1;
+                            self.update_message_textarea();
+                            self.mode = Mode::Normal;
+                            self.status = String::from("New message generated successfully!");
+                        }
+                        Err(e) => {
+                            self.mode = Mode::Normal;
+                            self.status = format!("Failed to generate new message: {}", e);
+                        }
+                    },
+                    Err(mpsc::error::TryRecvError::Empty) => {}
+                    Err(mpsc::error::TryRecvError::Disconnected) => {
+                        return Err(anyhow::anyhow!("Message channel disconnected"));
+                    }
+                }
+            }
+
+            // Handle user input
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
-                    if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
-                        return Ok(());
-                    }
                     match self.mode {
                         Mode::Normal => {
                             if key.code == KeyCode::Esc {
                                 return Ok(());
                             }
-                            self.handle_normal_mode(key)
+                            self.handle_normal_mode(key);
                         }
                         Mode::EditingMessage => self.handle_editing_message(key),
                         Mode::EditingInstructions => self.handle_editing_instructions(key),
                         Mode::SelectingEmoji => self.handle_selecting_emoji(key),
                         Mode::SelectingPreset => self.handle_selecting_preset(key),
                         Mode::EditingUserInfo => self.handle_editing_user_info(key),
+                        Mode::Generating => {
+                            // Optionally handle input during generation, e.g., allow cancellation
+                            if key.code == KeyCode::Esc {
+                                self.mode = Mode::Normal;
+                                self.status = String::from("Message generation cancelled.");
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Handle commit action
+            if self.mode == Mode::Normal && self.status == "Committing..." {
+                match (self.perform_commit)(&self.messages[self.current_index]) {
+                    Ok(()) => {
+                        self.status = String::from("Commit successful!");
+                    }
+                    Err(e) => {
+                        self.status = format!("Commit failed: {}", e);
                     }
                 }
             }
         }
+    }
+
+    fn update_message_textarea(&mut self) {
+        let mut new_textarea = TextArea::default();
+        new_textarea.insert_str(&self.messages[self.current_index]);
+        self.message_textarea = new_textarea;
     }
 
     fn handle_normal_mode(&mut self, key: KeyEvent) {
@@ -211,24 +302,47 @@ impl TuiCommit {
                     "Editing user info. Press Tab to switch fields, Enter to save, Esc to cancel.",
                 );
             }
+            KeyCode::Char('r') => {
+                self.mode = Mode::Generating;
+                self.status = String::from("Generating new message...");
+                (self.generate_message)();
+            }
             KeyCode::Left => {
                 if self.current_index > 0 {
                     self.current_index -= 1;
-                    self.status = format!(
-                        "Viewing commit message {}/{}",
-                        self.current_index + 1,
-                        self.messages.len()
-                    );
+                } else {
+                    self.current_index = self.messages.len() - 1;
                 }
+                let mut new_textarea = TextArea::default();
+                new_textarea.insert_str(self.messages[self.current_index].clone());
+                self.message_textarea = new_textarea;
+                self.status = format!(
+                    "Viewing commit message {}/{}",
+                    self.current_index + 1,
+                    self.messages.len()
+                );
             }
             KeyCode::Right => {
                 if self.current_index < self.messages.len() - 1 {
                     self.current_index += 1;
-                    self.status = format!(
-                        "Viewing commit message {}/{}",
-                        self.current_index + 1,
-                        self.messages.len()
-                    );
+                } else {
+                    self.current_index = 0;
+                }
+                let mut new_textarea = TextArea::default();
+                new_textarea.insert_str(self.messages[self.current_index].clone());
+                self.message_textarea = new_textarea;
+
+                self.status = format!(
+                    "Viewing commit message {}/{}",
+                    self.current_index + 1,
+                    self.messages.len()
+                );
+            }
+            KeyCode::Enter => {
+                if let Err(e) = (self.perform_commit)(&self.messages[self.current_index]) {
+                    self.status = format!("Failed to commit: {}", e);
+                } else {
+                    self.status = String::from("Commit successful!");
                 }
             }
             _ => {}
@@ -259,8 +373,6 @@ impl TuiCommit {
                     UserInfoFocus::Email => self.user_email_textarea.input(key),
                 };
                 if !input_handled {
-                    // If the input wasn't handled by the textarea, you can add custom handling here
-                    // For now, we'll just update the status
                     self.status = String::from("Unhandled input in user info editing");
                 }
             }
@@ -379,16 +491,13 @@ impl TuiCommit {
                 };
                 self.preset_list_state.select(Some(new_selected));
             }
-            KeyCode::Left => {
-                // Handle horizontal scrolling left
-                // Implement horizontal scrolling logic here
-            }
-            KeyCode::Right => {
-                // Handle horizontal scrolling right
-                // Implement horizontal scrolling logic here
-            }
             _ => {}
         }
+    }
+
+    fn handle_generating_mode(&mut self) {
+        self.status = String::from("Generating new message...");
+        (self.generate_message)();
     }
 
     fn ui(&mut self, f: &mut Frame) {
@@ -494,21 +603,19 @@ impl TuiCommit {
                     .fg(GALAXY_PINK)
                     .add_modifier(Modifier::BOLD),
             ));
-        match self.mode {
-            Mode::EditingMessage => {
-                self.message_textarea.set_block(message_block);
-                self.message_textarea
-                    .set_style(Style::default().fg(SOLAR_YELLOW));
-                f.render_widget(&self.message_textarea, chunks[3]);
-            }
-            _ => {
-                let message = Paragraph::new(self.messages[self.current_index].clone())
-                    .block(message_block)
-                    .style(Style::default().fg(SOLAR_YELLOW))
-                    .wrap(Wrap { trim: true });
-                f.render_widget(message, chunks[3]);
-            }
-        }
+
+        let message_content = if self.mode == Mode::EditingMessage {
+            self.message_textarea.lines().join("\n")
+        } else {
+            self.messages[self.current_index].clone()
+        };
+
+        let message = Paragraph::new(message_content)
+            .block(message_block)
+            .style(Style::default().fg(SOLAR_YELLOW))
+            .wrap(Wrap { trim: true });
+
+        f.render_widget(message, chunks[3]);
 
         // Instructions
         let instructions_block = Block::default()
@@ -560,10 +667,18 @@ impl TuiCommit {
         f.render_widget(emoji_preset, chunks[5]);
 
         // Status
-        let status = Paragraph::new(self.status.clone())
+        let status = if self.mode == Mode::Generating {
+            let spinner_frame = self.spinner_state.next_frame();
+            let random_message = get_random_message();
+            format!("{} {}", spinner_frame, random_message)
+        } else {
+            self.status.clone()
+        };
+
+        let status_widget = Paragraph::new(status)
             .style(Style::default().fg(AURORA_GREEN))
             .alignment(ratatui::layout::Alignment::Center);
-        f.render_widget(status, chunks[6]);
+        f.render_widget(status_widget, chunks[6]);
 
         if self.mode == Mode::SelectingEmoji {
             self.render_emoji_popup(f);
@@ -730,9 +845,51 @@ impl TuiCommit {
     }
 }
 
-fn main() -> Result<(), io::Error> {
-    let initial_message = String::from("feat: Implement cosmic TUI for Git-Iris");
-    let custom_instructions = String::from("Channel the cosmic energy to craft a commit message that aligns with the celestial Conventional Commits specification. Focus on the main changes and their impact on the cosmic codebase.");
-    let mut app = TuiCommit::new(initial_message, custom_instructions);
-    app.run()
+pub fn run_tui_commit(
+    initial_messages: Vec<String>,
+    custom_instructions: String,
+    user_name: String,
+    user_email: String,
+    generate_message: Arc<dyn Fn() + Send + Sync>,
+    perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
+    message_receiver: mpsc::Receiver<Result<String, Error>>,
+) -> Result<()> {
+    let mut app = TuiCommit::new(
+        initial_messages,
+        custom_instructions,
+        user_name,
+        user_email,
+        generate_message,
+        perform_commit,
+        message_receiver,
+    );
+    app.run().map_err(Error::from)
 }
+
+/*
+fn main() -> Result<()> {
+    let initial_messages = vec![String::from("feat: Implement cosmic TUI for Git-Iris")];
+    let custom_instructions = String::from("Channel the cosmic energy to craft a commit message that aligns with the celestial Conventional Commits specification. Focus on the main changes and their impact on the cosmic codebase.");
+    let user_name = String::from("Stefanie Jane");
+    let user_email = String::from("stef@hyperbliss.tech");
+
+    // These are placeholder implementations. In a real application, these would interact with your LLM and Git systems.
+    let generate_message = || -> Result<String, Error> {
+        Ok(String::from("feat: Add new cosmic feature to Git-Iris"))
+    };
+
+    let perform_commit = |message: &str| -> Result<(), Error> {
+        println!("Committing message: {}", message);
+        Ok(())
+    };
+
+    run_tui_commit(
+        initial_messages,
+        custom_instructions,
+        user_name,
+        user_email,
+        generate_message,
+        perform_commit,
+    )
+}
+    */

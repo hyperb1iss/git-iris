@@ -1,22 +1,24 @@
 use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use crate::config::Config;
-use crate::git::get_git_info;
+use crate::git::{commit, get_git_info};
 use crate::instruction_presets::get_instruction_preset_library;
-use crate::interactive::InteractiveCommit;
 use crate::llm::get_refined_message;
 use crate::llm_providers::{get_available_providers, get_provider_metadata, LLMProviderType};
 use crate::log_debug;
-use crate::messages;
 use crate::prompt;
-use crate::token_optimizer::TokenOptimizer;
 use crate::ui;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use clap::{crate_name, crate_version};
 use colored::*;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
-use std::sync::Arc; // Add this line
+use std::sync::Arc;
+use tokio::runtime::Handle;
+use tokio::sync::mpsc;
+
+use crate::tui_commit::run_tui_commit;
+
 use unicode_width::UnicodeWidthStr;
 
 /// Handle the 'gen' command
@@ -28,16 +30,6 @@ pub async fn handle_gen_command(
     preset: Option<String>,
     print: bool,
 ) -> Result<()> {
-    log_debug!(
-        "Starting 'gen' command with use_gitmoji: {}, provider: {:?}, auto_commit: {}, custom_instructions: {:?}, preset: {:?}, print: {}",
-        use_gitmoji,
-        provider,
-        auto_commit,
-        custom_instructions,
-        preset,
-        print
-    );
-
     let config = Config::load()?;
 
     // Check environment prerequisites
@@ -70,14 +62,9 @@ pub async fn handle_gen_command(
     }
 
     let current_dir = Arc::new(std::env::current_dir()?);
-
-    let message = messages::get_random_message();
-    let spinner = ui::create_spinner(&message);
-
-    let mut git_info = get_git_info(current_dir.as_path(), &config)?;
+    let git_info = get_git_info(current_dir.as_path(), &config)?;
 
     if git_info.staged_files.is_empty() {
-        spinner.finish_and_clear();
         ui::print_warning(
             "No staged changes. Please stage your changes before generating a commit message.",
         );
@@ -87,89 +74,79 @@ pub async fn handle_gen_command(
 
     let use_gitmoji = use_gitmoji && config.use_gitmoji;
 
-    // Get instructions from preset and/or custom instructions
-    let preset_library = get_instruction_preset_library();
-    let preset_key = preset.unwrap_or(config.instruction_preset.clone());
-    let preset_instructions = preset_library
-        .get_preset(&preset_key)
-        .map(|p| p.instructions.clone())
-        .unwrap_or_default();
+    let combined_instructions =
+        prompt::get_combined_instructions(&config, custom_instructions, preset);
 
-    let custom_instructions = custom_instructions.unwrap_or_else(|| config.instructions.clone());
+    let (tx, mut rx) = mpsc::channel(1);
 
-    let combined_instructions = format!(
-        "{}\n\n{}",
-        preset_instructions.trim(),
-        custom_instructions.trim()
-    )
-    .trim()
-    .to_string();
+    let generate_message = {
+        let config = config.clone();
+        let provider_type = provider_type.clone();
+        let git_info = git_info.clone();
+        let combined_instructions = combined_instructions.clone();
+        let tx = tx.clone();
+        Arc::new(move || {
+            let tx = tx.clone(); // Clone tx here
+            log_debug!("Generating message with LLM");
+            let system_prompt = prompt::create_system_prompt(use_gitmoji, &combined_instructions);
+            let user_prompt = match prompt::create_user_prompt(&git_info) {
+                Ok(prompt) => prompt,
+                Err(e) => {
+                    let _ = tx.blocking_send(Err(e));
+                    return;
+                }
+            };
 
-    // Update spinner message before generating the initial message
-    spinner.set_message(messages::get_random_message());
-
-    // Token optimization
-    let token_limit = provider_metadata.default_token_limit;
-    let optimizer = TokenOptimizer::new(token_limit);
-    optimizer.optimize_context(&mut git_info);
-
-    let system_prompt = prompt::create_system_prompt(use_gitmoji, &combined_instructions);
-    let user_prompt = prompt::create_user_prompt(&git_info)?;
-
-    // Generate the initial message
-    let initial_message = get_refined_message(
-        &config,
-        &provider_type,
-        &system_prompt,
-        &user_prompt,
-        Some(&combined_instructions),
-    )
-    .await?;
-
-    spinner.finish_and_clear();
-
-    if print {
-        // Print the generated message to stdout and exit
-        println!("{}", initial_message);
-        return Ok(());
-    }
-
-    // Initialize interactive commit process with program name and version
-    let mut interactive_commit = InteractiveCommit::new(
-        initial_message,
-        combined_instructions.clone(),
-        crate_name!().to_string(),
-        crate_version!().to_string(),
-    );
-
-    let config = Arc::new(config);
-
-    // Run the interactive commit process
-    let commit_performed = interactive_commit
-        .run(move |edited_instructions| {
-            let config = Arc::clone(&config);
+            let config = config.clone();
             let provider_type = provider_type.clone();
-            let system_prompt = system_prompt.clone();
-            let user_prompt = user_prompt.clone();
-            let instructions = edited_instructions.to_string();
-            async move {
-                get_refined_message(
+            let combined_instructions = combined_instructions.clone();
+
+            tokio::spawn(async move {
+                let result = get_refined_message(
                     &config,
                     &provider_type,
                     &system_prompt,
                     &user_prompt,
-                    Some(&instructions),
+                    Some(&combined_instructions),
                 )
-                .await
-            }
-        })
-        .await?;
+                .await;
 
-    if commit_performed {
-        log_debug!("Commit successfully created and applied.");
-    } else {
-        log_debug!("Commit process cancelled.");
+                log_debug!("LLM message generation result: {:?}", result);
+                let _ = tx.send(result).await;
+            });
+        })
+    };
+
+    // Generate an initial message
+    generate_message();
+    let initial_message = rx
+        .recv()
+        .await
+        .ok_or_else(|| anyhow!("Failed to receive message"))??;
+
+    let perform_commit =
+        Arc::new(move |message: &str| -> Result<(), Error> { commit(&current_dir, message) });
+
+    if print {
+        println!("{}", initial_message);
+        return Ok(());
     }
+
+    if auto_commit {
+        perform_commit(&initial_message)?;
+        println!("Commit created with message: {}", initial_message);
+        return Ok(());
+    }
+
+    run_tui_commit(
+        vec![initial_message],
+        combined_instructions,
+        git_info.user_name,
+        git_info.user_email,
+        generate_message,
+        perform_commit,
+        rx,
+    )?;
 
     Ok(())
 }

@@ -9,7 +9,6 @@ pub mod file_analyzers;
 pub mod git;
 pub mod gitmoji;
 pub mod instruction_presets;
-pub mod interactive;
 pub mod llm;
 pub mod llm_providers;
 pub mod logger;
@@ -18,6 +17,7 @@ pub mod prompt;
 pub mod readme_reader;
 pub mod relevance;
 pub mod token_optimizer;
+pub mod tui_commit;
 pub mod ui;
 
 // Re-export important structs and functions for easier testing

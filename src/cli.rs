@@ -142,7 +142,11 @@ pub enum Commands {
         preset: Option<String>,
 
         /// Set the detail level for the changelog
-        #[arg(long, help = "Set the detail level (minimal, standard, detailed)", default_value = "standard")]
+        #[arg(
+            long,
+            help = "Set the detail level (minimal, standard, detailed)",
+            default_value = "standard"
+        )]
         detail_level: String,
 
         /// Enable or disable Gitmoji in the changelog
@@ -168,11 +172,18 @@ pub enum Commands {
         instructions: Option<String>,
 
         /// Select an instruction preset for release notes generation
-        #[arg(long, help = "Select an instruction preset for release notes generation")]
+        #[arg(
+            long,
+            help = "Select an instruction preset for release notes generation"
+        )]
         preset: Option<String>,
 
         /// Set the detail level for the release notes
-        #[arg(long, help = "Set the detail level (minimal, standard, detailed)", default_value = "standard")]
+        #[arg(
+            long,
+            help = "Set the detail level (minimal, standard, detailed)",
+            default_value = "standard"
+        )]
         detail_level: String,
 
         /// Enable or disable Gitmoji in the release notes
@@ -304,19 +315,49 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             log_debug!("Handling 'list_presets' command");
             commands::handle_list_presets_command()?;
         }
-        Commands::Changelog { from, to, instructions, preset, detail_level, gitmoji } => {
+        Commands::Changelog {
+            from,
+            to,
+            instructions,
+            preset,
+            detail_level,
+            gitmoji,
+        } => {
             log_debug!(
                 "Handling 'changelog' command with from: {}, to: {:?}, instructions: {:?}, preset: {:?}, detail_level: {}, gitmoji: {:?}",
                 from, to, instructions, preset, detail_level, gitmoji
             );
-            commands::handle_changelog_command(from, to, instructions, preset, detail_level, gitmoji).await?;
+            commands::handle_changelog_command(
+                from,
+                to,
+                instructions,
+                preset,
+                detail_level,
+                gitmoji,
+            )
+            .await?;
         }
-        Commands::ReleaseNotes { from, to, instructions, preset, detail_level, gitmoji } => {
+        Commands::ReleaseNotes {
+            from,
+            to,
+            instructions,
+            preset,
+            detail_level,
+            gitmoji,
+        } => {
             log_debug!(
                 "Handling 'release-notes' command with from: {}, to: {:?}, instructions: {:?}, preset: {:?}, detail_level: {}, gitmoji: {:?}",
                 from, to, instructions, preset, detail_level, gitmoji
             );
-            commands::handle_release_notes_command(from, to, instructions, preset, detail_level, gitmoji).await?;
+            commands::handle_release_notes_command(
+                from,
+                to,
+                instructions,
+                preset,
+                detail_level,
+                gitmoji,
+            )
+            .await?;
         }
     }
 

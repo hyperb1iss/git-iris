@@ -16,6 +16,8 @@ pub fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext>
     let recent_commits = get_recent_commits(&repo, 5)?;
     let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
     let project_metadata = get_project_metadata(repo_path)?;
+    let user_name = repo.config()?.get_string("user.name")?;
+    let user_email = repo.config()?.get_string("user.email")?;
 
     let context = CommitContext::new(
         branch,
@@ -23,6 +25,8 @@ pub fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext>
         staged_files,
         unstaged_files,
         project_metadata,
+        user_name,
+        user_email,
     );
 
     Ok(context)

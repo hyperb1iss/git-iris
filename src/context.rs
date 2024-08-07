@@ -10,6 +10,8 @@ pub struct CommitContext {
     pub staged_files: Vec<StagedFile>,
     pub unstaged_files: Vec<String>,
     pub project_metadata: ProjectMetadata,
+    pub user_name: String,
+    pub user_email: String,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -78,6 +80,8 @@ impl CommitContext {
         staged_files: Vec<StagedFile>,
         unstaged_files: Vec<String>,
         project_metadata: ProjectMetadata,
+        user_name: String,
+        user_email: String,
     ) -> Self {
         CommitContext {
             branch,
@@ -85,6 +89,8 @@ impl CommitContext {
             staged_files,
             unstaged_files,
             project_metadata,
+            user_name,
+            user_email,
         }
     }
     pub fn optimize(&mut self, max_tokens: usize) {

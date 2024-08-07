@@ -81,7 +81,4 @@ path = "src/lib.rs"
 name = "git-iris"
 path = "src/main.rs"
 
-[[bin]]
-name = "tui_commit"
-path = "src/tui_commit.rs"
 

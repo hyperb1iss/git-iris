@@ -1,6 +1,8 @@
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
+use crate::instruction_presets::get_instruction_preset_library;
+
 use crate::log_debug;
 use crate::relevance::RelevanceScorer;
 use anyhow::Result;
@@ -162,4 +164,27 @@ pub fn process_commit_message(message: String, use_gitmoji: bool) -> String {
     } else {
         message
     }
+}
+
+pub fn get_combined_instructions(
+    config: &Config,
+    custom_instructions: Option<String>,
+    preset: Option<String>,
+) -> String {
+    let preset_library = get_instruction_preset_library();
+    let preset_key = preset.unwrap_or_else(|| config.instruction_preset.clone());
+    let preset_instructions = preset_library
+        .get_preset(&preset_key)
+        .map(|p| p.instructions.clone())
+        .unwrap_or_default();
+
+    let custom_instructions = custom_instructions.unwrap_or_else(|| config.instructions.clone());
+
+    format!(
+        "{}\n\n{}",
+        preset_instructions.trim(),
+        custom_instructions.trim()
+    )
+    .trim()
+    .to_string()
 }
