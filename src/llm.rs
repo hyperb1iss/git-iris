@@ -53,8 +53,13 @@ pub async fn get_refined_message(
         .generate_message(&final_system_prompt, user_prompt)
         .await?;
 
+    log_debug!("Refined message (raw): {}", refined_message);
+
+    // Clean the JSON string from the LLM provider
+    let refined_message = clean_json_from_llm(&refined_message);
+
     log_debug!("Refined message: {}", refined_message);
-    
+
     Ok(refined_message)
 }
 
@@ -140,4 +145,27 @@ pub fn get_combined_config(
             default_config.additional_params
         },
     }
+}
+
+fn clean_json_from_llm(json_str: &str) -> String {
+    // Remove potential leading/trailing whitespace
+    let trimmed = json_str.trim();
+
+    // If wrapped in code block, remove the markers
+    let without_codeblock = if trimmed.starts_with("```") && trimmed.ends_with("```") {
+        let start = trimmed.find('{').unwrap_or(0);
+        let end = trimmed.rfind('}').map(|i| i + 1).unwrap_or(trimmed.len());
+        &trimmed[start..end]
+    } else {
+        trimmed
+    };
+
+    // Find the first '{' and last '}' to extract the JSON object
+    let start = without_codeblock.find('{').unwrap_or(0);
+    let end = without_codeblock
+        .rfind('}')
+        .map(|i| i + 1)
+        .unwrap_or(without_codeblock.len());
+
+    without_codeblock[start..end].trim().to_string()
 }

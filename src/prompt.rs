@@ -47,7 +47,12 @@ pub fn create_system_prompt(use_gitmoji: bool, combined_instructions: &str) -> S
         20. If there's not enough information to create a complete, authoritative message, state only what can be confidently determined from the context.
         21. NO YAPPING!
 
-        Generate only the commit message, without any explanations, questions, or additional text.
+        Generate only the commit message in JSON format with the following structure:
+        {
+            \"emoji\": \"<emoji if used>\",
+            \"title\": \"<title>\",
+            \"message\": \"<message>\"
+        }
         The message should be based entirely on the information provided in the context,
         without any speculation or assumptions."
     );

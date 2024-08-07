@@ -1,3 +1,4 @@
+use crate::context::{GeneratedMessage, format_commit_message};
 use crate::gitmoji::get_gitmoji_list;
 use crate::instruction_presets::{get_instruction_preset_library, list_presets_formatted};
 use crate::messages::get_random_message;
@@ -70,7 +71,7 @@ impl SpinnerState {
 }
 
 pub struct TuiCommit {
-    messages: Vec<String>,
+    messages: Vec<GeneratedMessage>,
     current_index: usize,
     custom_instructions: String,
     status: String,
@@ -91,27 +92,31 @@ pub struct TuiCommit {
     spinner_state: SpinnerState,
     generate_message: Arc<dyn Fn() + Send + Sync>,
     perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-    message_receiver: mpsc::Receiver<Result<String, Error>>,
+    message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
 }
 
 impl TuiCommit {
     pub fn new(
-        initial_messages: Vec<String>,
+        initial_messages: Vec<GeneratedMessage>,
         custom_instructions: String,
         user_name: String,
         user_email: String,
         generate_message: Arc<dyn Fn() + Send + Sync>,
         perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-        message_receiver: mpsc::Receiver<Result<String, Error>>,
+        message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
     ) -> Self {
         let mut message_textarea = TextArea::default();
         let messages = if initial_messages.is_empty() {
-            vec![String::new()] // Ensure we always have at least one (empty) message
+            vec![GeneratedMessage {
+                emoji: None,
+                title: String::new(),
+                message: String::new(),
+            }] // Ensure we always have at least one (empty) message
         } else {
             initial_messages
         };
         if let Some(first_message) = messages.first() {
-            message_textarea.insert_str(first_message);
+            message_textarea.insert_str(&format_commit_message(first_message));
         }
 
         let mut instructions_textarea = TextArea::default();
@@ -256,7 +261,8 @@ impl TuiCommit {
 
             // Handle commit action
             if self.mode == Mode::Normal && self.status == "Committing..." {
-                match (self.perform_commit)(&self.messages[self.current_index]) {
+                let commit_message = format_commit_message(&self.messages[self.current_index]);
+                match (self.perform_commit)(&commit_message) {
                     Ok(()) => {
                         self.status = String::from("Commit successful!");
                     }
@@ -270,7 +276,7 @@ impl TuiCommit {
 
     fn update_message_textarea(&mut self) {
         let mut new_textarea = TextArea::default();
-        new_textarea.insert_str(&self.messages[self.current_index]);
+        new_textarea.insert_str(&format_commit_message(&self.messages[self.current_index]));
         self.message_textarea = new_textarea;
     }
 
@@ -313,9 +319,7 @@ impl TuiCommit {
                 } else {
                     self.current_index = self.messages.len() - 1;
                 }
-                let mut new_textarea = TextArea::default();
-                new_textarea.insert_str(self.messages[self.current_index].clone());
-                self.message_textarea = new_textarea;
+                self.update_message_textarea();
                 self.status = format!(
                     "Viewing commit message {}/{}",
                     self.current_index + 1,
@@ -328,10 +332,7 @@ impl TuiCommit {
                 } else {
                     self.current_index = 0;
                 }
-                let mut new_textarea = TextArea::default();
-                new_textarea.insert_str(self.messages[self.current_index].clone());
-                self.message_textarea = new_textarea;
-
+                self.update_message_textarea();
                 self.status = format!(
                     "Viewing commit message {}/{}",
                     self.current_index + 1,
@@ -339,7 +340,8 @@ impl TuiCommit {
                 );
             }
             KeyCode::Enter => {
-                if let Err(e) = (self.perform_commit)(&self.messages[self.current_index]) {
+                let commit_message = format_commit_message(&self.messages[self.current_index]);
+                if let Err(e) = (self.perform_commit)(&commit_message) {
                     self.status = format!("Failed to commit: {}", e);
                 } else {
                     self.status = String::from("Commit successful!");
@@ -383,7 +385,11 @@ impl TuiCommit {
         match key.code {
             KeyCode::Esc => {
                 self.mode = Mode::Normal;
-                self.messages[self.current_index] = self.message_textarea.lines().join("\n");
+                self.messages[self.current_index] = GeneratedMessage {
+                    emoji: Some(self.selected_emoji.clone()),
+                    title: self.message_textarea.lines().join("\n"),
+                    message: String::new(),
+                };
                 self.status = String::from("Commit message updated.");
             }
             _ => {
@@ -607,7 +613,7 @@ impl TuiCommit {
         let message_content = if self.mode == Mode::EditingMessage {
             self.message_textarea.lines().join("\n")
         } else {
-            self.messages[self.current_index].clone()
+            format_commit_message(&self.messages[self.current_index])
         };
 
         let message = Paragraph::new(message_content)
@@ -846,13 +852,13 @@ impl TuiCommit {
 }
 
 pub fn run_tui_commit(
-    initial_messages: Vec<String>,
+    initial_messages: Vec<GeneratedMessage>,
     custom_instructions: String,
     user_name: String,
     user_email: String,
     generate_message: Arc<dyn Fn() + Send + Sync>,
     perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-    message_receiver: mpsc::Receiver<Result<String, Error>>,
+    message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
 ) -> Result<()> {
     let mut app = TuiCommit::new(
         initial_messages,

@@ -1,5 +1,6 @@
 use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use crate::config::Config;
+use crate::context::{GeneratedMessage, format_commit_message};
 use crate::git::{commit, get_git_info};
 use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm::get_refined_message;
@@ -10,11 +11,11 @@ use crate::ui;
 use anyhow::{anyhow, Error, Result};
 use clap::{crate_name, crate_version};
 use colored::*;
+use serde_json::from_str;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
 use crate::tui_commit::run_tui_commit;
@@ -112,7 +113,21 @@ pub async fn handle_gen_command(
                 .await;
 
                 log_debug!("LLM message generation result: {:?}", result);
-                let _ = tx.send(result).await;
+                match result {
+                    Ok(message_str) => {
+                        match from_str::<GeneratedMessage>(&message_str) {
+                            Ok(message) => {
+                                let _ = tx.send(Ok(message)).await;
+                            }
+                            Err(e) => {
+                                let _ = tx.send(Err(anyhow::Error::from(e))).await;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Err(e)).await;
+                    }
+                }
             });
         })
     };
@@ -128,13 +143,13 @@ pub async fn handle_gen_command(
         Arc::new(move |message: &str| -> Result<(), Error> { commit(&current_dir, message) });
 
     if print {
-        println!("{}", initial_message);
+        println!("{}", format_commit_message(&initial_message));
         return Ok(());
     }
 
     if auto_commit {
-        perform_commit(&initial_message)?;
-        println!("Commit created with message: {}", initial_message);
+        perform_commit(&format_commit_message(&initial_message))?;
+        println!("Commit created with message: {}", format_commit_message(&initial_message));
         return Ok(());
     }
 

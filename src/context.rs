@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::token_optimizer::TokenOptimizer;
@@ -29,6 +29,13 @@ pub struct StagedFile {
     pub diff: String,
     pub analysis: Vec<String>,
     pub content_excluded: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GeneratedMessage {
+    pub emoji: Option<String>,
+    pub title: String,
+    pub message: String,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -97,4 +104,15 @@ impl CommitContext {
         let optimizer = TokenOptimizer::new(max_tokens);
         optimizer.optimize_context(self);
     }
+}
+
+pub fn format_commit_message(response: &GeneratedMessage) -> String {
+    let mut message = String::new();
+    if let Some(emoji) = &response.emoji {
+        message.push_str(&format!("{} ", emoji));
+    }
+    message.push_str(&response.title);
+    message.push_str("\n\n");
+    message.push_str(&response.message);
+    message
 }
