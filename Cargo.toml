@@ -1,9 +1,9 @@
 [package]
 name = "git-iris"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Stefanie Jane <stef@hyperbliss.tech>"]
-description = "AI-assisted Git commit message generator"
+description = "AI-assisted Git workflow"
 readme = "README.md"
 homepage = "https://github.com/hyperb1iss/git-iris"
 repository = "https://github.com/hyperb1iss/git-iris"
