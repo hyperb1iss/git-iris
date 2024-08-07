@@ -25,22 +25,6 @@ jobs:
             target: x86_64-unknown-linux-gnu
             cmd: cargo
 
-          - build: macos-amd64
-            os: macos-latest-large
-            target: x86_64-apple-darwin
-            cmd: cargo
-
-          # FIXME: Fails when running changelog::tests::test_detail_level_from_str with segfault
-          #- build: macos-arm64
-          #  os: macos-latest
-          #  target: aarch64-apple-darwin
-          #  cmd: cargo
-
-          - build: windows-gnu
-            os: windows-latest
-            target: x86_64-pc-windows-gnu
-            cmd: cargo
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -96,27 +80,39 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
-          - os: ubuntu-latest
-            artifact_name: git-iris
-            asset_name: git-iris-linux-amd64
-          - os: macos-latest
-            artifact_name: git-iris
-            asset_name: git-iris-macos-amd64
-          - os: windows-latest
-            artifact_name: git-iris.exe
-            asset_name: git-iris-windows-amd64.exe
+          - build: linux-amd64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cmd: cargo
+
+          - build: macos-amd64
+            os: macos-latest-large
+            target: x86_64-apple-darwin
+            cmd: cargo
+
+          # FIXME: Fails when running changelog::tests::test_detail_level_from_str with segfault
+          #- build: macos-arm64
+          #  os: macos-latest
+          #  target: aarch64-apple-darwin
+          #  cmd: cargo
+
+          - build: windows-gnu
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+            cmd: cargo
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: ${{ matrix.cmd }} build --verbose --locked --release --target ${{ matrix.target }}
 
       - name: Build Release Binary
         run: cargo build --release
