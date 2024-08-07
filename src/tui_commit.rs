@@ -37,8 +37,10 @@ pub struct TuiCommit {
     instructions_textarea: TextArea<'static>,
     emoji_list: Vec<(String, String)>,
     emoji_list_state: ListState,
-    preset_list: Vec<(String, String, String)>,
+    preset_list: Vec<(String, String, String, String)>,
     preset_list_state: ListState,
+    user_name: String,
+    user_email: String,
 }
 
 impl TuiCommit {
@@ -66,9 +68,17 @@ impl TuiCommit {
             .split('\n')
             .map(|line| {
                 let parts: Vec<&str> = line.split(" - ").collect();
-                (parts[0].to_string(), parts[1].to_string(), parts[2].to_string())
+                (
+                    parts[0].to_string(),  // key
+                    parts[1].to_string(),  // emoji
+                    parts[2].to_string(),  // name
+                    parts[3].to_string(),  // description
+                )
             })
             .collect();
+
+        let mut preset_list_state = ListState::default();
+        preset_list_state.select(Some(0));
 
         let mut preset_list_state = ListState::default();
         preset_list_state.select(Some(0));
@@ -87,6 +97,8 @@ impl TuiCommit {
             emoji_list_state,
             preset_list,
             preset_list_state,
+            user_name: String::from("Stefanie Jane"),
+            user_email: String::from("stef@hyperbliss.tech"),
         }
     }
 
@@ -233,7 +245,7 @@ impl TuiCommit {
                 if let Some(selected) = self.preset_list_state.selected() {
                     self.selected_preset = self.preset_list[selected].0.clone();
                     self.mode = Mode::Normal;
-                    self.status = format!("Preset selected: {}", self.get_selected_preset_name());
+                    self.status = format!("Preset selected: {}", self.get_selected_preset_name_with_emoji());
                 }
             }
             KeyCode::Up => {
@@ -267,87 +279,107 @@ impl TuiCommit {
             _ => {}
         }
     }
+
     fn ui(&mut self, f: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
             .constraints(
                 [
-                    Constraint::Length(3),
-                    Constraint::Length(3),
-                    Constraint::Min(5),
-                    Constraint::Length(5),
-                    Constraint::Length(3),
-                    Constraint::Length(1),
+                    Constraint::Length(3), // Title
+                    Constraint::Length(3), // Navigation bar
+                    Constraint::Length(3), // User info
+                    Constraint::Min(5),    // Commit message
+                    Constraint::Length(5), // Instructions
+                    Constraint::Length(3), // Emoji and Preset
+                    Constraint::Length(1), // Status
                 ]
                 .as_ref(),
             )
             .split(f.size());
 
+        // Title
         let title = Paragraph::new("🔮 Git-Iris v0.1.0 - Cosmic Commit 🔮")
             .style(Style::default().fg(Color::Magenta))
             .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(title, chunks[0]);
 
+        // Navigation bar
         let nav_text = "🌠 ←→: Navigate  🌟 E: Edit Message  🌙 I: Edit Instructions  🎨 G: Select Emoji  ✨ R: Regenerate  💫 ⏎: Commit";
         let nav_bar = Paragraph::new(nav_text)
             .style(Style::default().fg(Color::Yellow))
             .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(nav_bar, chunks[1]);
 
+        // User info
+        let user_info = Paragraph::new(Line::from(vec![
+            Span::styled("👤 ", Style::default().fg(Color::Cyan)),
+            Span::styled(&self.user_name, Style::default().fg(Color::Green)),
+            Span::raw(" | "),
+            Span::styled("✉️ ", Style::default().fg(Color::Cyan)),
+            Span::styled(&self.user_email, Style::default().fg(Color::Green)),
+        ]))
+        .style(Style::default())
+        .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(user_info, chunks[2]);
+
+        // Commit message
         let message_title = format!("✦ Commit Message ({}/{})", self.current_index + 1, self.messages.len());
         let message_block = Block::default().borders(Borders::ALL).title(message_title);
         match self.mode {
             Mode::EditingMessage => {
                 self.message_textarea.set_block(message_block);
-                f.render_widget(&self.message_textarea, chunks[2]);
+                f.render_widget(&self.message_textarea, chunks[3]);
             }
             _ => {
                 let message = Paragraph::new(self.messages[self.current_index].clone())
                     .block(message_block)
                     .style(Style::default().fg(Color::White))
                     .wrap(Wrap { trim: true });
-                f.render_widget(message, chunks[2]);
+                f.render_widget(message, chunks[3]);
             }
         }
 
+        // Instructions
         let instructions_block = Block::default().borders(Borders::ALL).title("✧ Instructions");
         match self.mode {
             Mode::EditingInstructions => {
                 self.instructions_textarea.set_block(instructions_block);
-                f.render_widget(&self.instructions_textarea, chunks[3]);
+                f.render_widget(&self.instructions_textarea, chunks[4]);
             }
             _ => {
                 let instructions = Paragraph::new(self.custom_instructions.clone())
                     .block(instructions_block)
                     .style(Style::default().fg(Color::White))
                     .wrap(Wrap { trim: true });
-                f.render_widget(instructions, chunks[3]);
+                f.render_widget(instructions, chunks[4]);
             }
         }
 
-        let emoji_preset = Paragraph::new(format!("Selected Emoji: {}  |  Selected Preset: {}", self.selected_emoji, self.get_selected_preset_name()))
-            .style(Style::default().fg(Color::Cyan))
-            .alignment(ratatui::layout::Alignment::Center);
-        f.render_widget(emoji_preset, chunks[4]);
+        // Emoji and Preset
+        let binding = self.get_selected_preset_name_with_emoji();
+        let emoji_preset = Paragraph::new(Line::from(vec![
+            Span::styled("Emoji: ", Style::default().fg(Color::Cyan)),
+            Span::styled(&self.selected_emoji, Style::default().fg(Color::Yellow)),
+            Span::raw("  |  "),
+            Span::styled("Preset: ", Style::default().fg(Color::Cyan)),
+            Span::styled(&binding, Style::default().fg(Color::Yellow)),
+        ]))
+        .style(Style::default())
+        .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(emoji_preset, chunks[5]);
 
+        // Status
         let status = Paragraph::new(self.status.clone())
             .style(Style::default().fg(Color::Cyan))
             .alignment(ratatui::layout::Alignment::Center);
-        f.render_widget(status, chunks[5]);
+        f.render_widget(status, chunks[6]);
 
         if self.mode == Mode::SelectingEmoji {
             self.render_emoji_popup(f);
         } else if self.mode == Mode::SelectingPreset {
             self.render_preset_popup(f);
         }
-    }
-
-    fn get_selected_preset_name(&self) -> String {
-        self.preset_list.iter()
-            .find(|(key, _, _)| key == &self.selected_preset)
-            .map(|(_, name, _)| name.clone())
-            .unwrap_or_else(|| "None".to_string())
     }
 
     fn render_emoji_popup(&mut self, f: &mut Frame) {
@@ -389,6 +421,13 @@ impl TuiCommit {
         f.render_stateful_widget(list, popup_area, &mut self.emoji_list_state);
     }
 
+    fn get_selected_preset_name_with_emoji(&self) -> String {
+        self.preset_list.iter()
+            .find(|(key, _, _, _)| key == &self.selected_preset)
+            .map(|(_, emoji, name, _)| format!("{} {}", emoji, name))
+            .unwrap_or_else(|| "None".to_string())
+    }
+
     fn render_preset_popup(&mut self, f: &mut Frame) {
         let popup_block = Block::default()
             .title("🌟 Select Preset")
@@ -405,10 +444,10 @@ impl TuiCommit {
     
         let items: Vec<ListItem> = self.preset_list
             .iter()
-            .map(|(key, name, description)| {
+            .map(|(_, emoji, name, description)| {
                 ListItem::new(Line::from(vec![
                     Span::styled(
-                        format!("{} ", name),
+                        format!("{} {} ", emoji, name),
                         Style::default().fg(Color::Yellow)
                     ),
                     Span::raw(description),
