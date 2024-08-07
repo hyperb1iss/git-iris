@@ -6,12 +6,12 @@ name: CI/CD
 on:
   push:
     branches:
-      - main  # Trigger on pushes to main branch
+      - main # Trigger on pushes to main branch
     tags:
-      - 'v*.*.*'  # Trigger on version tags
+      - "v*.*.*" # Trigger on version tags
   pull_request:
     branches:
-      - main  # Trigger on pull requests to main branch
+      - main # Trigger on pull requests to main branch
 
 jobs:
   # This job runs for all pushes and pull requests
@@ -19,33 +19,52 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - build: linux-amd64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cmd: cargo
+
+          - build: macos-amd64
+            os: macos-latest-large
+            target: x86_64-apple-darwin
+            cmd: cargo
+
+          # FIXME: Fails when running changelog::tests::test_detail_level_from_str with segfault
+          #- build: macos-arm64
+          #  os: macos-latest
+          #  target: aarch64-apple-darwin
+          #  cmd: cargo
+
+          - build: windows-gnu
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+            cmd: cargo
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-    - name: Cache cargo registry
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+      - name: Cache cargo registry
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-    - name: Build
-      run: cargo build --verbose
+      - name: Build
+        run: ${{ matrix.cmd }} build --verbose --locked --target ${{ matrix.target }}
 
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Run tests
+        run: ${{ matrix.cmd }} test --verbose --locked --target ${{ matrix.target }}
 
   # The following jobs only run on tag pushes (i.e., releases)
   create-release:
@@ -53,23 +72,23 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-    - name: Output Release URL File
-      run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
-    - name: Save Release URL File for publish
-      uses: actions/upload-artifact@v1
-      with:
-        name: release_url
-        path: release_url.txt
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Output Release URL File
+        run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
+      - name: Save Release URL File for publish
+        uses: actions/upload-artifact@v1
+        with:
+          name: release_url
+          path: release_url.txt
 
   build-and-publish:
     if: startsWith(github.ref, 'refs/tags/')
@@ -90,129 +109,129 @@ jobs:
             asset_name: git-iris-windows-amd64.exe
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-    - name: Build Release Binary
-      run: cargo build --release
+      - name: Build Release Binary
+        run: cargo build --release
 
-    - name: Get Release URL
-      uses: actions/download-artifact@v1
-      with:
-        name: release_url
+      - name: Get Release URL
+        uses: actions/download-artifact@v1
+        with:
+          name: release_url
 
-    - name: Get Release File Name & Upload URL
-      id: get_release_info
-      run: |
-        value=`cat release_url/release_url.txt`
-        echo ::set-output name=upload_url::$value
-      shell: bash
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: |
+          value=`cat release_url/release_url.txt`
+          echo ::set-output name=upload_url::$value
+        shell: bash
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-        asset_path: ./target/release/${{ matrix.artifact_name }}
-        asset_name: ${{ matrix.asset_name }}
-        asset_content_type: application/octet-stream
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ./target/release/${{ matrix.artifact_name }}
+          asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream
 
   build-deb:
     if: startsWith(github.ref, 'refs/tags/')
     needs: create-release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-    - name: Install cargo-deb
-      run: cargo install cargo-deb
-    - name: Build .deb package
-      run: cargo deb
-    - name: Get Release URL
-      uses: actions/download-artifact@v1
-      with:
-        name: release_url
-    - name: Get Release File Name & Upload URL
-      id: get_release_info
-      run: |
-        value=`cat release_url/release_url.txt`
-        echo ::set-output name=upload_url::$value
-    - name: Upload .deb package
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-        asset_path: ./target/debian/git-iris_${{ github.ref_name }}_amd64.deb
-        asset_name: git-iris_${{ github.ref_name }}_amd64.deb
-        asset_content_type: application/vnd.debian.binary-package
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+      - name: Build .deb package
+        run: cargo deb
+      - name: Get Release URL
+        uses: actions/download-artifact@v1
+        with:
+          name: release_url
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: |
+          value=`cat release_url/release_url.txt`
+          echo ::set-output name=upload_url::$value
+      - name: Upload .deb package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ./target/debian/git-iris_${{ github.ref_name }}_amd64.deb
+          asset_name: git-iris_${{ github.ref_name }}_amd64.deb
+          asset_content_type: application/vnd.debian.binary-package
 
   build-rpm:
     if: startsWith(github.ref, 'refs/tags/')
     needs: create-release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-    - name: Install cargo-rpm
-      run: cargo install cargo-rpm
-    - name: Build .rpm package
-      run: cargo rpm build
-    - name: Get Release URL
-      uses: actions/download-artifact@v1
-      with:
-        name: release_url
-    - name: Get Release File Name & Upload URL
-      id: get_release_info
-      run: |
-        value=`cat release_url/release_url.txt`
-        echo ::set-output name=upload_url::$value
-    - name: Upload .rpm package
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-        asset_path: ./target/release/rpmbuild/RPMS/x86_64/git-iris-${{ github.ref_name }}-1.x86_64.rpm
-        asset_name: git-iris-${{ github.ref_name }}-1.x86_64.rpm
-        asset_content_type: application/x-rpm
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+      - name: Install cargo-rpm
+        run: cargo install cargo-rpm
+      - name: Build .rpm package
+        run: cargo rpm build
+      - name: Get Release URL
+        uses: actions/download-artifact@v1
+        with:
+          name: release_url
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: |
+          value=`cat release_url/release_url.txt`
+          echo ::set-output name=upload_url::$value
+      - name: Upload .rpm package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ./target/release/rpmbuild/RPMS/x86_64/git-iris-${{ github.ref_name }}-1.x86_64.rpm
+          asset_name: git-iris-${{ github.ref_name }}-1.x86_64.rpm
+          asset_content_type: application/x-rpm
 
   upload-man-page:
     if: startsWith(github.ref, 'refs/tags/')
     needs: create-release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Get Release URL
-      uses: actions/download-artifact@v1
-      with:
-        name: release_url
-    - name: Get Release File Name & Upload URL
-      id: get_release_info
-      run: |
-        value=`cat release_url/release_url.txt`
-        echo ::set-output name=upload_url::$value
-    - name: Upload Man Page
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-        asset_path: ./git-iris.1
-        asset_name: git-iris.1
-        asset_content_type: application/x-troff-man
+      - uses: actions/checkout@v2
+      - name: Get Release URL
+        uses: actions/download-artifact@v1
+        with:
+          name: release_url
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: |
+          value=`cat release_url/release_url.txt`
+          echo ::set-output name=upload_url::$value
+      - name: Upload Man Page
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ./git-iris.1
+          asset_name: git-iris.1
+          asset_content_type: application/x-troff-man
