@@ -1,4 +1,4 @@
-# 🔮 Git-Iris: AI-Powered Commit Messages
+# 🔮 Git-Iris: AI-Powered Git Workflow Assistant
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub Release][releases-shield]][releases]
 
-*Elevate your Git commit messages with the power of AI* 🚀
+*Elevate your Git workflow with the power of AI* 🚀
 
 [Installation](#installation) • [Configuration](#configuration) • [Usage](#usage) • [Contributing](#contributing) • [License](#license)
 
@@ -18,23 +18,29 @@
   <img src="https://raw.githubusercontent.com/hyperb1iss/git-iris/main/docs/images/git-iris-screenshot-3.png" alt="Git-Iris Screenshot 3" width="33%">
 </div>
 
-*Git-Iris in action: AI-powered commit message generation and interactive refinement*
+*Git-Iris in action: AI-powered Git workflow assistance*
+
+## 🌟 Overview
+
+Git-Iris is a comprehensive AI-powered Git workflow assistant that enhances your development process from start to finish. It offers intelligent support for crafting meaningful commit messages, generating insightful changelogs, and creating detailed release notes. By leveraging advanced AI models, Git-Iris  boosts your productivity and improves the quality of your project documentation.
 
 ## ✨ Features
 
-- 🤖 **AI-powered commit message generation** using state-of-the-art language models
-- 📜 **Changelog generation** for tracking project history
-- 📋 **Release notes generation** for creating comprehensive summaries of changes
-- 🔄 **Multi-provider support** (OpenAI GPT-4o, Anthropic Claude, Ollama)
-- 🎨 **Gitmoji integration** for expressive commit messages
-- 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages (*vibes included*)
-- 🔧 **Customizable prompts and instructions** to tailor AI output
-- 📚 **Flexible instruction presets** for quick, consistent, and customizable commit styles
-- 🧠 **Smart context extraction** from Git repositories
-- 📊 **Intelligent code change analysis** for context-aware suggestions
-- 🔍 **Relevance scoring** to prioritize important changes
-- 📝 **Support for multiple programming languages** including Rust, JavaScript, Python, Java, and more
-- 🚀 **Optimized for performance** with efficient token management
+Git-Iris offers a suite of AI-powered tools to enhance your Git workflow:
+
+- 🤖 **Intelligent Commit Messages**: Generate context-aware, meaningful commit messages
+- 📜 **Dynamic Changelog Generation**: Create structured, detailed changelogs between any two Git references
+- 📋 **Comprehensive Release Notes**: Automatically generate release notes with summaries and key changes
+- 🔄 **Multi-Provider AI Support**: Leverage OpenAI GPT-4o, Anthropic Claude, or Ollama for AI capabilities
+- 🎨 **Gitmoji Integration**: Add expressive emojis to your commits, changelogs, and release notes
+- 🖥️ **Interactive CLI**: Refine AI-generated content through an intuitive command-line interface
+- 🔧 **Customizable Workflows**: Tailor AI behavior with custom instructions and presets
+- 📚 **Flexible Instruction Presets**: Quickly switch between different documentation styles
+- 🧠 **Smart Context Extraction**: Analyze repository changes for more accurate AI-generated content
+- 📊 **Intelligent Code Analysis**: Provide context-aware suggestions based on your codebase
+- 🔍 **Relevance Scoring**: Prioritize important changes in generated content
+- 📝 **Multi-Language Support**: Analyze changes in Rust, JavaScript, Python, Java, and more
+- 🚀 **Performance Optimized**: Efficient token management for responsive AI interactions
 
 ## 🛠️ Installation
 
