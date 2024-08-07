@@ -51,6 +51,21 @@ Git-Iris is a Rust-based command-line tool that leverages AI to generate meaning
 - Implements a scoring system to determine the relevance of changes
 - Helps prioritize information for inclusion in the commit message
 
+### 2.11 Changelog Generator
+- Analyzes commit history between specified Git references
+- Generates structured changelogs based on commit messages and code changes
+- Supports different detail levels and customization options
+
+### 2.12 Release Notes Generator
+- Builds upon the Changelog Generator to create comprehensive release notes
+- Incorporates additional context and summaries for release documentation
+- Supports customization through presets and user instructions
+
+### 2.13 Instruction Preset System
+- Manages predefined sets of instructions for different commit styles and documentation formats
+- Allows users to quickly switch between different documentation styles
+- Supports custom presets for project-specific needs
+
 ## 3. Data Flow
 
 1. User invokes Git-Iris via CLI
@@ -62,9 +77,10 @@ Git-Iris is a Rust-based command-line tool that leverages AI to generate meaning
 7. Token Optimization ensures context fits within limits
 8. Prompt Management constructs the full prompt
 9. LLM Provider System sends the prompt to the selected LLM API
-10. CLI Interface presents the generated message to the user
-11. Interactive process allows user refinement
-12. Git Integration applies the final commit (if confirmed)
+10. CLI Interface presents the generated content to the user
+11. For commit messages: Interactive process allows user refinement
+12. For changelogs and release notes: Content is displayed or saved to file
+13. Git Integration applies the final commit (if confirmed for commit messages)
 
 ## 4. Key Design Patterns and Principles
 
@@ -135,6 +151,7 @@ The architecture is designed for easy extension in several areas:
 - Support for more Git hosting platforms (GitHub, GitLab, Bitbucket)
 - Machine learning model for improving suggestions based on user feedback
 - Support for project-specific configuration files (e.g., `.git-iris.toml` in project root)
+- Advanced customization options for changelog and release notes templates
 
 ## 12. Component Diagram
 
@@ -198,3 +215,31 @@ The Relevance Scoring system helps prioritize information for inclusion in commi
 - Helps focus the AI on the most significant aspects of the commit
 
 This architecture provides a solid foundation for Git-Iris, allowing for maintainability, extensibility, and robust performance as the project grows and evolves. The modular design and use of well-established design patterns ensure that the system can be easily extended and modified as new requirements emerge.
+
+## 18. Changelog Generation System
+
+The Changelog Generation system is responsible for creating structured changelogs based on Git history:
+
+- Analyzes commits between specified Git references
+- Categorizes changes based on commit messages and file modifications
+- Supports different levels of detail (minimal, standard, detailed)
+- Integrates with the Instruction Preset System for customizable formatting
+- Utilizes the LLM Provider System for generating summaries and descriptions
+
+## 19. Release Notes Generation System
+
+The Release Notes Generation system builds upon the Changelog Generation system to create comprehensive release documentation:
+
+- Incorporates changelog information
+- Adds high-level summaries and overviews of changes
+- Supports customization through instruction presets and user-defined guidelines
+- Utilizes the LLM Provider System for generating user-friendly content
+
+## 20. Instruction Preset System
+
+The Instruction Preset System manages predefined sets of instructions for various documentation styles:
+
+- Provides built-in presets for common commit message and documentation formats
+- Allows users to create and save custom presets
+- Integrates with the Prompt Management system to guide LLM output
+- Supports different presets for commit messages, changelogs, and release notes

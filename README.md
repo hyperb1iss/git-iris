@@ -23,6 +23,8 @@
 ## ✨ Features
 
 - 🤖 **AI-powered commit message generation** using state-of-the-art language models
+- 📜 **Changelog generation** for tracking project history
+- 📋 **Release notes generation** for creating comprehensive summaries of changes
 - 🔄 **Multi-provider support** (OpenAI GPT-4o, Anthropic Claude, Ollama)
 - 🎨 **Gitmoji integration** for expressive commit messages
 - 🖥️ **Interactive CLI** for reviewing and refining AI-generated messages (*vibes included*)
@@ -142,6 +144,52 @@ The interactive CLI allows you to refine and perfect your commit messages:
 - Press Enter to commit
 - Press Esc to cancel
 
+### Generating a Changelog
+
+Git-Iris can generate changelogs between two Git references:
+
+```bash
+git-iris changelog --from <from-ref> --to <to-ref>
+```
+
+Options:
+- `--from`: Starting Git reference (commit hash, tag, or branch name)
+- `--to`: Ending Git reference (defaults to HEAD if not specified)
+- `--instructions`: Custom instructions for changelog generation
+- `--preset`: Select an instruction preset for changelog generation
+- `--detail-level`: Set the detail level (minimal, standard, detailed)
+- `--gitmoji`: Enable or disable Gitmoji in the changelog
+
+Example:
+```bash
+git-iris changelog --from v1.0.0 --to v1.1.0 --detail-level detailed --gitmoji true
+```
+
+This command generates a detailed changelog of changes between versions 1.0.0 and 1.1.0, including Gitmoji.
+
+### Generating Release Notes
+
+Git-Iris can also generate comprehensive release notes:
+
+```bash
+git-iris release-notes --from <from-ref> --to <to-ref>
+```
+
+Options:
+- `--from`: Starting Git reference (commit hash, tag, or branch name)
+- `--to`: Ending Git reference (defaults to HEAD if not specified)
+- `--instructions`: Custom instructions for release notes generation
+- `--preset`: Select an instruction preset for release notes generation
+- `--detail-level`: Set the detail level (minimal, standard, detailed)
+- `--gitmoji`: Enable or disable Gitmoji in the release notes
+
+Example:
+```bash
+git-iris release-notes --from v1.0.0 --to v1.1.0 --preset conventional --detail-level standard
+```
+
+This command generates standard-level release notes between versions 1.0.0 and 1.1.0 using the conventional commits preset.
+
 ## 🎛️ Custom Instructions and Presets
 
 Git-Iris offers two powerful ways to guide the AI in generating commit messages: custom instructions and presets.
@@ -172,7 +220,8 @@ Some key presets include:
 - `conventional`: Follows the Conventional Commits specification
 - `detailed`: Provides more context and explanation in commit messages
 - `concise`: Short and to-the-point commit messages
-- `cosmic`: Mystical, space-themed commit messages (aligns with Git-Iris's theme)
+- `cosmic`: Mystical, space-themed commit messages
+- ..and lots more styles f
 
 To use a preset for a single commit:
 
