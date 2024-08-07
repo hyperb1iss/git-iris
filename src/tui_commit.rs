@@ -1,14 +1,18 @@
-use std::io;
-use std::time::Duration;
-use ratatui::{
-    backend::CrosstermBackend, layout::{Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap}, Frame, Terminal
-};
 use ratatui::crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
+    Frame, Terminal,
+};
+use std::io;
+use std::time::Duration;
 use tui_textarea::TextArea;
 
 mod gitmoji;
@@ -90,10 +94,10 @@ impl TuiCommit {
             .map(|line| {
                 let parts: Vec<&str> = line.split(" - ").collect();
                 (
-                    parts[0].to_string(),  // key
-                    parts[1].to_string(),  // emoji
-                    parts[2].to_string(),  // name
-                    parts[3].to_string(),  // description
+                    parts[0].to_string(), // key
+                    parts[1].to_string(), // emoji
+                    parts[2].to_string(), // name
+                    parts[3].to_string(), // description
                 )
             })
             .collect();
@@ -167,7 +171,7 @@ impl TuiCommit {
                                 return Ok(());
                             }
                             self.handle_normal_mode(key)
-                        },
+                        }
                         Mode::EditingMessage => self.handle_editing_message(key),
                         Mode::EditingInstructions => self.handle_editing_instructions(key),
                         Mode::SelectingEmoji => self.handle_selecting_emoji(key),
@@ -191,26 +195,40 @@ impl TuiCommit {
             }
             KeyCode::Char('g') => {
                 self.mode = Mode::SelectingEmoji;
-                self.status = String::from("Selecting emoji. Use arrow keys and Enter to select, Esc to cancel.");
+                self.status = String::from(
+                    "Selecting emoji. Use arrow keys and Enter to select, Esc to cancel.",
+                );
             }
             KeyCode::Char('p') => {
                 self.mode = Mode::SelectingPreset;
-                self.status = String::from("Selecting preset. Use arrow keys and Enter to select, Esc to cancel.");
+                self.status = String::from(
+                    "Selecting preset. Use arrow keys and Enter to select, Esc to cancel.",
+                );
             }
             KeyCode::Char('u') => {
                 self.mode = Mode::EditingUserInfo;
-                self.status = String::from("Editing user info. Press Tab to switch fields, Enter to save, Esc to cancel.");
+                self.status = String::from(
+                    "Editing user info. Press Tab to switch fields, Enter to save, Esc to cancel.",
+                );
             }
             KeyCode::Left => {
                 if self.current_index > 0 {
                     self.current_index -= 1;
-                    self.status = format!("Viewing commit message {}/{}", self.current_index + 1, self.messages.len());
+                    self.status = format!(
+                        "Viewing commit message {}/{}",
+                        self.current_index + 1,
+                        self.messages.len()
+                    );
                 }
             }
             KeyCode::Right => {
                 if self.current_index < self.messages.len() - 1 {
                     self.current_index += 1;
-                    self.status = format!("Viewing commit message {}/{}", self.current_index + 1, self.messages.len());
+                    self.status = format!(
+                        "Viewing commit message {}/{}",
+                        self.current_index + 1,
+                        self.messages.len()
+                    );
                 }
             }
             _ => {}
@@ -248,7 +266,6 @@ impl TuiCommit {
             }
         }
     }
-
 
     fn handle_editing_message(&mut self, key: KeyEvent) {
         match key.code {
@@ -299,7 +316,11 @@ impl TuiCommit {
             KeyCode::Up => {
                 if !self.emoji_list.is_empty() {
                     let selected = self.emoji_list_state.selected().unwrap_or(0);
-                    let new_selected = if selected > 0 { selected - 1 } else { self.emoji_list.len() - 1 };
+                    let new_selected = if selected > 0 {
+                        selected - 1
+                    } else {
+                        self.emoji_list.len() - 1
+                    };
                     self.emoji_list_state.select(Some(new_selected));
                 }
             }
@@ -324,12 +345,19 @@ impl TuiCommit {
                 if let Some(selected) = self.preset_list_state.selected() {
                     self.selected_preset = self.preset_list[selected].0.clone();
                     self.mode = Mode::Normal;
-                    self.status = format!("Preset selected: {}", self.get_selected_preset_name_with_emoji());
+                    self.status = format!(
+                        "Preset selected: {}",
+                        self.get_selected_preset_name_with_emoji()
+                    );
                 }
             }
             KeyCode::Up => {
                 let selected = self.preset_list_state.selected().unwrap_or(0);
-                let new_selected = if selected > 0 { selected - 1 } else { self.preset_list.len() - 1 };
+                let new_selected = if selected > 0 {
+                    selected - 1
+                } else {
+                    self.preset_list.len() - 1
+                };
                 self.preset_list_state.select(Some(new_selected));
             }
             KeyCode::Down => {
@@ -344,7 +372,11 @@ impl TuiCommit {
             }
             KeyCode::PageDown => {
                 let selected = self.preset_list_state.selected().unwrap_or(0);
-                let new_selected = if selected + 10 < self.preset_list.len() { selected + 10 } else { self.preset_list.len() - 1 };
+                let new_selected = if selected + 10 < self.preset_list.len() {
+                    selected + 10
+                } else {
+                    self.preset_list.len() - 1
+                };
                 self.preset_list_state.select(Some(new_selected));
             }
             KeyCode::Left => {
@@ -365,7 +397,7 @@ impl TuiCommit {
             .margin(1)
             .constraints(
                 [
-                    Constraint::Length(2), // Title
+                    Constraint::Length(3), // Title
                     Constraint::Length(2), // Navigation bar
                     Constraint::Length(2), // User info
                     Constraint::Min(5),    // Commit message
@@ -378,10 +410,25 @@ impl TuiCommit {
             .split(f.size());
 
         // Title
-        let title = Paragraph::new("✨🔮 Git-Iris v0.1.0 - Cosmic Commit 🔮✨")
-            .style(Style::default().fg(GALAXY_PINK).add_modifier(Modifier::BOLD))
-            .alignment(ratatui::layout::Alignment::Center);
-        f.render_widget(title, chunks[0]);
+        let title = vec![
+            Line::from(Span::styled(
+                "    .  *  .  ✨  .  *  .    ",
+                Style::default().fg(GALAXY_PINK),
+            )),
+            Line::from(vec![
+                Span::styled("  *    ", Style::default().fg(GALAXY_PINK)),
+                Span::styled(
+                    "✨🔮 Git-Iris v0.1.0 - Cosmic Commit 🔮✨",
+                    Style::default()
+                        .fg(GALAXY_PINK)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled("   * ", Style::default().fg(GALAXY_PINK)),
+            ]),
+        ];
+
+        let title_widget = Paragraph::new(title).alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(title_widget, chunks[0]);
 
         // Navigation bar
         let nav_items = vec![
@@ -394,38 +441,64 @@ impl TuiCommit {
             ("R", "Regenerate", METEOR_RED),
             ("⏎", "Commit", STARLIGHT),
         ];
-        let nav_spans: Vec<Span> = nav_items.into_iter()
-            .flat_map(|(key, desc, color)| vec![
-                Span::styled(format!("{}", key), Style::default().fg(color).add_modifier(Modifier::BOLD)),
-                Span::styled(format!(": {} ", desc), Style::default().fg(NEBULA_PURPLE)),
-            ])
+        let nav_spans: Vec<Span> = nav_items
+            .into_iter()
+            .flat_map(|(key, desc, color)| {
+                vec![
+                    Span::styled(
+                        format!("{}", key),
+                        Style::default().fg(color).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(format!(": {} ", desc), Style::default().fg(NEBULA_PURPLE)),
+                ]
+            })
             .collect();
-        let nav_bar = Paragraph::new(Line::from(nav_spans))
-            .alignment(ratatui::layout::Alignment::Center);
+        let nav_bar =
+            Paragraph::new(Line::from(nav_spans)).alignment(ratatui::layout::Alignment::Center);
         f.render_widget(nav_bar, chunks[1]);
 
         // User info
         let user_info = Paragraph::new(Line::from(vec![
             Span::styled("👤 ", Style::default().fg(PLASMA_CYAN)),
-            Span::styled(&self.user_name, Style::default().fg(AURORA_GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &self.user_name,
+                Style::default()
+                    .fg(AURORA_GREEN)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" | "),
             Span::styled("✉️ ", Style::default().fg(PLASMA_CYAN)),
-            Span::styled(&self.user_email, Style::default().fg(AURORA_GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &self.user_email,
+                Style::default()
+                    .fg(AURORA_GREEN)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]))
         .style(Style::default())
         .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(user_info, chunks[2]);
 
         // Commit message
-        let message_title = format!("✦ Commit Message ({}/{})", self.current_index + 1, self.messages.len());
+        let message_title = format!(
+            "✦ Commit Message ({}/{})",
+            self.current_index + 1,
+            self.messages.len()
+        );
         let message_block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(CELESTIAL_BLUE))
-            .title(Span::styled(message_title, Style::default().fg(GALAXY_PINK).add_modifier(Modifier::BOLD)));
+            .title(Span::styled(
+                message_title,
+                Style::default()
+                    .fg(GALAXY_PINK)
+                    .add_modifier(Modifier::BOLD),
+            ));
         match self.mode {
             Mode::EditingMessage => {
                 self.message_textarea.set_block(message_block);
-                self.message_textarea.set_style(Style::default().fg(SOLAR_YELLOW));
+                self.message_textarea
+                    .set_style(Style::default().fg(SOLAR_YELLOW));
                 f.render_widget(&self.message_textarea, chunks[3]);
             }
             _ => {
@@ -441,11 +514,17 @@ impl TuiCommit {
         let instructions_block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(CELESTIAL_BLUE))
-            .title(Span::styled("✧ Instructions", Style::default().fg(GALAXY_PINK).add_modifier(Modifier::BOLD)));
+            .title(Span::styled(
+                "✧ Instructions",
+                Style::default()
+                    .fg(GALAXY_PINK)
+                    .add_modifier(Modifier::BOLD),
+            ));
         match self.mode {
             Mode::EditingInstructions => {
                 self.instructions_textarea.set_block(instructions_block);
-                self.instructions_textarea.set_style(Style::default().fg(PLASMA_CYAN));
+                self.instructions_textarea
+                    .set_style(Style::default().fg(PLASMA_CYAN));
                 f.render_widget(&self.instructions_textarea, chunks[4]);
             }
             _ => {
@@ -461,10 +540,20 @@ impl TuiCommit {
         let binding = self.get_selected_preset_name_with_emoji();
         let emoji_preset = Paragraph::new(Line::from(vec![
             Span::styled("Emoji: ", Style::default().fg(NEBULA_PURPLE)),
-            Span::styled(&self.selected_emoji, Style::default().fg(SOLAR_YELLOW).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &self.selected_emoji,
+                Style::default()
+                    .fg(SOLAR_YELLOW)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  |  "),
             Span::styled("Preset: ", Style::default().fg(NEBULA_PURPLE)),
-            Span::styled(&binding, Style::default().fg(COMET_ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                &binding,
+                Style::default()
+                    .fg(COMET_ORANGE)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]))
         .style(Style::default())
         .alignment(ratatui::layout::Alignment::Center);
@@ -487,7 +576,12 @@ impl TuiCommit {
 
     fn render_emoji_popup(&mut self, f: &mut Frame) {
         let popup_block = Block::default()
-            .title(Span::styled("✨ Select Emoji", Style::default().fg(SOLAR_YELLOW).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(
+                "✨ Select Emoji",
+                Style::default()
+                    .fg(SOLAR_YELLOW)
+                    .add_modifier(Modifier::BOLD),
+            ))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(NEBULA_PURPLE));
 
@@ -498,28 +592,24 @@ impl TuiCommit {
             area.width.saturating_sub(20).min(60),
             area.height.saturating_sub(10).min(20),
         );
-    
-        let items: Vec<ListItem> = self.emoji_list
+
+        let items: Vec<ListItem> = self
+            .emoji_list
             .iter()
             .map(|(emoji, description)| {
                 ListItem::new(Line::from(vec![
-                    Span::styled(
-                        format!("{} ", emoji),
-                        Style::default().fg(SOLAR_YELLOW)
-                    ),
+                    Span::styled(format!("{} ", emoji), Style::default().fg(SOLAR_YELLOW)),
                     Span::styled(description, Style::default().fg(PLASMA_CYAN)),
                 ]))
             })
             .collect();
 
-        let list = List::new(items)
-            .block(popup_block)
-            .highlight_style(
-                Style::default()
-                    .bg(CELESTIAL_BLUE)
-                    .fg(STARLIGHT)
-                    .add_modifier(Modifier::BOLD)
-            );
+        let list = List::new(items).block(popup_block).highlight_style(
+            Style::default()
+                .bg(CELESTIAL_BLUE)
+                .fg(STARLIGHT)
+                .add_modifier(Modifier::BOLD),
+        );
 
         f.render_widget(Clear, popup_area);
         f.render_stateful_widget(list, popup_area, &mut self.emoji_list_state);
@@ -527,7 +617,12 @@ impl TuiCommit {
 
     fn render_preset_popup(&mut self, f: &mut Frame) {
         let popup_block = Block::default()
-            .title(Span::styled("🌟 Select Preset", Style::default().fg(COMET_ORANGE).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(
+                "🌟 Select Preset",
+                Style::default()
+                    .fg(COMET_ORANGE)
+                    .add_modifier(Modifier::BOLD),
+            ))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(NEBULA_PURPLE));
 
@@ -539,33 +634,33 @@ impl TuiCommit {
             area.height.saturating_sub(10).min(20),
         );
 
-        let items: Vec<ListItem> = self.preset_list
+        let items: Vec<ListItem> = self
+            .preset_list
             .iter()
             .map(|(_, emoji, name, description)| {
                 ListItem::new(Line::from(vec![
                     Span::styled(
                         format!("{} {} ", emoji, name),
-                        Style::default().fg(COMET_ORANGE)
+                        Style::default().fg(COMET_ORANGE),
                     ),
                     Span::styled(description, Style::default().fg(PLASMA_CYAN)),
                 ]))
             })
             .collect();
 
-        let list = List::new(items)
-            .block(popup_block)
-            .highlight_style(
-                Style::default()
-                    .bg(CELESTIAL_BLUE)
-                    .fg(STARLIGHT)
-                    .add_modifier(Modifier::BOLD)
-            );
+        let list = List::new(items).block(popup_block).highlight_style(
+            Style::default()
+                .bg(CELESTIAL_BLUE)
+                .fg(STARLIGHT)
+                .add_modifier(Modifier::BOLD),
+        );
         f.render_widget(Clear, popup_area);
         f.render_stateful_widget(list, popup_area, &mut self.preset_list_state);
     }
 
-        fn get_selected_preset_name_with_emoji(&self) -> String {
-        self.preset_list.iter()
+    fn get_selected_preset_name_with_emoji(&self) -> String {
+        self.preset_list
+            .iter()
             .find(|(key, _, _, _)| key == &self.selected_preset)
             .map(|(_, emoji, name, _)| format!("{} {}", emoji, name))
             .unwrap_or_else(|| "None".to_string())
@@ -573,7 +668,12 @@ impl TuiCommit {
 
     fn render_user_info_popup(&mut self, f: &mut Frame) {
         let popup_block = Block::default()
-            .title(Span::styled("Edit User Info", Style::default().fg(SOLAR_YELLOW).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(
+                "Edit User Info",
+                Style::default()
+                    .fg(SOLAR_YELLOW)
+                    .add_modifier(Modifier::BOLD),
+            ))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(NEBULA_PURPLE));
 
@@ -600,14 +700,26 @@ impl TuiCommit {
         self.user_name_textarea.set_block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if self.user_info_focus == UserInfoFocus::Name { SOLAR_YELLOW } else { CELESTIAL_BLUE }))
+                .border_style(
+                    Style::default().fg(if self.user_info_focus == UserInfoFocus::Name {
+                        SOLAR_YELLOW
+                    } else {
+                        CELESTIAL_BLUE
+                    }),
+                )
                 .title("Name"),
         );
 
         self.user_email_textarea.set_block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if self.user_info_focus == UserInfoFocus::Email { SOLAR_YELLOW } else { CELESTIAL_BLUE }))
+                .border_style(Style::default().fg(
+                    if self.user_info_focus == UserInfoFocus::Email {
+                        SOLAR_YELLOW
+                    } else {
+                        CELESTIAL_BLUE
+                    },
+                ))
                 .title("Email"),
         );
 
