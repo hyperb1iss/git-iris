@@ -39,13 +39,10 @@ impl TuiCommit {
             user_email,
         );
 
-        TuiCommit {
-            state,
-            service,
-        }
+        TuiCommit { state, service }
     }
 
-    pub fn run(
+    pub async fn run(
         initial_messages: Vec<GeneratedMessage>,
         custom_instructions: String,
         selected_preset: String,
@@ -61,17 +58,17 @@ impl TuiCommit {
             user_email,
             service,
         );
-        app.run_app().map_err(Error::from)
+        app.run_app().await.map_err(Error::from)
     }
 
-    pub fn run_app(&mut self) -> io::Result<()> {
+    pub async fn run_app(&mut self) -> io::Result<()> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen)?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let result = self.main_loop(&mut terminal);
+        let result = self.main_loop(&mut terminal).await;
 
         // restore terminal
         disable_raw_mode()?;
@@ -81,7 +78,7 @@ impl TuiCommit {
         result
     }
 
-    fn main_loop(
+    async fn main_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> io::Result<()> {
@@ -89,7 +86,7 @@ impl TuiCommit {
             terminal.draw(|f| draw_ui(f, &mut self.state))?;
 
             if self.state.mode == Mode::Generating {
-                match self.generate_message() {
+                match self.generate_message().await {
                     Ok(new_message) => {
                         self.state.messages.push(new_message);
                         self.state.current_index = self.state.messages.len() - 1;
@@ -124,21 +121,18 @@ impl TuiCommit {
         self.state.spinner = Some(SpinnerState::new());
     }
 
-    fn generate_message(&self) -> Result<GeneratedMessage, Error> {
-        tokio::runtime::Runtime::new()?.block_on(async {
-            self.service.generate_message(
-                &self.state.selected_preset,
-                &self.state.custom_instructions,
-            ).await
-        })
-    }
-
     pub fn perform_commit(&self, message: &str) -> Result<(), Error> {
         self.service.perform_commit(message)
     }
+
+    async fn generate_message(&self) -> Result<GeneratedMessage, Error> {
+        self.service
+            .generate_message(&self.state.selected_preset, &self.state.custom_instructions)
+            .await
+    }
 }
 
-pub fn run_tui_commit(
+pub async fn run_tui_commit(
     initial_messages: Vec<GeneratedMessage>,
     custom_instructions: String,
     selected_preset: String,
@@ -154,4 +148,5 @@ pub fn run_tui_commit(
         user_email,
         service,
     )
+    .await
 }
