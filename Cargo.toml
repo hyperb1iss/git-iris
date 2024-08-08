@@ -41,8 +41,8 @@ enum-map = "2.7.3"
 "tiktoken-rs" = "0.5.9"
 strum = "0.26.3"
 strum_macros = "0.26.4"
-ratatui = "0.27.0"
-tui-textarea = "0.5.3"
+ratatui = "0.28.0"
+tui-textarea = "0.6.1"
 crossterm = "0.28.1"
 
 
