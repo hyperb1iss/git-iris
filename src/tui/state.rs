@@ -6,7 +6,7 @@ use tui_textarea::TextArea;
 
 use super::spinner::SpinnerState;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Mode {
     Normal,
     EditingMessage,

@@ -1,4 +1,5 @@
 use crate::context::GeneratedMessage;
+use crate::log_debug;
 use crate::service::GitIrisService;
 use anyhow::{Error, Result};
 use ratatui::backend::CrosstermBackend;
@@ -82,27 +83,59 @@ impl TuiCommit {
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     ) -> io::Result<()> {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<GeneratedMessage, anyhow::Error>>(1);
+        let mut task_spawned = false;
+
         loop {
             terminal.draw(|f| draw_ui(f, &mut self.state))?;
 
-            if self.state.mode == Mode::Generating {
-                match self.generate_message().await {
+            // Spawn the task only once when entering the Generating mode
+            if self.state.mode == Mode::Generating && !task_spawned {
+                let service = self.service.clone();
+                let preset = self.state.selected_preset.clone();
+                let instructions = self.state.custom_instructions.clone();
+                let tx = tx.clone();
+
+                tokio::spawn(async move {
+                    log_debug!("Generating message...");
+                    let result = service.generate_message(&preset, &instructions).await;
+                    let _ = tx.send(result).await;
+                });
+
+                task_spawned = true; // Ensure we only spawn the task once
+            }
+
+            // Check if a message has been received from the generation task
+            match rx.try_recv() {
+                Ok(result) => match result {
                     Ok(new_message) => {
                         self.state.messages.push(new_message);
                         self.state.current_index = self.state.messages.len() - 1;
                         self.state.update_message_textarea();
-                        self.state.mode = Mode::Normal;
+                        self.state.mode = Mode::Normal; // Exit Generating mode
+                        self.state.spinner = None; // Stop the spinner
                         self.state
                             .set_status(String::from("New message generated successfully!"));
+                        task_spawned = false; // Reset for future regenerations
                     }
                     Err(e) => {
-                        self.state.mode = Mode::Normal;
+                        self.state.mode = Mode::Normal; // Exit Generating mode
+                        self.state.spinner = None; // Stop the spinner
                         self.state
                             .set_status(format!("Failed to generate new message: {}", e));
+                        task_spawned = false; // Reset for future regenerations
                     }
+                },
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                    // No message available yet, continue the loop
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    // Handle the case where the sender has disconnected
+                    break;
                 }
             }
 
+            // Poll for input events
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
                     match handle_input(self, key) {
@@ -111,6 +144,16 @@ impl TuiCommit {
                     }
                 }
             }
+
+            // Update the spinner state and redraw if in generating mode
+            if self.state.mode == Mode::Generating {
+                if let Some(spinner) = &mut self.state.spinner {
+                    spinner.tick();
+                }
+            }
+
+            // Sleep briefly to avoid a tight loop and high CPU usage
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
 
         Ok(())
@@ -123,12 +166,6 @@ impl TuiCommit {
 
     pub fn perform_commit(&self, message: &str) -> Result<(), Error> {
         self.service.perform_commit(message)
-    }
-
-    async fn generate_message(&self) -> Result<GeneratedMessage, Error> {
-        self.service
-            .generate_message(&self.state.selected_preset, &self.state.custom_instructions)
-            .await
     }
 }
 
