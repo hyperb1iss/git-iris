@@ -16,6 +16,7 @@ pub mod messages;
 pub mod prompt;
 pub mod readme_reader;
 pub mod relevance;
+pub mod service;
 pub mod token_optimizer;
 pub mod tui;
 pub mod ui;

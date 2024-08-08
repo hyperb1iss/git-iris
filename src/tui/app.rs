@@ -1,8 +1,9 @@
 use crate::context::{format_commit_message, GeneratedMessage};
+use crate::service::GitIrisService;
 use anyhow::{Error, Result};
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::{
-    event::{self, Event, KeyCode},
+    event::{self, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -10,7 +11,6 @@ use ratatui::Terminal;
 use std::io;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
 
 use super::input_handler::{handle_input, InputResult};
 use super::spinner::SpinnerState;
@@ -19,9 +19,7 @@ use super::ui::draw_ui;
 
 pub struct TuiCommit {
     pub state: TuiState,
-    generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
-    pub perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-    message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
+    service: Arc<GitIrisService>,
 }
 
 impl TuiCommit {
@@ -31,9 +29,7 @@ impl TuiCommit {
         preset: String,
         user_name: String,
         user_email: String,
-        generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
-        perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-        message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
+        service: Arc<GitIrisService>,
     ) -> Self {
         let state = TuiState::new(
             initial_messages,
@@ -45,9 +41,7 @@ impl TuiCommit {
 
         TuiCommit {
             state,
-            generate_message,
-            perform_commit,
-            message_receiver,
+            service,
         }
     }
 
@@ -57,9 +51,7 @@ impl TuiCommit {
         selected_preset: String,
         user_name: String,
         user_email: String,
-        generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
-        perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-        message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
+        service: Arc<GitIrisService>,
     ) -> Result<()> {
         let mut app = TuiCommit::new(
             initial_messages,
@@ -67,9 +59,7 @@ impl TuiCommit {
             selected_preset,
             user_name,
             user_email,
-            generate_message,
-            perform_commit,
-            message_receiver,
+            service,
         );
         app.run_app().map_err(Error::from)
     }
@@ -99,28 +89,19 @@ impl TuiCommit {
             terminal.draw(|f| draw_ui(f, &mut self.state))?;
 
             if self.state.mode == Mode::Generating {
-                match self.message_receiver.try_recv() {
-                    Ok(result) => match result {
-                        Ok(new_message) => {
-                            self.state.messages.push(new_message);
-                            self.state.current_index = self.state.messages.len() - 1;
-                            self.state.update_message_textarea();
-                            self.state.mode = Mode::Normal;
-                            self.state
-                                .set_status(String::from("New message generated successfully!"));
-                        }
-                        Err(e) => {
-                            self.state.mode = Mode::Normal;
-                            self.state
-                                .set_status(format!("Failed to generate new message: {}", e));
-                        }
-                    },
-                    Err(mpsc::error::TryRecvError::Empty) => {}
-                    Err(mpsc::error::TryRecvError::Disconnected) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            "Message channel disconnected",
-                        ));
+                match self.generate_message() {
+                    Ok(new_message) => {
+                        self.state.messages.push(new_message);
+                        self.state.current_index = self.state.messages.len() - 1;
+                        self.state.update_message_textarea();
+                        self.state.mode = Mode::Normal;
+                        self.state
+                            .set_status(String::from("New message generated successfully!"));
+                    }
+                    Err(e) => {
+                        self.state.mode = Mode::Normal;
+                        self.state
+                            .set_status(format!("Failed to generate new message: {}", e));
                     }
                 }
             }
@@ -141,7 +122,19 @@ impl TuiCommit {
     pub fn handle_regenerate(&mut self) {
         self.state.mode = Mode::Generating;
         self.state.spinner = Some(SpinnerState::new());
-        (self.generate_message)(&self.state.selected_preset, &self.state.custom_instructions);
+    }
+
+    fn generate_message(&self) -> Result<GeneratedMessage, Error> {
+        tokio::runtime::Runtime::new()?.block_on(async {
+            self.service.generate_message(
+                &self.state.selected_preset,
+                &self.state.custom_instructions,
+            ).await
+        })
+    }
+
+    pub fn perform_commit(&self, message: &str) -> Result<(), Error> {
+        self.service.perform_commit(message)
     }
 }
 
@@ -151,9 +144,7 @@ pub fn run_tui_commit(
     selected_preset: String,
     user_name: String,
     user_email: String,
-    generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
-    perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
-    message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
+    service: Arc<GitIrisService>,
 ) -> Result<()> {
     TuiCommit::run(
         initial_messages,
@@ -161,8 +152,6 @@ pub fn run_tui_commit(
         selected_preset,
         user_name,
         user_email,
-        generate_message,
-        perform_commit,
-        message_receiver,
+        service,
     )
 }

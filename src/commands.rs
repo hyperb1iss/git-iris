@@ -1,25 +1,19 @@
 use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use crate::config::Config;
 use crate::context::{format_commit_message, GeneratedMessage};
-use crate::git::{commit, get_git_info};
+use crate::git::get_git_info;
 use crate::instruction_presets::get_instruction_preset_library;
-use crate::llm::get_refined_message;
 use crate::llm_providers::{get_available_providers, get_provider_metadata, LLMProviderType};
 use crate::log_debug;
-use crate::prompt;
+use crate::service::GitIrisService;
 use crate::ui;
-use anyhow::{anyhow, Error, Result};
-//use clap::{crate_name, crate_version};
+use crate::tui::run_tui_commit;
+use anyhow::{anyhow, Result};
 use colored::*;
-use serde_json::from_str;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::mpsc;
-
-use crate::tui::run_tui_commit;
-
 use unicode_width::UnicodeWidthStr;
 
 /// Handle the 'gen' command
@@ -32,9 +26,23 @@ pub async fn handle_gen_command(
     print: bool,
 ) -> Result<()> {
     let config = Config::load()?;
+    let current_dir = std::env::current_dir()?;
+
+    let provider_type = if let Some(p) = provider {
+        LLMProviderType::from_str(&p)?
+    } else {
+        LLMProviderType::from_str(&config.default_provider)?
+    };
+
+    let service = Arc::new(GitIrisService::new(
+        config.clone(),
+        current_dir.clone(),
+        provider_type.clone(),
+        use_gitmoji && config.use_gitmoji,
+    ));
 
     // Check environment prerequisites
-    if let Err(e) = Config::check_environment() {
+    if let Err(e) = service.check_environment() {
         ui::print_error(&format!("Error: {}", e));
         ui::print_info("\nPlease ensure the following:");
         ui::print_info("1. Git is installed and accessible from the command line.");
@@ -43,27 +51,7 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let provider_type = if let Some(p) = provider {
-        LLMProviderType::from_str(&p)?
-    } else {
-        LLMProviderType::from_str(&config.default_provider)?
-    };
-
-    let provider_metadata = get_provider_metadata(&provider_type);
-
-    if provider_metadata.requires_api_key {
-        let provider_config = config
-            .get_provider_config(&provider_type.to_string())
-            .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
-
-        if provider_config.api_key.is_empty() {
-            ui::print_error(&format!("API key for provider '{}' is not set. Please run 'git-iris config --provider {} --api-key YOUR_API_KEY' to set it.", provider_type, provider_type));
-            return Ok(());
-        }
-    }
-
-    let current_dir = Arc::new(std::env::current_dir()?);
-    let git_info = get_git_info(current_dir.as_path(), &config)?;
+    let git_info = service.get_git_info()?;
 
     if git_info.staged_files.is_empty() {
         ui::print_warning(
@@ -73,72 +61,11 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let use_gitmoji = use_gitmoji && config.use_gitmoji;
-
     let effective_instructions = instructions.unwrap_or_else(|| config.instructions.clone());
     let preset_str = preset.as_deref().unwrap_or("");
-    let (tx, mut rx) = mpsc::channel(1);
-
-    let generate_message = {
-        let config = config.clone();
-        let provider_type = provider_type.clone();
-        let git_info = git_info.clone();
-        let tx = tx.clone();
-        Arc::new(move |preset: &str, instructions: &str| {
-            let tx = tx.clone();
-            log_debug!("Generating message with LLM");
-            let combined_instructions =
-                prompt::get_combined_instructions(&config, Some(instructions), Some(preset));
-            let system_prompt = prompt::create_system_prompt(use_gitmoji, &combined_instructions);
-            let user_prompt = match prompt::create_user_prompt(&git_info) {
-                Ok(prompt) => prompt,
-                Err(e) => {
-                    let _ = tx.blocking_send(Err(e));
-                    return;
-                }
-            };
-
-            let config = config.clone();
-            let provider_type = provider_type.clone();
-
-            tokio::spawn(async move {
-                let result = get_refined_message(
-                    &config,
-                    &provider_type,
-                    &system_prompt,
-                    &user_prompt,
-                    Some(&combined_instructions),
-                )
-                .await;
-
-                log_debug!("LLM message generation result: {:?}", result);
-                match result {
-                    Ok(message_str) => match from_str::<GeneratedMessage>(&message_str) {
-                        Ok(message) => {
-                            let _ = tx.send(Ok(message)).await;
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Err(anyhow::Error::from(e))).await;
-                        }
-                    },
-                    Err(e) => {
-                        let _ = tx.send(Err(e)).await;
-                    }
-                }
-            });
-        })
-    };
 
     // Generate an initial message
-    generate_message(preset_str, &effective_instructions);
-    let initial_message = rx
-        .recv()
-        .await
-        .ok_or_else(|| anyhow!("Failed to receive message"))??;
-
-    let current_dir_clone = current_dir.clone();
-    let perform_commit =
-        Arc::new(move |message: &str| -> Result<(), Error> { commit(&current_dir_clone, message) });
+    let initial_message = service.generate_message(preset_str, &effective_instructions).await?;
 
     if print {
         println!("{}", format_commit_message(&initial_message));
@@ -146,7 +73,7 @@ pub async fn handle_gen_command(
     }
 
     if auto_commit {
-        perform_commit(&format_commit_message(&initial_message))?;
+        service.perform_commit(&format_commit_message(&initial_message))?;
         println!(
             "Commit created with message: {}",
             format_commit_message(&initial_message)
@@ -160,9 +87,7 @@ pub async fn handle_gen_command(
         String::from(preset_str),
         git_info.user_name,
         git_info.user_email,
-        generate_message,
-        perform_commit,
-        rx,
+        service,
     )?;
 
     Ok(())

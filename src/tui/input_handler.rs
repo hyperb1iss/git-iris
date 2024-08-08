@@ -97,7 +97,7 @@ fn handle_normal_mode(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
             app.state.spinner = Some(SpinnerState::new());
 
             // Perform the commit
-            match (app.perform_commit)(&commit_message) {
+            match app.perform_commit(&commit_message) {
                 Ok(()) => {
                     app.state.set_status(String::from("Commit successful!"));
                     InputResult::Exit // Exit the TUI after successful commit
