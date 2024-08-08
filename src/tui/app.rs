@@ -159,9 +159,6 @@ impl TuiCommit {
                     self.state.last_spinner_update = std::time::Instant::now(); // Reset the update time
                 }
             }
-
-            // Sleep briefly to avoid a tight loop and high CPU usage
-            tokio::time::sleep(Duration::from_millis(50)).await;
         }
 
         Ok(())

@@ -118,34 +118,38 @@ fn draw_user_info(f: &mut Frame, state: &TuiState, area: Rect) {
     f.render_widget(user_info, area);
 }
 
-fn draw_commit_message(f: &mut Frame, state: &TuiState, area: Rect) {
-    let message_title = format!(
-        "✦ Commit Message ({}/{})",
-        state.current_index + 1,
-        state.messages.len()
-    );
+fn draw_commit_message(f: &mut Frame, state: &mut TuiState, area: Rect) {
     let message_block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(CELESTIAL_BLUE))
         .title(Span::styled(
-            message_title,
+            format!(
+                "✦ Commit Message ({}/{})",
+                state.current_index + 1,
+                state.messages.len()
+            ),
             Style::default()
                 .fg(GALAXY_PINK)
                 .add_modifier(Modifier::BOLD),
         ));
 
-    let message_content = if state.mode == Mode::EditingMessage {
-        state.message_textarea.lines().join("\n")
-    } else {
-        format_commit_message(&state.messages[state.current_index])
-    };
-
-    let message = Paragraph::new(message_content)
-        .block(message_block)
-        .style(Style::default().fg(SOLAR_YELLOW))
-        .wrap(Wrap { trim: true });
-
-    f.render_widget(message, area);
+    match state.mode {
+        Mode::EditingMessage => {
+            state.message_textarea.set_block(message_block);
+            state
+                .message_textarea
+                .set_style(Style::default().fg(SOLAR_YELLOW));
+            f.render_widget(&state.message_textarea, area);
+        }
+        _ => {
+            let message_content = format_commit_message(&state.messages[state.current_index]);
+            let message = Paragraph::new(message_content)
+                .block(message_block)
+                .style(Style::default().fg(SOLAR_YELLOW))
+                .wrap(Wrap { trim: true });
+            f.render_widget(message, area);
+        }
+    }
 }
 
 fn draw_instructions(f: &mut Frame, state: &mut TuiState, area: Rect) {
