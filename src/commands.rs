@@ -9,7 +9,7 @@ use crate::log_debug;
 use crate::prompt;
 use crate::ui;
 use anyhow::{anyhow, Error, Result};
-use clap::{crate_name, crate_version};
+//use clap::{crate_name, crate_version};
 use colored::*;
 use serde_json::from_str;
 use std::collections::HashMap;

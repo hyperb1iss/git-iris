@@ -1,10 +1,12 @@
-use crate::context::{GeneratedMessage, format_commit_message};
+use crate::context::{format_commit_message, GeneratedMessage};
 use crate::gitmoji::get_gitmoji_list;
 use crate::instruction_presets::{get_instruction_preset_library, list_presets_formatted};
-use crate::messages::get_random_message;
+//use crate::log_debug;
+use crate::messages::{get_random_message, ColoredMessage};
+use crate::ui::*;
 use anyhow::{Error, Result};
 use ratatui::crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -21,17 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
-
-// Cosmic color palette
-const STARLIGHT: Color = Color::Rgb(255, 255, 240);
-const NEBULA_PURPLE: Color = Color::Rgb(167, 132, 239);
-const CELESTIAL_BLUE: Color = Color::Rgb(75, 115, 235);
-const SOLAR_YELLOW: Color = Color::Rgb(255, 225, 100);
-const AURORA_GREEN: Color = Color::Rgb(140, 255, 170);
-const PLASMA_CYAN: Color = Color::Rgb(20, 255, 255);
-const METEOR_RED: Color = Color::Rgb(255, 89, 70);
-const GALAXY_PINK: Color = Color::Rgb(255, 162, 213);
-const COMET_ORANGE: Color = Color::Rgb(255, 165, 0);
+use unicode_width::UnicodeWidthStr;
 
 #[derive(PartialEq)]
 enum Mode {
@@ -49,24 +41,32 @@ enum UserInfoFocus {
     Name,
     Email,
 }
-
 struct SpinnerState {
     frames: Vec<char>,
     current_frame: usize,
+    message: ColoredMessage,
 }
 
 impl SpinnerState {
     fn new() -> Self {
         Self {
-            frames: vec!['◐', '◓', '◑', '◒'],
+            frames: vec!['✦', '✧', '✶', '✷', '✸', '✹', '✺', '✻', '✼', '✽'],
             current_frame: 0,
+            message: get_random_message(),
         }
     }
 
-    fn next_frame(&mut self) -> char {
+    fn tick(&mut self) -> (String, String, Color, usize) {
         let frame = self.frames[self.current_frame];
         self.current_frame = (self.current_frame + 1) % self.frames.len();
-        frame
+        let spinner_with_space = format!("{} ", frame); // Add space after spinner
+        let width = spinner_with_space.width() + self.message.text.width();
+        (
+            spinner_with_space,
+            self.message.text.clone(),
+            self.message.color,
+            width,
+        )
     }
 }
 
@@ -89,7 +89,7 @@ pub struct TuiCommit {
     user_name_textarea: TextArea<'static>,
     user_email_textarea: TextArea<'static>,
     user_info_focus: UserInfoFocus,
-    spinner_state: SpinnerState,
+    spinner: Option<SpinnerState>,
     generate_message: Arc<dyn Fn() + Send + Sync>,
     perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
     message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
@@ -176,7 +176,7 @@ impl TuiCommit {
             user_name_textarea,
             user_email_textarea,
             user_info_focus: UserInfoFocus::Name,
-            spinner_state: SpinnerState::new(),
+            spinner: None,
             generate_message,
             perform_commit,
             message_receiver,
@@ -219,11 +219,11 @@ impl TuiCommit {
                             self.current_index = self.messages.len() - 1;
                             self.update_message_textarea();
                             self.mode = Mode::Normal;
-                            self.status = String::from("New message generated successfully!");
+                            self.set_status(String::from("New message generated successfully!"));
                         }
                         Err(e) => {
                             self.mode = Mode::Normal;
-                            self.status = format!("Failed to generate new message: {}", e);
+                            self.set_status(format!("Failed to generate new message: {}", e));
                         }
                     },
                     Err(mpsc::error::TryRecvError::Empty) => {}
@@ -253,6 +253,7 @@ impl TuiCommit {
                             if key.code == KeyCode::Esc {
                                 self.mode = Mode::Normal;
                                 self.status = String::from("Message generation cancelled.");
+                                self.spinner.take(); // Remove the spinner
                             }
                         }
                     }
@@ -272,6 +273,11 @@ impl TuiCommit {
                 }
             }
         }
+    }
+
+    fn set_status(&mut self, new_status: String) {
+        self.status = new_status;
+        self.spinner = None; // Clear the spinner when setting a new status
     }
 
     fn update_message_textarea(&mut self) {
@@ -310,7 +316,7 @@ impl TuiCommit {
             }
             KeyCode::Char('r') => {
                 self.mode = Mode::Generating;
-                self.status = String::from("Generating new message...");
+                self.spinner = Some(SpinnerState::new());
                 (self.generate_message)();
             }
             KeyCode::Left => {
@@ -501,11 +507,6 @@ impl TuiCommit {
         }
     }
 
-    fn handle_generating_mode(&mut self) {
-        self.status = String::from("Generating new message...");
-        (self.generate_message)();
-    }
-
     fn ui(&mut self, f: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -673,17 +674,32 @@ impl TuiCommit {
         f.render_widget(emoji_preset, chunks[5]);
 
         // Status
-        let status = if self.mode == Mode::Generating {
-            let spinner_frame = self.spinner_state.next_frame();
-            let random_message = get_random_message();
-            format!("{} {}", spinner_frame, random_message)
-        } else {
-            self.status.clone()
-        };
+        let (spinner_with_space, status_content, color, content_width) =
+            if let Some(spinner) = &mut self.spinner {
+                spinner.tick()
+            } else {
+                (
+                    "  ".to_string(),
+                    self.status.clone(),
+                    AURORA_GREEN,
+                    self.status.width() + 2,
+                )
+            };
 
-        let status_widget = Paragraph::new(status)
-            .style(Style::default().fg(AURORA_GREEN))
-            .alignment(ratatui::layout::Alignment::Center);
+        let terminal_width = f.size().width as usize;
+        let left_padding = (terminal_width - content_width) / 2;
+        let right_padding = terminal_width - content_width - left_padding;
+
+        let status_line = Line::from(vec![
+            Span::raw(" ".repeat(left_padding)),
+            Span::styled(spinner_with_space, Style::default().fg(PLASMA_CYAN)),
+            Span::styled(status_content, Style::default().fg(color)),
+            Span::raw(" ".repeat(right_padding)),
+        ]);
+
+        let status_widget =
+            Paragraph::new(vec![status_line]).alignment(ratatui::layout::Alignment::Left);
+        f.render_widget(Clear, chunks[6]); // Clear the entire status line
         f.render_widget(status_widget, chunks[6]);
 
         if self.mode == Mode::SelectingEmoji {

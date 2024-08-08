@@ -2,6 +2,18 @@ use colored::*;
 use console::Term;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
+use ratatui::style::Color;
+
+pub const STARLIGHT: Color = Color::Rgb(255, 255, 240);
+pub const NEBULA_PURPLE: Color = Color::Rgb(167, 132, 239);
+pub const CELESTIAL_BLUE: Color = Color::Rgb(75, 115, 235);
+pub const SOLAR_YELLOW: Color = Color::Rgb(255, 225, 100);
+pub const AURORA_GREEN: Color = Color::Rgb(140, 255, 170);
+pub const PLASMA_CYAN: Color = Color::Rgb(20, 255, 255);
+pub const METEOR_RED: Color = Color::Rgb(255, 89, 70);
+pub const GALAXY_PINK: Color = Color::Rgb(255, 162, 213);
+pub const COMET_ORANGE: Color = Color::Rgb(255, 165, 0);
+pub const BLACK_HOLE: Color = Color::Rgb(0, 0, 0);
 
 pub fn create_spinner(message: &str) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
@@ -97,3 +109,4 @@ pub fn write_colored_text(term: &mut Term, text: &str, color: (u8, u8, u8)) -> s
 pub fn write_bold_text(term: &mut Term, text: &str) -> std::io::Result<()> {
     term.write_line(&text.bold())
 }
+
