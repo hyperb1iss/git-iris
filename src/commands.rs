@@ -1,6 +1,6 @@
 use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use crate::config::Config;
-use crate::context::{GeneratedMessage, format_commit_message};
+use crate::context::{format_commit_message, GeneratedMessage};
 use crate::git::{commit, get_git_info};
 use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm::get_refined_message;
@@ -27,7 +27,7 @@ pub async fn handle_gen_command(
     use_gitmoji: bool,
     provider: Option<String>,
     auto_commit: bool,
-    custom_instructions: Option<String>,
+    instructions: Option<String>,
     preset: Option<String>,
     print: bool,
 ) -> Result<()> {
@@ -75,20 +75,20 @@ pub async fn handle_gen_command(
 
     let use_gitmoji = use_gitmoji && config.use_gitmoji;
 
-    let combined_instructions =
-        prompt::get_combined_instructions(&config, custom_instructions, preset);
-
+    let effective_instructions = instructions.unwrap_or_else(|| config.instructions.clone());
+    let preset_str = preset.as_deref().unwrap_or("");
     let (tx, mut rx) = mpsc::channel(1);
 
     let generate_message = {
         let config = config.clone();
         let provider_type = provider_type.clone();
         let git_info = git_info.clone();
-        let combined_instructions = combined_instructions.clone();
         let tx = tx.clone();
-        Arc::new(move || {
-            let tx = tx.clone(); // Clone tx here
+        Arc::new(move |preset: &str, instructions: &str| {
+            let tx = tx.clone();
             log_debug!("Generating message with LLM");
+            let combined_instructions =
+                prompt::get_combined_instructions(&config, Some(instructions), Some(preset));
             let system_prompt = prompt::create_system_prompt(use_gitmoji, &combined_instructions);
             let user_prompt = match prompt::create_user_prompt(&git_info) {
                 Ok(prompt) => prompt,
@@ -100,7 +100,6 @@ pub async fn handle_gen_command(
 
             let config = config.clone();
             let provider_type = provider_type.clone();
-            let combined_instructions = combined_instructions.clone();
 
             tokio::spawn(async move {
                 let result = get_refined_message(
@@ -114,16 +113,14 @@ pub async fn handle_gen_command(
 
                 log_debug!("LLM message generation result: {:?}", result);
                 match result {
-                    Ok(message_str) => {
-                        match from_str::<GeneratedMessage>(&message_str) {
-                            Ok(message) => {
-                                let _ = tx.send(Ok(message)).await;
-                            }
-                            Err(e) => {
-                                let _ = tx.send(Err(anyhow::Error::from(e))).await;
-                            }
+                    Ok(message_str) => match from_str::<GeneratedMessage>(&message_str) {
+                        Ok(message) => {
+                            let _ = tx.send(Ok(message)).await;
                         }
-                    }
+                        Err(e) => {
+                            let _ = tx.send(Err(anyhow::Error::from(e))).await;
+                        }
+                    },
                     Err(e) => {
                         let _ = tx.send(Err(e)).await;
                     }
@@ -133,14 +130,15 @@ pub async fn handle_gen_command(
     };
 
     // Generate an initial message
-    generate_message();
+    generate_message(preset_str, &effective_instructions);
     let initial_message = rx
         .recv()
         .await
         .ok_or_else(|| anyhow!("Failed to receive message"))??;
 
+    let current_dir_clone = current_dir.clone();
     let perform_commit =
-        Arc::new(move |message: &str| -> Result<(), Error> { commit(&current_dir, message) });
+        Arc::new(move |message: &str| -> Result<(), Error> { commit(&current_dir_clone, message) });
 
     if print {
         println!("{}", format_commit_message(&initial_message));
@@ -149,13 +147,17 @@ pub async fn handle_gen_command(
 
     if auto_commit {
         perform_commit(&format_commit_message(&initial_message))?;
-        println!("Commit created with message: {}", format_commit_message(&initial_message));
+        println!(
+            "Commit created with message: {}",
+            format_commit_message(&initial_message)
+        );
         return Ok(());
     }
 
     run_tui_commit(
         vec![initial_message],
-        combined_instructions,
+        effective_instructions,
+        String::from(preset_str),
         git_info.user_name,
         git_info.user_email,
         generate_message,

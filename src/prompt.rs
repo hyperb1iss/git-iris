@@ -173,22 +173,24 @@ pub fn process_commit_message(message: String, use_gitmoji: bool) -> String {
 
 pub fn get_combined_instructions(
     config: &Config,
-    custom_instructions: Option<String>,
-    preset: Option<String>,
+    custom_instructions: Option<&str>,
+    preset: Option<&str>,
 ) -> String {
     let preset_library = get_instruction_preset_library();
-    let preset_key = preset.unwrap_or_else(|| config.instruction_preset.clone());
+    let preset_key = preset.unwrap_or(&config.instruction_preset);
     let preset_instructions = preset_library
-        .get_preset(&preset_key)
+        .get_preset(preset_key)
         .map(|p| p.instructions.clone())
         .unwrap_or_default();
 
-    let custom_instructions = custom_instructions.unwrap_or_else(|| config.instructions.clone());
+    let effective_custom_instructions = custom_instructions
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| config.instructions.clone());
 
     format!(
         "{}\n\n{}",
         preset_instructions.trim(),
-        custom_instructions.trim()
+        effective_custom_instructions.trim()
     )
     .trim()
     .to_string()

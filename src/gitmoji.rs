@@ -65,7 +65,7 @@ pub fn get_gitmoji_list() -> String {
 
     let mut emoji_list = entries
         .iter()
-        .map(|(key, (emoji, description))| format!("{} {}", emoji, description))
+        .map(|(_key, (emoji, description))| format!("{} {}", emoji, description))
         .collect::<Vec<String>>();
 
     // Add "No Emoji" option as the first item

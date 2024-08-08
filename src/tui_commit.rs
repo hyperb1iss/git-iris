@@ -3,7 +3,7 @@ use crate::gitmoji::get_gitmoji_list;
 use crate::instruction_presets::{get_instruction_preset_library, list_presets_formatted};
 //use crate::log_debug;
 use crate::messages::{get_random_message, ColoredMessage};
-use crate::ui::*;
+use crate::{log_debug, ui::*};
 use anyhow::{Error, Result};
 use ratatui::crossterm::{
     event::{self, Event, KeyCode, KeyEvent},
@@ -90,7 +90,7 @@ pub struct TuiCommit {
     user_email_textarea: TextArea<'static>,
     user_info_focus: UserInfoFocus,
     spinner: Option<SpinnerState>,
-    generate_message: Arc<dyn Fn() + Send + Sync>,
+    generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
     perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
     message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
 }
@@ -99,9 +99,10 @@ impl TuiCommit {
     pub fn new(
         initial_messages: Vec<GeneratedMessage>,
         custom_instructions: String,
+        preset: String,
         user_name: String,
         user_email: String,
-        generate_message: Arc<dyn Fn() + Send + Sync>,
+        generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
         perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
         message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
     ) -> Self {
@@ -163,7 +164,7 @@ impl TuiCommit {
             custom_instructions,
             status: String::from("🌌 Cosmic energies aligning. Press 'Esc' to exit."),
             selected_emoji: String::from("✨"),
-            selected_preset: String::from("default"),
+            selected_preset: preset,
             mode: Mode::Normal,
             message_textarea,
             instructions_textarea,
@@ -316,8 +317,12 @@ impl TuiCommit {
             }
             KeyCode::Char('r') => {
                 self.mode = Mode::Generating;
-                self.spinner = Some(SpinnerState::new());
-                (self.generate_message)();
+                log_debug!(
+                    ">>> Generating new message: instructions={} preset={}",
+                    self.custom_instructions,
+                    self.selected_preset
+                );
+                self.handle_regenerate();
             }
             KeyCode::Left => {
                 if self.current_index > 0 {
@@ -410,6 +415,8 @@ impl TuiCommit {
                 self.mode = Mode::Normal;
                 self.custom_instructions = self.instructions_textarea.lines().join("\n");
                 self.status = String::from("Instructions updated.");
+                // Regenerate message with new instructions
+                self.handle_regenerate();
             }
             _ => {
                 self.instructions_textarea.input(key);
@@ -459,6 +466,12 @@ impl TuiCommit {
         }
     }
 
+    fn handle_regenerate(&mut self) {
+        self.mode = Mode::Generating;
+        self.spinner = Some(SpinnerState::new());
+        (self.generate_message)(&self.selected_preset, &self.custom_instructions);
+    }
+
     fn handle_selecting_preset(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -473,6 +486,8 @@ impl TuiCommit {
                         "Preset selected: {}",
                         self.get_selected_preset_name_with_emoji()
                     );
+                    // Regenerate message with new preset
+                    self.handle_regenerate();
                 }
             }
             KeyCode::Up => {
@@ -517,7 +532,7 @@ impl TuiCommit {
                     Constraint::Length(2), // Navigation bar
                     Constraint::Length(2), // User info
                     Constraint::Min(5),    // Commit message
-                    Constraint::Length(5), // Instructions
+                    Constraint::Length(8), // Instructions
                     Constraint::Length(3), // Emoji and Preset
                     Constraint::Length(1), // Status
                 ]
@@ -629,11 +644,12 @@ impl TuiCommit {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(CELESTIAL_BLUE))
             .title(Span::styled(
-                "✧ Instructions",
+                "✧ Custom Instructions",
                 Style::default()
                     .fg(GALAXY_PINK)
                     .add_modifier(Modifier::BOLD),
             ));
+
         match self.mode {
             Mode::EditingInstructions => {
                 self.instructions_textarea.set_block(instructions_block);
@@ -870,15 +886,17 @@ impl TuiCommit {
 pub fn run_tui_commit(
     initial_messages: Vec<GeneratedMessage>,
     custom_instructions: String,
+    selected_preset: String,
     user_name: String,
     user_email: String,
-    generate_message: Arc<dyn Fn() + Send + Sync>,
+    generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
     perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
     message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
 ) -> Result<()> {
     let mut app = TuiCommit::new(
         initial_messages,
         custom_instructions,
+        selected_preset,
         user_name,
         user_email,
         generate_message,
