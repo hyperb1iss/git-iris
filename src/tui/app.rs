@@ -87,7 +87,11 @@ impl TuiCommit {
         let mut task_spawned = false;
 
         loop {
-            terminal.draw(|f| draw_ui(f, &mut self.state))?;
+            // Redraw only if dirty
+            if self.state.dirty {
+                terminal.draw(|f| draw_ui(f, &mut self.state))?;
+                self.state.dirty = false; // Reset dirty flag after redraw
+            }
 
             // Spawn the task only once when entering the Generating mode
             if self.state.mode == Mode::Generating && !task_spawned {
@@ -136,19 +140,23 @@ impl TuiCommit {
             }
 
             // Poll for input events
-            if event::poll(Duration::from_millis(100))? {
+            if event::poll(Duration::from_millis(20))? {
                 if let Event::Key(key) = event::read()? {
                     match handle_input(self, key) {
                         InputResult::Exit => break,
-                        InputResult::Continue => {}
+                        InputResult::Continue => self.state.dirty = true, // Mark dirty on input
                     }
                 }
             }
 
             // Update the spinner state and redraw if in generating mode
             if self.state.mode == Mode::Generating {
-                if let Some(spinner) = &mut self.state.spinner {
-                    spinner.tick();
+                if self.state.last_spinner_update.elapsed() >= Duration::from_millis(100) {
+                    if let Some(spinner) = &mut self.state.spinner {
+                        spinner.tick();
+                        self.state.dirty = true; // Mark dirty to trigger redraw
+                    }
+                    self.state.last_spinner_update = std::time::Instant::now(); // Reset the update time
                 }
             }
 

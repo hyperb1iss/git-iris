@@ -43,6 +43,8 @@ pub struct TuiState {
     pub user_email_textarea: TextArea<'static>,
     pub user_info_focus: UserInfoFocus,
     pub spinner: Option<SpinnerState>,
+    pub dirty: bool, // Used to track if we need to redraw
+    pub last_spinner_update: std::time::Instant,
 }
 
 impl TuiState {
@@ -125,18 +127,22 @@ impl TuiState {
             user_email_textarea,
             user_info_focus: UserInfoFocus::Name,
             spinner: None,
+            dirty: true,
+            last_spinner_update: std::time::Instant::now(),
         }
     }
 
     pub fn set_status(&mut self, new_status: String) {
         self.status = new_status;
         self.spinner = None;
+        self.dirty = true;
     }
 
     pub fn update_message_textarea(&mut self) {
         let mut new_textarea = TextArea::default();
         new_textarea.insert_str(&format_commit_message(&self.messages[self.current_index]));
         self.message_textarea = new_textarea;
+        self.dirty = true;
     }
 
     pub fn get_selected_preset_name_with_emoji(&self) -> String {

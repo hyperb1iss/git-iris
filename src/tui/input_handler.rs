@@ -6,8 +6,16 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle_input(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
     match app.state.mode {
-        Mode::Normal => handle_normal_mode(app, key),
-        Mode::EditingMessage => handle_editing_message(app, key),
+        Mode::Normal => {
+            let result = handle_normal_mode(app, key);
+            app.state.dirty = true; // Mark dirty after handling input
+            result
+        }
+        Mode::EditingMessage => {
+            let result = handle_editing_message(app, key);
+            app.state.dirty = true; // Mark dirty after handling input
+            result
+        }
         Mode::EditingInstructions => handle_editing_instructions(app, key),
         Mode::SelectingEmoji => handle_selecting_emoji(app, key),
         Mode::SelectingPreset => handle_selecting_preset(app, key),
