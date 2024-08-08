@@ -1,17 +1,18 @@
 use crate::context::{format_commit_message, GeneratedMessage};
 use anyhow::{Error, Result};
+use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::{
     event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::Terminal;
 use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-use super::input_handler::handle_input;
+use super::input_handler::{handle_input, InputResult};
 use super::spinner::SpinnerState;
 use super::state::{Mode, TuiState};
 use super::ui::draw_ui;
@@ -19,7 +20,7 @@ use super::ui::draw_ui;
 pub struct TuiCommit {
     pub state: TuiState,
     generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
-    perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
+    pub perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
     message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
 }
 
@@ -50,27 +51,50 @@ impl TuiCommit {
         }
     }
 
-    pub fn run(&mut self) -> io::Result<()> {
+    pub fn run(
+        initial_messages: Vec<GeneratedMessage>,
+        custom_instructions: String,
+        selected_preset: String,
+        user_name: String,
+        user_email: String,
+        generate_message: Arc<dyn Fn(&str, &str) + Send + Sync>,
+        perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
+        message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
+    ) -> Result<()> {
+        let mut app = TuiCommit::new(
+            initial_messages,
+            custom_instructions,
+            selected_preset,
+            user_name,
+            user_email,
+            generate_message,
+            perform_commit,
+            message_receiver,
+        );
+        app.run_app().map_err(Error::from)
+    }
+
+    pub fn run_app(&mut self) -> io::Result<()> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen)?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
-        let result = self.run_app(&mut terminal);
+        let result = self.main_loop(&mut terminal);
 
+        // restore terminal
         disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
         terminal.show_cursor()?;
 
-        if let Err(ref err) = result {
-            println!("{:?}", err)
-        }
-
-        result.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        result
     }
 
-    fn run_app(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()> {
+    fn main_loop(
+        &mut self,
+        terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    ) -> io::Result<()> {
         loop {
             terminal.draw(|f| draw_ui(f, &mut self.state))?;
 
@@ -93,33 +117,25 @@ impl TuiCommit {
                     },
                     Err(mpsc::error::TryRecvError::Empty) => {}
                     Err(mpsc::error::TryRecvError::Disconnected) => {
-                        return Err(anyhow::anyhow!("Message channel disconnected"));
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Message channel disconnected",
+                        ));
                     }
                 }
             }
 
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
-                    if key.code == KeyCode::Esc && self.state.mode == Mode::Normal {
-                        return Ok(());
-                    }
-                    handle_input(self, key);
-                }
-            }
-
-            if self.state.mode == Mode::Normal && self.state.status == "Committing..." {
-                let commit_message =
-                    format_commit_message(&self.state.messages[self.state.current_index]);
-                match (self.perform_commit)(&commit_message) {
-                    Ok(()) => {
-                        self.state.set_status(String::from("Commit successful!"));
-                    }
-                    Err(e) => {
-                        self.state.set_status(format!("Commit failed: {}", e));
+                    match handle_input(self, key) {
+                        InputResult::Exit => break,
+                        InputResult::Continue => {}
                     }
                 }
             }
         }
+
+        Ok(())
     }
 
     pub fn handle_regenerate(&mut self) {
@@ -139,7 +155,7 @@ pub fn run_tui_commit(
     perform_commit: Arc<dyn Fn(&str) -> Result<(), Error> + Send + Sync>,
     message_receiver: mpsc::Receiver<Result<GeneratedMessage, Error>>,
 ) -> Result<()> {
-    let mut app = TuiCommit::new(
+    TuiCommit::run(
         initial_messages,
         custom_instructions,
         selected_preset,
@@ -148,6 +164,5 @@ pub fn run_tui_commit(
         generate_message,
         perform_commit,
         message_receiver,
-    );
-    app.run().map_err(Error::from)
+    )
 }
