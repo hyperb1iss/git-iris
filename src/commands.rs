@@ -18,7 +18,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-use crate::tui_commit::run_tui_commit;
+use crate::tui::run_tui_commit;
 
 use unicode_width::UnicodeWidthStr;
 
