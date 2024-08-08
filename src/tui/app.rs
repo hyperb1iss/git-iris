@@ -1,4 +1,4 @@
-use crate::context::{format_commit_message, GeneratedMessage};
+use crate::context::GeneratedMessage;
 use crate::service::GitIrisService;
 use anyhow::{Error, Result};
 use ratatui::backend::CrosstermBackend;

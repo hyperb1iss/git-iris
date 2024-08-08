@@ -1,13 +1,12 @@
 use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
 use crate::config::Config;
-use crate::context::{format_commit_message, GeneratedMessage};
-use crate::git::get_git_info;
+use crate::context::format_commit_message;
 use crate::instruction_presets::get_instruction_preset_library;
-use crate::llm_providers::{get_available_providers, get_provider_metadata, LLMProviderType};
+use crate::llm_providers::{get_available_providers, LLMProviderType};
 use crate::log_debug;
 use crate::service::GitIrisService;
-use crate::ui;
 use crate::tui::run_tui_commit;
+use crate::ui;
 use anyhow::{anyhow, Result};
 use colored::*;
 use std::collections::HashMap;
@@ -65,7 +64,9 @@ pub async fn handle_gen_command(
     let preset_str = preset.as_deref().unwrap_or("");
 
     // Generate an initial message
-    let initial_message = service.generate_message(preset_str, &effective_instructions).await?;
+    let initial_message = service
+        .generate_message(preset_str, &effective_instructions)
+        .await?;
 
     if print {
         println!("{}", format_commit_message(&initial_message));
@@ -88,7 +89,8 @@ pub async fn handle_gen_command(
         git_info.user_name,
         git_info.user_email,
         service,
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }

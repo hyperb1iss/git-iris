@@ -1,10 +1,9 @@
+use anyhow::{Error, Result};
 use std::path::PathBuf;
-use std::sync::Arc;
 use tokio::sync::mpsc;
-use anyhow::{Result, Error};
 
 use crate::config::Config;
-use crate::context::{GeneratedMessage, CommitContext};
+use crate::context::{CommitContext, GeneratedMessage};
 use crate::git;
 use crate::llm;
 use crate::llm_providers::LLMProviderType;
@@ -18,7 +17,12 @@ pub struct GitIrisService {
 }
 
 impl GitIrisService {
-    pub fn new(config: Config, repo_path: PathBuf, provider_type: LLMProviderType, use_gitmoji: bool) -> Self {
+    pub fn new(
+        config: Config,
+        repo_path: PathBuf,
+        provider_type: LLMProviderType,
+        use_gitmoji: bool,
+    ) -> Self {
         Self {
             config,
             repo_path,
@@ -35,9 +39,14 @@ impl GitIrisService {
         git::get_git_info(&self.repo_path, &self.config)
     }
 
-    pub async fn generate_message(&self, preset: &str, instructions: &str) -> Result<GeneratedMessage> {
+    pub async fn generate_message(
+        &self,
+        preset: &str,
+        instructions: &str,
+    ) -> Result<GeneratedMessage> {
         let git_info = self.get_git_info()?;
-        let combined_instructions = prompt::get_combined_instructions(&self.config, Some(instructions), Some(preset));
+        let combined_instructions =
+            prompt::get_combined_instructions(&self.config, Some(instructions), Some(preset));
         let system_prompt = prompt::create_system_prompt(self.use_gitmoji, &combined_instructions);
         let user_prompt = prompt::create_user_prompt(&git_info)?;
 
@@ -47,7 +56,8 @@ impl GitIrisService {
             &system_prompt,
             &user_prompt,
             Some(&combined_instructions),
-        ).await?;
+        )
+        .await?;
 
         serde_json::from_str(&message_str).map_err(Error::from)
     }
@@ -56,7 +66,12 @@ impl GitIrisService {
         git::commit(&self.repo_path, message)
     }
 
-    pub fn create_message_channel(&self) -> (mpsc::Sender<Result<GeneratedMessage>>, mpsc::Receiver<Result<GeneratedMessage>>) {
+    pub fn create_message_channel(
+        &self,
+    ) -> (
+        mpsc::Sender<Result<GeneratedMessage>>,
+        mpsc::Receiver<Result<GeneratedMessage>>,
+    ) {
         mpsc::channel(1)
     }
 }

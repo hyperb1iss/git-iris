@@ -245,7 +245,7 @@ pub async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Some(command) => handle_command(command).await?,
-        None => {
+        _none => {
             // If no subcommand is provided, print the help
             let _ = Cli::parse_from(&["git-iris", "--help"]);
         }

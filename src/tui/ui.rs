@@ -26,7 +26,7 @@ pub fn draw_ui(f: &mut Frame, state: &mut TuiState) {
             ]
             .as_ref(),
         )
-        .split(f.size());
+        .split(f.area());
 
     draw_title(f, chunks[0]);
     draw_nav_bar(f, chunks[1]);
@@ -214,7 +214,7 @@ fn draw_status(f: &mut Frame, state: &mut TuiState, area: Rect) {
             )
         };
 
-    let terminal_width = f.size().width as usize;
+    let terminal_width = f.area().width as usize;
     let left_padding = (terminal_width - content_width) / 2;
     let right_padding = terminal_width - content_width - left_padding;
 
@@ -242,7 +242,7 @@ fn draw_emoji_popup(f: &mut Frame, state: &mut TuiState) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(NEBULA_PURPLE));
 
-    let area = f.size();
+    let area = f.area();
     let popup_area = Rect::new(
         area.x + 10,
         area.y + 5,
@@ -283,7 +283,7 @@ fn draw_preset_popup(f: &mut Frame, state: &mut TuiState) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(NEBULA_PURPLE));
 
-    let area = f.size();
+    let area = f.area();
     let popup_area = Rect::new(
         area.x + 5,
         area.y + 5,
@@ -326,7 +326,7 @@ fn draw_user_info_popup(f: &mut Frame, state: &mut TuiState) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(NEBULA_PURPLE));
 
-    let area = f.size();
+    let area = f.area();
     let popup_area = Rect::new(
         area.x + 10,
         area.y + 5,
