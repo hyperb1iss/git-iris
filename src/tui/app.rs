@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use super::input_handler::{handle_input, InputResult};
 use super::spinner::SpinnerState;
-use super::state::{Mode, TuiState};
+use super::state::{EmojiMode, Mode, TuiState};
 use super::ui::draw_ui;
 
 pub struct TuiCommit {
@@ -31,6 +31,7 @@ impl TuiCommit {
         user_name: String,
         user_email: String,
         service: Arc<GitIrisService>,
+        use_gitmoji: bool,
     ) -> Self {
         let state = TuiState::new(
             initial_messages,
@@ -38,6 +39,7 @@ impl TuiCommit {
             preset,
             user_name,
             user_email,
+            use_gitmoji,
         );
 
         TuiCommit { state, service }
@@ -50,6 +52,7 @@ impl TuiCommit {
         user_name: String,
         user_email: String,
         service: Arc<GitIrisService>,
+        use_gitmoji: bool,
     ) -> Result<()> {
         let mut app = TuiCommit::new(
             initial_messages,
@@ -58,6 +61,7 @@ impl TuiCommit {
             user_name,
             user_email,
             service,
+            use_gitmoji,
         );
         app.run_app().await.map_err(Error::from)
     }
@@ -113,8 +117,20 @@ impl TuiCommit {
             match rx.try_recv() {
                 Ok(result) => match result {
                     Ok(new_message) => {
+                        let current_emoji_mode = self.state.emoji_mode.clone();
                         self.state.messages.push(new_message);
                         self.state.current_index = self.state.messages.len() - 1;
+
+                        // Apply the current emoji mode to the new message
+                        if let Some(message) = self.state.messages.last_mut() {
+                            match &current_emoji_mode {
+                                EmojiMode::None => message.emoji = None,
+                                EmojiMode::Auto => {} // Keep the LLM-generated emoji
+                                EmojiMode::Custom(emoji) => message.emoji = Some(emoji.clone()),
+                            }
+                        }
+                        self.state.emoji_mode = current_emoji_mode;
+
                         self.state.update_message_textarea();
                         self.state.mode = Mode::Normal; // Exit Generating mode
                         self.state.spinner = None; // Stop the spinner
@@ -181,6 +197,7 @@ pub async fn run_tui_commit(
     user_name: String,
     user_email: String,
     service: Arc<GitIrisService>,
+    use_gitmoji: bool,
 ) -> Result<()> {
     TuiCommit::run(
         initial_messages,
@@ -189,6 +206,7 @@ pub async fn run_tui_commit(
         user_name,
         user_email,
         service,
+        use_gitmoji,
     )
     .await
 }

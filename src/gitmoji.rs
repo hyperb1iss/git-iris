@@ -63,13 +63,10 @@ pub fn get_gitmoji_list() -> String {
     let mut entries: Vec<_> = GITMOJI_MAP.iter().collect();
     entries.sort_by_key(|(key, _)| *key);
 
-    let mut emoji_list = entries
+    let emoji_list = entries
         .iter()
         .map(|(_key, (emoji, description))| format!("{} {}", emoji, description))
         .collect::<Vec<String>>();
-
-    // Add "No Emoji" option as the first item
-    emoji_list.insert(0, "No Emoji".to_string());
 
     emoji_list.join("\n")
 }

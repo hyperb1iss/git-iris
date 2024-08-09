@@ -23,12 +23,19 @@ pub enum UserInfoFocus {
     Email,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum EmojiMode {
+    None,
+    Auto,
+    Custom(String),
+}
+
 pub struct TuiState {
     pub messages: Vec<GeneratedMessage>,
     pub current_index: usize,
     pub custom_instructions: String,
     pub status: String,
-    pub selected_emoji: String,
+    pub selected_emoji: Option<String>,
     pub selected_preset: String,
     pub mode: Mode,
     pub message_textarea: TextArea<'static>,
@@ -45,6 +52,7 @@ pub struct TuiState {
     pub spinner: Option<SpinnerState>,
     pub dirty: bool, // Used to track if we need to redraw
     pub last_spinner_update: std::time::Instant,
+    pub emoji_mode: EmojiMode,
 }
 
 impl TuiState {
@@ -54,6 +62,7 @@ impl TuiState {
         preset: String,
         user_name: String,
         user_email: String,
+        use_gitmoji: bool,
     ) -> Self {
         let mut message_textarea = TextArea::default();
         let messages = if initial_messages.is_empty() {
@@ -72,13 +81,14 @@ impl TuiState {
         let mut instructions_textarea = TextArea::default();
         instructions_textarea.insert_str(&custom_instructions);
 
-        let emoji_list: Vec<_> = get_gitmoji_list()
-            .split('\n')
-            .map(|line| {
-                let parts: Vec<&str> = line.splitn(2, ' ').collect();
-                (parts[0].to_string(), parts[1].to_string())
-            })
-            .collect();
+        let mut emoji_list = vec![
+            ("None".to_string(), "No emoji".to_string()),
+            ("Auto".to_string(), "Let AI choose".to_string()),
+        ];
+        emoji_list.extend(get_gitmoji_list().split('\n').map(|line| {
+            let parts: Vec<&str> = line.splitn(2, ' ').collect();
+            (parts[0].to_string(), parts[1].to_string())
+        }));
 
         let mut emoji_list_state = ListState::default();
         if !emoji_list.is_empty() {
@@ -112,13 +122,18 @@ impl TuiState {
             current_index: 0,
             custom_instructions,
             status: String::from("🌌 Cosmic energies aligning. Press 'Esc' to exit."),
-            selected_emoji: String::from("✨"),
+            selected_emoji: None,
             selected_preset: preset,
             mode: Mode::Normal,
             message_textarea,
             instructions_textarea,
             emoji_list,
             emoji_list_state,
+            emoji_mode: if use_gitmoji {
+                EmojiMode::Auto
+            } else {
+                EmojiMode::None
+            },
             preset_list,
             preset_list_state,
             user_name,
@@ -139,8 +154,19 @@ impl TuiState {
     }
 
     pub fn update_message_textarea(&mut self) {
+        let current_message = &self.messages[self.current_index];
+        let emoji_prefix = self
+            .get_current_emoji()
+            .map_or(String::new(), |e| format!("{} ", e));
+        let message_content = format!(
+            "{}{}\n\n{}",
+            emoji_prefix,
+            current_message.title,
+            current_message.message.trim()
+        );
+
         let mut new_textarea = TextArea::default();
-        new_textarea.insert_str(&format_commit_message(&self.messages[self.current_index]));
+        new_textarea.insert_str(&message_content);
         self.message_textarea = new_textarea;
         self.dirty = true;
     }
@@ -151,5 +177,19 @@ impl TuiState {
             .find(|(key, _, _, _)| key == &self.selected_preset)
             .map(|(_, emoji, name, _)| format!("{} {}", emoji, name))
             .unwrap_or_else(|| "None".to_string())
+    }
+
+    pub fn get_current_emoji(&self) -> Option<String> {
+        match &self.emoji_mode {
+            EmojiMode::None => None,
+            EmojiMode::Auto => self.messages[self.current_index].emoji.clone(),
+            EmojiMode::Custom(emoji) => Some(emoji.clone()),
+        }
+    }
+
+    pub fn apply_selected_emoji(&mut self) {
+        if let Some(message) = self.messages.get_mut(self.current_index) {
+            message.emoji = self.selected_emoji.clone();
+        }
     }
 }

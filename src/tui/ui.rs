@@ -1,5 +1,4 @@
-use super::state::{Mode, TuiState, UserInfoFocus};
-use crate::context::format_commit_message;
+use super::state::{EmojiMode, Mode, TuiState, UserInfoFocus};
 use crate::ui::*;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -189,7 +188,9 @@ fn draw_commit_message(f: &mut Frame, state: &mut TuiState, area: Rect) {
             f.render_widget(&state.message_textarea, area);
         }
         _ => {
-            let message_content = format_commit_message(&state.messages[state.current_index]);
+            let current_message = &state.messages[state.current_index];
+            let emoji_prefix = state.get_current_emoji().map_or(String::new(), |e| format!("{} ", e));
+            let message_content = format!("{}{}\n\n{}", emoji_prefix, current_message.title, current_message.message);
             let message = Paragraph::new(message_content)
                 .block(message_block)
                 .style(Style::default().fg(SOLAR_YELLOW))
@@ -230,10 +231,15 @@ fn draw_instructions(f: &mut Frame, state: &mut TuiState, area: Rect) {
 
 fn draw_emoji_preset(f: &mut Frame, state: &TuiState, area: Rect) {
     let preset_with_emoji = state.get_selected_preset_name_with_emoji();
+    let emoji_display = match &state.emoji_mode {
+        EmojiMode::None => "None".to_string(),
+        EmojiMode::Auto => "Auto".to_string(),
+        EmojiMode::Custom(emoji) => emoji.clone(),
+    };
     let emoji_preset = Paragraph::new(Line::from(vec![
         Span::styled("Emoji: ", Style::default().fg(NEBULA_PURPLE)),
         Span::styled(
-            &state.selected_emoji,
+            emoji_display,
             Style::default()
                 .fg(SOLAR_YELLOW)
                 .add_modifier(Modifier::BOLD),

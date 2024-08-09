@@ -1,6 +1,6 @@
 use super::app::TuiCommit;
 use super::spinner::SpinnerState;
-use super::state::{Mode, UserInfoFocus};
+use super::state::{EmojiMode, Mode, UserInfoFocus};
 use crate::context::format_commit_message;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
@@ -125,13 +125,37 @@ fn handle_editing_message(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
     match key.code {
         KeyCode::Esc => {
             app.state.mode = Mode::Normal;
-            app.state.messages[app.state.current_index] = crate::context::GeneratedMessage {
-                emoji: Some(app.state.selected_emoji.clone()),
-                title: app.state.message_textarea.lines().join("\n"),
-                message: String::new(),
-            };
+            let edited_content = app.state.message_textarea.lines().join("\n");
+            if let Some(message) = app.state.messages.get_mut(app.state.current_index) {
+                // Split the edited content into title and message
+                let mut lines = edited_content.lines();
+                let title_line = lines.next().unwrap_or("").trim();
+
+                // Extract emoji if present at the start of the title
+                let (emoji, title) = if let Some(first_char) = title_line.chars().next() {
+                    if is_emoji(first_char) {
+                        let (emoji, rest) = title_line.split_at(first_char.len_utf8());
+                        (Some(emoji.to_string()), rest.trim().to_string())
+                    } else {
+                        (None, title_line.to_string())
+                    }
+                } else {
+                    (None, title_line.to_string())
+                };
+
+                // Update message fields
+                message.emoji = emoji;
+                message.title = title;
+
+                // Collect the rest of the lines, skipping any leading empty lines
+                message.message = lines
+                    .skip_while(|line| line.trim().is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("\n");
+            }
             app.state
                 .set_status(String::from("Commit message updated."));
+            app.state.update_message_textarea();
             InputResult::Continue
         }
         _ => {
@@ -167,37 +191,44 @@ fn handle_selecting_emoji(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
         }
         KeyCode::Enter => {
             if let Some(selected) = app.state.emoji_list_state.selected() {
-                if selected < app.state.emoji_list.len() {
-                    let selected_emoji = &app.state.emoji_list[selected];
-                    if selected_emoji.0 == "No Emoji" {
-                        app.state.selected_emoji = String::new();
-                    } else {
-                        app.state.selected_emoji = selected_emoji.0.clone();
-                    }
-                    app.state.mode = Mode::Normal;
-                    app.state
-                        .set_status(format!("Emoji selected: {}", app.state.selected_emoji));
+                let new_emoji_mode = match selected {
+                    0 => EmojiMode::None,
+                    1 => EmojiMode::Auto,
+                    _ => EmojiMode::Custom(app.state.emoji_list[selected].0.clone()),
+                };
+
+                // Apply the selected emoji to the current message
+                if let Some(message) = app.state.messages.get_mut(app.state.current_index) {
+                    message.emoji = match &new_emoji_mode {
+                        EmojiMode::None => None,
+                        EmojiMode::Auto => message.emoji.clone(), // Keep existing emoji
+                        EmojiMode::Custom(emoji) => Some(emoji.clone()),
+                    };
                 }
+
+                app.state.emoji_mode = new_emoji_mode;
+                app.state.mode = Mode::Normal;
+                app.state
+                    .set_status(format!("Emoji mode set to: {:?}", app.state.emoji_mode));
+                app.state.update_message_textarea();
             }
             InputResult::Continue
         }
         KeyCode::Up => {
-            if !app.state.emoji_list.is_empty() {
-                let selected = app.state.emoji_list_state.selected().unwrap_or(0);
-                let new_selected = if selected > 0 {
+            if let Some(selected) = app.state.emoji_list_state.selected() {
+                let new_selection = if selected > 0 {
                     selected - 1
                 } else {
                     app.state.emoji_list.len() - 1
                 };
-                app.state.emoji_list_state.select(Some(new_selected));
+                app.state.emoji_list_state.select(Some(new_selection));
             }
             InputResult::Continue
         }
         KeyCode::Down => {
-            if !app.state.emoji_list.is_empty() {
-                let selected = app.state.emoji_list_state.selected().unwrap_or(0);
-                let new_selected = (selected + 1) % app.state.emoji_list.len();
-                app.state.emoji_list_state.select(Some(new_selected));
+            if let Some(selected) = app.state.emoji_list_state.selected() {
+                let new_selection = (selected + 1) % app.state.emoji_list.len();
+                app.state.emoji_list_state.select(Some(new_selection));
             }
             InputResult::Continue
         }
@@ -295,6 +326,15 @@ fn handle_editing_user_info(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
             InputResult::Continue
         }
     }
+}
+
+fn is_emoji(c: char) -> bool {
+    matches!(c,
+        '\u{1F300}'..='\u{1F5FF}' | '\u{1F900}'..='\u{1F9FF}' |
+        '\u{1F600}'..='\u{1F64F}' | '\u{1FA70}'..='\u{1FAFF}' |
+        '\u{2600}'..='\u{26FF}' | '\u{2700}'..='\u{27BF}' |
+        '\u{1F680}'..='\u{1F6FF}'
+    )
 }
 
 pub enum InputResult {

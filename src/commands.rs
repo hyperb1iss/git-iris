@@ -89,6 +89,7 @@ pub async fn handle_gen_command(
         git_info.user_name,
         git_info.user_email,
         service,
+        config.use_gitmoji,
     )
     .await?;
 
