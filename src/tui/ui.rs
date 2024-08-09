@@ -98,17 +98,13 @@ fn draw_title(f: &mut Frame, area: Rect) {
         .collect();
 
     // Combine prefix emoji, gradient text, and suffix emoji
-    let mut title_line = vec![
-        Span::styled(prefix_emoji, Style::default().fg(STARLIGHT)),
-    ];
+    let mut title_line = vec![Span::styled(prefix_emoji, Style::default().fg(STARLIGHT))];
     title_line.extend(first_half);
     title_line.extend(second_half);
     title_line.push(Span::styled(suffix_emoji, Style::default().fg(STARLIGHT)));
 
     // Create a paragraph with the title text, center-aligned
-    let title_widget = Paragraph::new(Line::from(title_line))
-        .alignment(Alignment::Center)
-        .style(Style::default().bg(BLACK_HOLE));
+    let title_widget = Paragraph::new(Line::from(title_line)).alignment(Alignment::Center);
 
     f.render_widget(title_widget, area);
 }
@@ -189,8 +185,13 @@ fn draw_commit_message(f: &mut Frame, state: &mut TuiState, area: Rect) {
         }
         _ => {
             let current_message = &state.messages[state.current_index];
-            let emoji_prefix = state.get_current_emoji().map_or(String::new(), |e| format!("{} ", e));
-            let message_content = format!("{}{}\n\n{}", emoji_prefix, current_message.title, current_message.message);
+            let emoji_prefix = state
+                .get_current_emoji()
+                .map_or(String::new(), |e| format!("{} ", e));
+            let message_content = format!(
+                "{}{}\n\n{}",
+                emoji_prefix, current_message.title, current_message.message
+            );
             let message = Paragraph::new(message_content)
                 .block(message_block)
                 .style(Style::default().fg(SOLAR_YELLOW))
