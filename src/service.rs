@@ -45,25 +45,31 @@ impl GitIrisService {
         instructions: &str,
     ) -> Result<GeneratedMessage> {
         let git_info = self.get_git_info()?;
-        let combined_instructions =
-            prompt::get_combined_instructions(&self.config, Some(instructions), Some(preset));
-        let system_prompt = prompt::create_system_prompt(self.use_gitmoji, &combined_instructions);
-        let user_prompt = prompt::create_user_prompt(&git_info)?;
 
-        let message_str = llm::get_refined_message(
-            &self.config,
-            &self.provider_type,
-            &system_prompt,
-            &user_prompt,
-            Some(&combined_instructions),
-        )
-        .await?;
+        let mut config_clone = self.config.clone();
+        config_clone.instruction_preset = preset.to_string();
+        config_clone.instructions = instructions.to_string();
 
-        serde_json::from_str(&message_str).map_err(Error::from)
+        let prompt = prompt::create_prompt(&git_info, &config_clone)?;
+
+        let message_str =
+            llm::get_refined_message(&config_clone, &self.provider_type, &prompt, "").await?;
+
+        let mut generated_message: GeneratedMessage =
+            serde_json::from_str(&message_str).map_err(Error::from)?;
+
+        // Apply gitmoji setting
+        if !self.use_gitmoji {
+            generated_message.emoji = None;
+        }
+
+        Ok(generated_message)
     }
 
     pub fn perform_commit(&self, message: &str) -> Result<()> {
-        git::commit(&self.repo_path, message)
+        let processed_message =
+            prompt::process_commit_message(message.to_string(), self.use_gitmoji);
+        git::commit(&self.repo_path, &processed_message)
     }
 
     pub fn create_message_channel(

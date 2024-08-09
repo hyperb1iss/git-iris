@@ -12,7 +12,6 @@ pub async fn get_refined_message(
     provider_type: &LLMProviderType,
     system_prompt: &str,
     user_prompt: &str,
-    custom_instructions: Option<&str>,
 ) -> Result<String> {
     let provider_metadata = get_provider_metadata(provider_type);
 
@@ -32,25 +31,16 @@ pub async fn get_refined_message(
         provider_config.to_llm_provider_config(),
     )?;
 
-    // Append custom instructions to the user prompt if provided
-    let final_system_prompt = match custom_instructions {
-        Some(instructions) => format!(
-            "{}\n\nAdditional instructions: {}",
-            system_prompt, instructions
-        ),
-        None => system_prompt.to_string(),
-    };
-
     log_debug!(
         "Generating refined message using provider: {}",
         provider_type
     );
-    log_debug!("System prompt: {}", final_system_prompt);
+    log_debug!("System prompt: {}", system_prompt);
     log_debug!("User prompt: {}", user_prompt);
 
     // Generate the message using the LLM provider
     let refined_message = llm_provider
-        .generate_message(&final_system_prompt, user_prompt)
+        .generate_message(system_prompt, user_prompt)
         .await?;
 
     log_debug!("Refined message (raw): {}", refined_message);

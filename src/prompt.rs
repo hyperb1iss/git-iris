@@ -9,7 +9,11 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 pub fn create_prompt(context: &CommitContext, config: &Config) -> Result<String> {
-    let system_prompt = create_system_prompt(config.use_gitmoji, &config.instructions);
+    let system_prompt = create_system_prompt(
+        config.use_gitmoji,
+        &config.instruction_preset,
+        &config.instructions,
+    );
     let user_prompt = create_user_prompt(context)?;
 
     let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
@@ -17,10 +21,10 @@ pub fn create_prompt(context: &CommitContext, config: &Config) -> Result<String>
     Ok(full_prompt)
 }
 
-pub fn create_system_prompt(use_gitmoji: bool, combined_instructions: &str) -> String {
+pub fn create_system_prompt(use_gitmoji: bool, preset: &str, custom_instructions: &str) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
-        Your task is to generate clear,concise, and informative commit messages based solely on the provided context. \
+        Your task is to generate clear, concise, and informative commit messages based solely on the provided context. \
         Aim for a tone that is professional, approachable, and authoritative, keeping in mind any additional user instructions.
         
         Work step-by-step and follow these guidelines exactly:
@@ -65,10 +69,18 @@ pub fn create_system_prompt(use_gitmoji: bool, combined_instructions: &str) -> S
         prompt.push_str(&get_gitmoji_list());
     }
 
-    if !combined_instructions.is_empty() {
+    let preset_library = get_instruction_preset_library();
+    if let Some(preset_instructions) = preset_library.get_preset(preset) {
         prompt.push_str(&format!(
-            "\n\nAdditional instructions:\n{}\n\n",
-            combined_instructions
+            "\n\nPreset instructions:\n{}\n\n",
+            preset_instructions.instructions
+        ));
+    }
+
+    if !custom_instructions.is_empty() {
+        prompt.push_str(&format!(
+            "\n\nCustom instructions:\n{}\n\n",
+            custom_instructions
         ));
     }
 

@@ -16,34 +16,33 @@ async fn test_get_refined_message() -> Result<()> {
     let result = get_refined_message(
         &config,
         &LLMProviderType::Test,
-        "System prompt",
+        "System prompt including any custom instructions",
         "User prompt",
-        None,
     )
     .await?;
     assert!(result.contains("Test response from model 'test-model'"));
-    assert!(result.contains("System prompt: 'System prompt'"));
+    assert!(result.contains("System prompt: 'System prompt including any custom instructions'"));
     assert!(result.contains("User prompt: 'User prompt'"));
     Ok(())
 }
 
 #[tokio::test]
-async fn test_get_refined_message_with_custom_instructions() -> Result<()> {
+async fn test_get_refined_message_with_preset_and_custom_instructions() -> Result<()> {
     let mut config = Config::default();
     config.default_provider = "test".to_string();
+    config.instruction_preset = "default".to_string();
+    config.instructions = "Custom instructions".to_string();
 
-    // Call get_refined_message with the test provider and custom instructions
+    // Call get_refined_message with the test provider
     let result = get_refined_message(
         &config,
         &LLMProviderType::Test,
-        "System prompt",
+        "System prompt with preset: default and custom instructions: Custom instructions",
         "User prompt",
-        Some("Custom instruction"),
     )
     .await?;
     assert!(result.contains("Test response from model 'test-model'"));
-    assert!(result.contains("System prompt: 'System prompt"));
-    assert!(result.contains("Additional instructions: Custom instruction"));
+    assert!(result.contains("System prompt: 'System prompt with preset: default and custom instructions: Custom instructions'"));
     assert!(result.contains("User prompt: 'User prompt'"));
     Ok(())
 }

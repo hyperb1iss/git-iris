@@ -37,5 +37,5 @@ pub async fn summarize_readme(
         readme_content
     );
 
-    get_refined_message(config, provider_type, system_prompt, &user_prompt, None).await
+    get_refined_message(config, provider_type, system_prompt, &user_prompt).await
 }

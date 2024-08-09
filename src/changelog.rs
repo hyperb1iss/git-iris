@@ -52,7 +52,7 @@ impl ChangelogGenerator {
             .context("Failed to parse default provider")?;
 
         let changelog =
-            llm::get_refined_message(config, &provider_type, &system_prompt, &user_prompt, None)
+            llm::get_refined_message(config, &provider_type, &system_prompt, &user_prompt)
                 .await
                 .context("Failed to generate changelog")?;
 
@@ -105,7 +105,7 @@ impl ReleaseNotesGenerator {
             .context("Failed to parse default provider")?;
 
         let release_notes =
-            llm::get_refined_message(config, &provider_type, &system_prompt, &user_prompt, None)
+            llm::get_refined_message(config, &provider_type, &system_prompt, &user_prompt)
                 .await
                 .context("Failed to generate release notes summary")?;
 
