@@ -2,13 +2,15 @@ use super::state::{Mode, TuiState, UserInfoFocus};
 use crate::context::format_commit_message;
 use crate::ui::*;
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 use unicode_width::UnicodeWidthStr;
+
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn draw_ui(f: &mut Frame, state: &mut TuiState) {
     let chunks = Layout::default()
@@ -46,24 +48,69 @@ pub fn draw_ui(f: &mut Frame, state: &mut TuiState) {
 }
 
 fn draw_title(f: &mut Frame, area: Rect) {
-    let title = vec![
-        Line::from(Span::styled(
-            "    .  *  .  ✨  .  *  .    ",
-            Style::default().fg(GALAXY_PINK),
-        )),
-        Line::from(vec![
-            Span::styled("  *    ", Style::default().fg(GALAXY_PINK)),
-            Span::styled(
-                "✨🔮 Git-Iris v0.1.0 - Cosmic Commit 🔮✨",
-                Style::default()
-                    .fg(GALAXY_PINK)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled("   * ", Style::default().fg(GALAXY_PINK)),
-        ]),
+    // Define the gradient colors transitioning from purple to cyan
+    let gradient_colors = vec![
+        Color::Rgb(72, 61, 139),   // Dark Slate Blue (Deep space purple)
+        Color::Rgb(93, 63, 211),   // Purple with a hint of blue
+        NEBULA_PURPLE,             // Harmonized Nebula Purple
+        Color::Rgb(139, 69, 255),  // Medium Purple
+        Color::Rgb(171, 130, 255), // Light Purple
+        Color::Rgb(189, 183, 255), // Lavender Blue
     ];
 
-    let title_widget = Paragraph::new(title).alignment(ratatui::layout::Alignment::Center);
+    // Define the title with emojis and text
+    let title_text = format!("Git-Iris v{} - Cosmic Commit", APP_VERSION);
+    let prefix_emoji = "✨🔮 ";
+    let suffix_emoji = " 🔮✨";
+
+    let text_len = title_text.chars().count();
+    let mid_point = text_len / 2;
+
+    // Apply gradient to the first half of the title text
+    let first_half: Vec<Span> = title_text
+        .chars()
+        .take(mid_point)
+        .enumerate()
+        .map(|(i, c)| {
+            let color_index = i * (gradient_colors.len() - 1) / (mid_point - 1);
+            Span::styled(
+                c.to_string(),
+                Style::default()
+                    .fg(gradient_colors[color_index])
+                    .add_modifier(Modifier::BOLD),
+            )
+        })
+        .collect();
+
+    // Apply gradient to the second half of the title text (reverse gradient)
+    let second_half: Vec<Span> = title_text
+        .chars()
+        .skip(mid_point)
+        .enumerate()
+        .map(|(i, c)| {
+            let color_index = i * (gradient_colors.len() - 1) / (text_len - mid_point - 1);
+            Span::styled(
+                c.to_string(),
+                Style::default()
+                    .fg(gradient_colors[gradient_colors.len() - 1 - color_index])
+                    .add_modifier(Modifier::BOLD),
+            )
+        })
+        .collect();
+
+    // Combine prefix emoji, gradient text, and suffix emoji
+    let mut title_line = vec![
+        Span::styled(prefix_emoji, Style::default().fg(STARLIGHT)),
+    ];
+    title_line.extend(first_half);
+    title_line.extend(second_half);
+    title_line.push(Span::styled(suffix_emoji, Style::default().fg(STARLIGHT)));
+
+    // Create a paragraph with the title text, center-aligned
+    let title_widget = Paragraph::new(Line::from(title_line))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(BLACK_HOLE));
+
     f.render_widget(title_widget, area);
 }
 
