@@ -46,7 +46,6 @@ mod tests {
         assert!(list.contains("♻️ - :refactor: - Refactor code"));
         assert!(list.contains("✅ - :test: - Add or update tests"));
         assert!(list.contains("🔨 - :chore: - Other changes that don't modify src or test files"));
-        // Add more assertions for other gitmojis as needed
     }
 
     #[test]

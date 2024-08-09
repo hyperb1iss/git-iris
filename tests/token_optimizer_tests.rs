@@ -44,6 +44,8 @@ fn create_test_context() -> CommitContext {
             test_framework: None,
             plugins: vec![],
         },
+        user_name: "Test User".to_string(),
+        user_email: "test@example.com".to_string(),
     }
 }
 
