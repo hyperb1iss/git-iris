@@ -5,23 +5,9 @@ use crate::instruction_presets::get_instruction_preset_library;
 
 use crate::log_debug;
 use crate::relevance::RelevanceScorer;
-use anyhow::Result;
 use std::collections::HashMap;
 
-pub fn create_prompt(context: &CommitContext, config: &Config) -> Result<String> {
-    let system_prompt = create_system_prompt(
-        config.use_gitmoji,
-        &config.instruction_preset,
-        &config.instructions,
-    );
-    let user_prompt = create_user_prompt(context)?;
-
-    let full_prompt = format!("{}\n\n{}", system_prompt, user_prompt);
-
-    Ok(full_prompt)
-}
-
-pub fn create_system_prompt(use_gitmoji: bool, preset: &str, custom_instructions: &str) -> String {
+pub fn create_system_prompt(config: &Config) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
         Your task is to generate clear, concise, and informative commit messages based solely on the provided context. \
@@ -61,7 +47,7 @@ pub fn create_system_prompt(use_gitmoji: bool, preset: &str, custom_instructions
         without any speculation or assumptions."
     );
 
-    if use_gitmoji {
+    if config.use_gitmoji {
         prompt.push_str(
             "\n\nUse a single gitmoji at the start of the commit message. \
             Choose the most relevant emoji from the following list:\n\n",
@@ -69,25 +55,12 @@ pub fn create_system_prompt(use_gitmoji: bool, preset: &str, custom_instructions
         prompt.push_str(&get_gitmoji_list());
     }
 
-    let preset_library = get_instruction_preset_library();
-    if let Some(preset_instructions) = preset_library.get_preset(preset) {
-        prompt.push_str(&format!(
-            "\n\nPreset instructions:\n{}\n\n",
-            preset_instructions.instructions
-        ));
-    }
-
-    if !custom_instructions.is_empty() {
-        prompt.push_str(&format!(
-            "\n\nCustom instructions:\n{}\n\n",
-            custom_instructions
-        ));
-    }
+    prompt.push_str(get_combined_instructions(config).as_str());
 
     prompt
 }
 
-pub fn create_user_prompt(context: &CommitContext) -> Result<String> {
+pub fn create_user_prompt(context: &CommitContext) -> String {
     let scorer = RelevanceScorer::new();
     let relevance_scores = scorer.score(context);
     let detailed_changes = format_detailed_changes(&context.staged_files, &relevance_scores);
@@ -110,7 +83,7 @@ pub fn create_user_prompt(context: &CommitContext) -> Result<String> {
 
     log_debug!("Detailed changes:\n{}", detailed_changes);
 
-    Ok(prompt)
+    prompt
 }
 
 fn format_recent_commits(commits: &[RecentCommit]) -> String {
@@ -183,27 +156,24 @@ pub fn process_commit_message(message: String, use_gitmoji: bool) -> String {
     }
 }
 
-pub fn get_combined_instructions(
-    config: &Config,
-    custom_instructions: Option<&str>,
-    preset: Option<&str>,
-) -> String {
+pub fn get_combined_instructions(config: &Config) -> String {
+    let mut prompt = String::from("\n\n");
+
     let preset_library = get_instruction_preset_library();
-    let preset_key = preset.unwrap_or(&config.instruction_preset);
-    let preset_instructions = preset_library
-        .get_preset(preset_key)
-        .map(|p| p.instructions.clone())
-        .unwrap_or_default();
+    if let Some(preset_instructions) = preset_library.get_preset(config.instruction_preset.as_str())
+    {
+        prompt.push_str(&format!(
+            "\n\nResponse style instructions:\n{}\n\n",
+            preset_instructions.instructions
+        ));
+    }
 
-    let effective_custom_instructions = custom_instructions
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| config.instructions.clone());
+    if !config.instructions.is_empty() {
+        prompt.push_str(&format!(
+            "\n\nAdditional instructions:\n{}\n\n",
+            config.instructions
+        ));
+    }
 
-    format!(
-        "{}\n\n{}",
-        preset_instructions.trim(),
-        effective_custom_instructions.trim()
-    )
-    .trim()
-    .to_string()
+    prompt
 }

@@ -1,6 +1,6 @@
 use git_iris::config::Config;
 use git_iris::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
-use git_iris::prompt::{create_prompt, create_user_prompt};
+use git_iris::prompt::{create_system_prompt, create_user_prompt};
 
 fn create_mock_commit_context() -> CommitContext {
     CommitContext {
@@ -34,11 +34,10 @@ fn create_mock_commit_context() -> CommitContext {
 }
 
 #[test]
-fn test_create_prompt_basic() {
+fn test_create_user_prompt_basic() {
     let commit_context = create_mock_commit_context();
-    let config = Config::default();
 
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("Initial commit"));
@@ -48,11 +47,10 @@ fn test_create_prompt_basic() {
 }
 
 #[test]
-fn test_create_prompt_with_staged_files() {
+fn test_create_user_prompt_with_staged_files() {
     let commit_context = create_mock_commit_context();
-    let config = Config::default();
 
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("file1.rs"));
@@ -61,12 +59,11 @@ fn test_create_prompt_with_staged_files() {
 }
 
 #[test]
-fn test_create_prompt_with_gitmoji() {
-    let commit_context = create_mock_commit_context();
+fn test_create_system_prompt_with_gitmoji() {
     let mut config = Config::default();
     config.use_gitmoji = true;
 
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_system_prompt(&config);
 
     assert!(prompt.contains("✨ - :feat: - Introduce new features"));
     assert!(prompt.contains("🐛 - :fix: - Fix a bug"));
@@ -78,22 +75,20 @@ fn test_create_prompt_with_gitmoji() {
 }
 
 #[test]
-fn test_create_prompt_with_custom_instructions() {
-    let commit_context = create_mock_commit_context();
+fn test_create_system_prompt_with_custom_instructions() {
     let mut config = Config::default();
     config.instructions = "Always mention the ticket number".to_string();
 
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_system_prompt(&config);
 
     assert!(prompt.contains("Always mention the ticket number"));
 }
 
 #[test]
-fn test_create_prompt_verbose() {
+fn test_create_user_prompt_verbose() {
     let commit_context = create_mock_commit_context();
-    let config = Config::default();
 
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("Detailed changes"));
 }
@@ -101,7 +96,8 @@ fn test_create_prompt_verbose() {
 #[test]
 fn test_create_user_prompt() {
     let commit_context = create_mock_commit_context();
-    let prompt = create_user_prompt(&commit_context).unwrap();
+
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("Branch: main"));
     assert!(prompt.contains("Initial commit"));
@@ -112,7 +108,7 @@ fn test_create_user_prompt() {
 }
 
 #[test]
-fn test_create_prompt_with_multiple_staged_files() {
+fn test_create_user_prompt_with_multiple_staged_files() {
     let mut commit_context = create_mock_commit_context();
     commit_context.staged_files.push(StagedFile {
         path: "file2.rs".to_string(),
@@ -122,9 +118,7 @@ fn test_create_prompt_with_multiple_staged_files() {
         content_excluded: false,
     });
 
-    let config = Config::default();
-
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("file1.rs"));
     assert!(prompt.contains("Modified"));
@@ -135,7 +129,7 @@ fn test_create_prompt_with_multiple_staged_files() {
 }
 
 #[test]
-fn test_create_prompt_with_project_metadata() {
+fn test_create_user_prompt_with_project_metadata() {
     let mut commit_context = create_mock_commit_context();
     commit_context.project_metadata = ProjectMetadata {
         language: Some("Rust".to_string()),
@@ -147,9 +141,7 @@ fn test_create_prompt_with_project_metadata() {
         plugins: vec![],
     };
 
-    let config = Config::default();
-
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("Language: Rust"));
     assert!(prompt.contains("Framework: Rocket"));
@@ -157,16 +149,14 @@ fn test_create_prompt_with_project_metadata() {
 }
 
 #[test]
-fn test_create_prompt_with_file_analysis() {
+fn test_create_user_prompt_with_file_analysis() {
     let mut commit_context = create_mock_commit_context();
     commit_context.staged_files[0].analysis = vec![
         "Modified function: main".to_string(),
         "Added new struct: User".to_string(),
     ];
 
-    let config = Config::default();
-
-    let prompt = create_prompt(&commit_context, &config).unwrap();
+    let prompt = create_user_prompt(&commit_context);
 
     assert!(prompt.contains("Modified function: main"));
     assert!(prompt.contains("Added new struct: User"));

@@ -8,7 +8,9 @@ use strum_macros::{AsRefStr, EnumIter};
 mod claude;
 mod ollama;
 mod openai;
-mod test;
+
+// For testing
+pub mod test;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
@@ -39,6 +41,7 @@ impl FromStr for LLMProviderType {
     }
 }
 
+
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
     async fn generate_message(&self, system_prompt: &str, user_prompt: &str) -> Result<String>;
@@ -61,7 +64,7 @@ pub struct LLMProviderConfig {
 pub fn create_provider(
     provider_type: LLMProviderType,
     config: LLMProviderConfig,
-) -> Result<Box<dyn LLMProvider>> {
+) -> Result<Box<dyn LLMProvider + Send + Sync>> {
     match provider_type {
         LLMProviderType::OpenAI => Ok(Box::new(openai::OpenAIProvider::new(config)?)),
         LLMProviderType::Claude => Ok(Box::new(claude::ClaudeProvider::new(config)?)),

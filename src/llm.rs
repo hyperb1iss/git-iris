@@ -3,8 +3,11 @@ use crate::llm_providers::{
     create_provider, get_available_providers, get_provider_metadata, LLMProviderConfig,
     LLMProviderType,
 };
-use crate::log_debug;
+use crate::{log_debug, LLMProvider};
 use anyhow::{anyhow, Result};
+use std::time::Duration;
+use tokio_retry::strategy::ExponentialBackoff;
+use tokio_retry::Retry;
 
 /// Generates a message using the given configuration
 pub async fn get_refined_message(
@@ -13,19 +16,18 @@ pub async fn get_refined_message(
     system_prompt: &str,
     user_prompt: &str,
 ) -> Result<String> {
+    // Get provider metadata and configuration
     let provider_metadata = get_provider_metadata(provider_type);
-
     let provider_config = if provider_metadata.requires_api_key {
         config
             .get_provider_config(&provider_type.to_string())
             .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?
             .clone()
     } else {
-        // Use default configuration for providers that don't require an API key
         ProviderConfig::default_for(&provider_type.to_string())
     };
 
-    // Create the LLM provider instance using the provided function
+    // Create the LLM provider instance
     let llm_provider = create_provider(
         provider_type.clone(),
         provider_config.to_llm_provider_config(),
@@ -38,19 +40,61 @@ pub async fn get_refined_message(
     log_debug!("System prompt: {}", system_prompt);
     log_debug!("User prompt: {}", user_prompt);
 
-    // Generate the message using the LLM provider
-    let refined_message = llm_provider
-        .generate_message(system_prompt, user_prompt)
-        .await?;
-
-    log_debug!("Refined message (raw): {}", refined_message);
+    // Call get_refined_message_with_provider
+    let result =
+        get_refined_message_with_provider(llm_provider, system_prompt, user_prompt).await?;
 
     // Clean the JSON string from the LLM provider
-    let refined_message = clean_json_from_llm(&refined_message);
+    let cleaned_message = clean_json_from_llm(&result);
+    log_debug!("Cleaned refined message: {}", cleaned_message);
 
-    log_debug!("Refined message: {}", refined_message);
+    Ok(cleaned_message)
+}
 
-    Ok(refined_message)
+/// Generates a message using the given provider (mainly for testing purposes)
+pub async fn get_refined_message_with_provider(
+    llm_provider: Box<dyn LLMProvider + Send + Sync>,
+    system_prompt: &str,
+    user_prompt: &str,
+) -> Result<String> {
+    log_debug!("Entering get_refined_message_with_provider");
+
+    let retry_strategy = ExponentialBackoff::from_millis(10).factor(2).take(2); // 2 attempts total: initial + 1 retry
+
+    let result = Retry::spawn(retry_strategy, || async {
+        log_debug!("Attempting to generate message");
+        match tokio::time::timeout(
+            Duration::from_secs(30),
+            llm_provider.generate_message(system_prompt, user_prompt),
+        )
+        .await
+        {
+            Ok(Ok(refined_message)) => {
+                log_debug!("Received response from provider");
+                Ok(refined_message)
+            }
+            Ok(Err(e)) => {
+                log_debug!("Provider error: {}", e);
+                Err(e)
+            }
+            Err(_) => {
+                log_debug!("Provider timed out");
+                Err(anyhow!("Provider timed out"))
+            }
+        }
+    })
+    .await;
+
+    match result {
+        Ok(message) => {
+            log_debug!("Refined message: {}", message);
+            Ok(message)
+        }
+        Err(e) => {
+            log_debug!("Failed to generate message after retries: {}", e);
+            Err(anyhow!("Failed to generate message: {}", e))
+        }
+    }
 }
 
 /// Returns a list of available LLM providers as strings

@@ -2,7 +2,7 @@ use git2::Repository;
 use git_iris::config::Config;
 use git_iris::context::ChangeType;
 use git_iris::git::{commit, get_git_info};
-use git_iris::prompt::create_prompt;
+use git_iris::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::token_optimizer::TokenOptimizer;
 use std::fs;
 use std::path::Path;
@@ -386,7 +386,9 @@ fn test_token_optimization_integration() {
 
     let context = get_git_info(repo_path, &config).unwrap();
 
-    let prompt = create_prompt(&context, &config).unwrap();
+    let system_prompt = create_system_prompt(&config);
+    let user_prompt = create_user_prompt(&context);
+    let prompt = format!("{}\n{}", system_prompt, user_prompt);
 
     // Check that the prompt is within the token limit
     let optimizer = TokenOptimizer::new(small_token_limit);
@@ -435,9 +437,11 @@ fn test_token_optimization_integration() {
 
     // Test with a larger token limit
     let large_token_limit = 5000;
-    let config = Config::default();
 
-    let large_prompt = create_prompt(&context, &config).unwrap();
+    let system_prompt = create_system_prompt(&config);
+    let user_prompt = create_user_prompt(&context);
+    let large_prompt = format!("{}\n{}", system_prompt, user_prompt);
+
     let large_token_count = optimizer.count_tokens(&large_prompt);
 
     println!("Large token count: {}", large_token_count);

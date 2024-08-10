@@ -25,4 +25,3 @@ pub mod ui;
 pub use config::Config;
 pub use config::ProviderConfig;
 pub use llm_providers::LLMProvider;
-pub use prompt::create_prompt;

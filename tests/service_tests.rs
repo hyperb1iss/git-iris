@@ -42,6 +42,8 @@ async fn test_generate_message() -> Result<()> {
     assert!(result.is_ok());
     let message = result.unwrap();
     println!("{:?}", message);
+    println!("... message {:?}", message.title);
+    println!("... title {:?}", message.message);
     assert!(message.title.contains("<title>"));
     assert!(message.message.contains("<message>"));
 

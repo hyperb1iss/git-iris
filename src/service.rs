@@ -50,10 +50,16 @@ impl GitIrisService {
         config_clone.instruction_preset = preset.to_string();
         config_clone.instructions = instructions.to_string();
 
-        let prompt = prompt::create_prompt(&git_info, &config_clone)?;
+        let system_prompt = prompt::create_system_prompt(&config_clone);
+        let user_prompt = prompt::create_user_prompt(&git_info);
 
-        let message_str =
-            llm::get_refined_message(&config_clone, &self.provider_type, &prompt, "").await?;
+        let message_str = llm::get_refined_message(
+            &config_clone,
+            &self.provider_type,
+            &system_prompt,
+            &user_prompt,
+        )
+        .await?;
 
         let mut generated_message: GeneratedMessage =
             serde_json::from_str(&message_str).map_err(Error::from)?;

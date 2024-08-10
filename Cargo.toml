@@ -44,6 +44,7 @@ strum_macros = "0.26.4"
 ratatui = "0.28.0"
 tui-textarea = "0.6.1"
 crossterm = "0.28.1"
+tokio-retry = "0.3.0"
 log = "0.4.22"
 
 [package.metadata.deb]

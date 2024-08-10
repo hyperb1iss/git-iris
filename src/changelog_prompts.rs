@@ -2,11 +2,9 @@ use crate::change_analyzer::{AnalyzedChange, ChangeMetrics};
 use crate::changelog::DetailLevel;
 use crate::config::Config;
 use crate::gitmoji::get_gitmoji_list;
+use crate::prompt::get_combined_instructions;
 
 pub fn create_changelog_system_prompt(config: &Config) -> String {
-    let use_emoji = config.use_gitmoji;
-    let instructions = &config.instructions;
-
     let mut prompt = String::from(
         "You are an AI assistant specialized in generating clear, concise, and informative changelogs for software projects. \
         Your task is to create a well-structured changelog based on the provided commit information and analysis. \
@@ -34,19 +32,14 @@ pub fn create_changelog_system_prompt(config: &Config) -> String {
         18. NO YAPPING!"
     );
 
-    if use_emoji {
+    if config.use_gitmoji {
         prompt.push_str(
             "\n\nWhen generating the changelog, include tasteful, appropriate, and intelligent use of emojis to add visual interest.\n \
             Here are some examples of emojis you can use:\n");
         prompt.push_str(&get_gitmoji_list());
     }
 
-    if !instructions.is_empty() {
-        prompt.push_str(&format!(
-            "\n\nAdditional instructions:\n{}\n\n",
-            instructions
-        ));
-    }
+    prompt.push_str(get_combined_instructions(config).as_str());
 
     prompt.push_str(
         "\n\nYou will be provided with detailed information about each change, including file-level analysis and impact scores. \
@@ -155,9 +148,6 @@ pub fn create_changelog_user_prompt(
 }
 
 pub fn create_release_notes_system_prompt(config: &Config) -> String {
-    let use_emoji = config.use_gitmoji;
-    let instructions = &config.instructions;
-
     let mut prompt = String::from(
         "You are an AI assistant specialized in generating comprehensive and user-friendly release notes for software projects. \
         Your task is to create detailed release notes based on the provided changelog. \
@@ -181,19 +171,14 @@ pub fn create_release_notes_system_prompt(config: &Config) -> String {
         14. NO YAPPING!"
     );
 
-    if use_emoji {
+    if config.use_gitmoji {
         prompt.push_str(
             "\n\nWhen generating the release notes, include tasteful, appropriate, and intelligent use of emojis to add visual interest.\n \
             Here are some examples of emojis you can use:\n");
         prompt.push_str(&get_gitmoji_list());
     }
 
-    if !instructions.is_empty() {
-        prompt.push_str(&format!(
-            "\n\nAdditional instructions:\n{}\n\n",
-            instructions
-        ));
-    }
+    prompt.push_str(get_combined_instructions(config).as_str());
 
     prompt
 }
