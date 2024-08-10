@@ -2,6 +2,7 @@ use crate::change_analyzer::{AnalyzedChange, ChangeAnalyzer};
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers;
+use crate::log_debug;
 use anyhow::{anyhow, Result};
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
@@ -10,6 +11,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 pub fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext> {
+    log_debug!("Getting git info for repo path: {:?}", repo_path);
     let repo = Repository::open(repo_path)?;
 
     let branch = get_current_branch(&repo)?;
@@ -29,15 +31,19 @@ pub fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext>
         user_email,
     );
 
+    log_debug!("Git info retrieved successfully");
     Ok(context)
 }
 
 fn get_current_branch(repo: &Repository) -> Result<String> {
     let head = repo.head()?;
-    Ok(head.shorthand().unwrap_or("HEAD detached").to_string())
+    let branch_name = head.shorthand().unwrap_or("HEAD detached").to_string();
+    log_debug!("Current branch: {}", branch_name);
+    Ok(branch_name)
 }
 
 fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<RecentCommit>> {
+    log_debug!("Fetching {} recent commits", count);
     let mut revwalk = repo.revwalk()?;
     revwalk.push_head()?;
 
@@ -56,10 +62,12 @@ fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<RecentCommi
         })
         .collect::<Result<Vec<_>>>()?;
 
+    log_debug!("Retrieved {} recent commits", commits.len());
     Ok(commits)
 }
 
 pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec<AnalyzedChange>> {
+    log_debug!("Analyzing commits between '{}' and '{}'", from, to);
     let repo = Repository::open(repo_path)?;
     let analyzer = ChangeAnalyzer::new(&repo);
 
@@ -70,12 +78,18 @@ pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec
     revwalk.push(to_commit.id())?;
     revwalk.hide(from_commit.id())?;
 
-    let analyzed_commits = revwalk
+    let analyzed_commits: Vec<AnalyzedChange> = revwalk
         .filter_map(|id| id.ok())
         .filter_map(|id| repo.find_commit(id).ok())
         .filter_map(|commit| analyzer.analyze_commit(&commit).ok())
         .collect();
 
+    log_debug!(
+        "Analyzed {} commits between '{}' and '{}'",
+        analyzed_commits.len(),
+        from,
+        to
+    );
     Ok(analyzed_commits)
 }
 
@@ -112,6 +126,7 @@ fn should_exclude_file(path: &str) -> bool {
 }
 
 fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)> {
+    log_debug!("Getting file statuses");
     let mut staged_files = Vec::new();
     let mut unstaged_files = Vec::new();
 
@@ -165,10 +180,16 @@ fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)
         }
     }
 
+    log_debug!(
+        "Found {} staged files and {} unstaged files",
+        staged_files.len(),
+        unstaged_files.len()
+    );
     Ok((staged_files, unstaged_files))
 }
 
 fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<String> {
+    log_debug!("Getting diff for file: {}", path);
     let mut diff_options = DiffOptions::new();
     diff_options.pathspec(path);
 
@@ -203,6 +224,7 @@ fn is_binary_diff(diff: &str) -> bool {
 }
 
 fn get_project_metadata(repo_path: &Path) -> Result<ProjectMetadata> {
+    log_debug!("Getting project metadata for repo path: {:?}", repo_path);
     let mut combined_metadata = ProjectMetadata::default();
 
     for entry in WalkDir::new(repo_path).into_iter().filter_map(|e| e.ok()) {
@@ -243,25 +265,36 @@ fn merge_metadata(combined: &mut ProjectMetadata, new: ProjectMetadata) {
 }
 
 pub fn check_environment() -> Result<()> {
+    log_debug!("Checking Git environment");
     if std::process::Command::new("git")
         .arg("--version")
         .output()
         .is_err()
     {
+        log_debug!("Git is not installed or not in the PATH");
         return Err(anyhow!("Git is not installed or not in the PATH"));
     }
 
+    log_debug!("Git environment check passed");
     Ok(())
 }
 
 pub fn is_inside_work_tree() -> Result<bool> {
+    log_debug!("Checking if inside Git work tree");
     match Repository::discover(".") {
-        Ok(_) => Ok(true),
-        Err(_) => Ok(false),
+        Ok(_) => {
+            log_debug!("Inside Git work tree");
+            Ok(true)
+        }
+        Err(_) => {
+            log_debug!("Not inside Git work tree");
+            Ok(false)
+        }
     }
 }
 
 pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
+    log_debug!("Committing changes with message: {}", message);
     let repo = Repository::open(repo_path)?;
     let signature = repo.signature()?;
     let mut index = repo.index()?;
@@ -271,7 +304,7 @@ pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
     let head = repo.head()?;
     let parent_commit = head.peel_to_commit()?;
 
-    repo.commit(
+    let commit_id = repo.commit(
         Some("HEAD"),
         &signature,
         &signature,
@@ -279,19 +312,23 @@ pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
         &tree,
         &[&parent_commit],
     )?;
+    log_debug!("Commit successful. Commit ID: {}", commit_id);
     Ok(())
 }
 
 pub fn find_and_read_readme(repo_path: &Path) -> Result<Option<String>> {
+    log_debug!("Searching for README file in {:?}", repo_path);
     let readme_patterns = ["README.md", "README.txt", "README", "Readme.md"];
 
     for pattern in readme_patterns.iter() {
         let readme_path = repo_path.join(pattern);
         if readme_path.exists() {
+            log_debug!("README file found: {:?}", readme_path);
             let content = fs::read_to_string(readme_path)?;
             return Ok(Some(content));
         }
     }
 
+    log_debug!("No README file found");
     Ok(None)
 }
