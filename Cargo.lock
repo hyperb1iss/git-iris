@@ -605,6 +605,7 @@ dependencies = [
  "git2",
  "indicatif",
  "lazy_static",
+ "log",
  "mockall",
  "once_cell",
  "rand",

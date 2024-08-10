@@ -1,61 +1,81 @@
 use chrono::Local;
+use log::{Level, LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::sync::Mutex;
 
-/// Static mutex-protected log file handle
-static LOG_FILE: Lazy<Mutex<std::fs::File>> = Lazy::new(|| {
-    Mutex::new(
-        OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("git-iris-debug.log")
-            .expect("Failed to open log file"),
-    )
-});
+struct GitIrisLogger;
 
-/// Flag to control whether logging is enabled
+static LOGGER: GitIrisLogger = GitIrisLogger;
 static LOGGING_ENABLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
+static LOG_FILE: Lazy<Mutex<Option<std::fs::File>>> = Lazy::new(|| Mutex::new(None));
+static LOG_TO_STDOUT: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
-/// Function to enable logging
+impl log::Log for GitIrisLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        *LOGGING_ENABLED.lock().unwrap() && metadata.level() <= Level::Debug
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            let message = format!("{} {} - {}\n", timestamp, record.level(), record.args());
+
+            if let Some(file) = LOG_FILE.lock().unwrap().as_mut() {
+                let _ = file.write_all(message.as_bytes());
+                let _ = file.flush();
+            }
+
+            if *LOG_TO_STDOUT.lock().unwrap() {
+                print!("{}", message);
+            }
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+pub fn init() -> Result<(), log::SetLoggerError> {
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug))
+}
+
 pub fn enable_logging() {
     let mut logging_enabled = LOGGING_ENABLED.lock().unwrap();
     *logging_enabled = true;
 }
 
-/// Function to disable logging
 pub fn disable_logging() {
     let mut logging_enabled = LOGGING_ENABLED.lock().unwrap();
     *logging_enabled = false;
 }
 
-/// Log a message with the given level
-pub fn log(level: &str, message: &str) {
-    let logging_enabled = LOGGING_ENABLED.lock().unwrap();
-    if *logging_enabled {
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        let log_message = format!("{} {}: {}\n", timestamp, level, message);
+pub fn set_log_file(file_path: &str) -> std::io::Result<()> {
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file_path)?;
 
-        // Write to file only
-        if let Ok(mut file) = LOG_FILE.lock() {
-            let _ = file.write_all(log_message.as_bytes());
-        }
-    }
+    let mut log_file = LOG_FILE.lock().unwrap();
+    *log_file = Some(file);
+    Ok(())
 }
 
-/// Macro for logging debug messages
+pub fn set_log_to_stdout(enabled: bool) {
+    let mut log_to_stdout = LOG_TO_STDOUT.lock().unwrap();
+    *log_to_stdout = enabled;
+}
+
 #[macro_export]
 macro_rules! log_debug {
     ($($arg:tt)*) => {
-        $crate::logger::log("DEBUG", &format!($($arg)*))
+        log::debug!($($arg)*)
     };
 }
 
-/// Macro for logging error messages
 #[macro_export]
 macro_rules! log_error {
     ($($arg:tt)*) => {
-        $crate::logger::log("ERROR", &format!($($arg)*))
+        log::error!($($arg)*)
     };
 }

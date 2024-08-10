@@ -5,6 +5,8 @@ use crate::ui;
 use clap::builder::{styling::AnsiColor, Styles};
 use clap::{crate_version, Parser, Subcommand};
 
+const LOG_FILE: &str = "git-iris-debug.log";
+
 /// CLI structure defining the available commands and global arguments
 #[derive(Parser)]
 #[command(
@@ -239,6 +241,7 @@ pub async fn main() -> anyhow::Result<()> {
 
     if cli.log {
         crate::logger::enable_logging();
+        crate::logger::set_log_file(LOG_FILE)?;
     } else {
         crate::logger::disable_logging();
     }
