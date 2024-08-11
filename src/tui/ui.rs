@@ -259,7 +259,7 @@ fn draw_emoji_preset(f: &mut Frame, state: &TuiState, area: Rect) {
     f.render_widget(emoji_preset, area);
 }
 
-fn draw_status(f: &mut Frame, state: &mut TuiState, area: Rect) {
+pub fn draw_status(f: &mut Frame, state: &mut TuiState, area: Rect) {
     let (spinner_with_space, status_content, color, content_width) =
         if let Some(spinner) = &mut state.spinner {
             spinner.tick()
@@ -273,8 +273,18 @@ fn draw_status(f: &mut Frame, state: &mut TuiState, area: Rect) {
         };
 
     let terminal_width = f.area().width as usize;
-    let left_padding = (terminal_width - content_width) / 2;
-    let right_padding = terminal_width - content_width - left_padding;
+
+    // Ensure we don't overflow when calculating padding
+    let left_padding = if content_width >= terminal_width {
+        0
+    } else {
+        (terminal_width - content_width) / 2
+    };
+    let right_padding = if content_width >= terminal_width {
+        0
+    } else {
+        terminal_width - content_width - left_padding
+    };
 
     let status_line = Line::from(vec![
         Span::raw(" ".repeat(left_padding)),
