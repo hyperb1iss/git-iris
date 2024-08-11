@@ -27,6 +27,7 @@ pub struct StagedFile {
     pub change_type: ChangeType,
     pub diff: String,
     pub analysis: Vec<String>,
+    pub content: Option<String>,
     pub content_excluded: bool,
 }
 
@@ -43,7 +44,7 @@ impl From<String> for GeneratedMessage {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub enum ChangeType {
     Added,
     Modified,

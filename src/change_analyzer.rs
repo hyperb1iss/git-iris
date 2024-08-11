@@ -62,6 +62,7 @@ impl<'a> ChangeAnalyzer<'a> {
             change_type: change_type.clone(),
             diff: self.get_file_diff(delta).unwrap_or_default(),
             analysis: Vec::new(),
+            content: None,
             content_excluded: false,
         };
 

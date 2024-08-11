@@ -20,6 +20,7 @@ fn test_rust_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -54,6 +55,7 @@ fn test_javascript_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -92,6 +94,7 @@ fn test_python_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None, 
         content_excluded: false,
     };
 
@@ -120,6 +123,7 @@ fn test_yaml_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -158,6 +162,7 @@ fn test_json_analyzer() {
         .to_string(),
         analysis: Vec::new(),
         content_excluded: false,
+        content: None,
     };
 
     let analysis = analyzer.analyze("test.json", &change);
@@ -197,6 +202,7 @@ fn test_markdown_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -216,6 +222,7 @@ fn test_default_analyzer() {
         change_type: ChangeType::Modified,
         diff: "Some changes".to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -249,6 +256,7 @@ fn test_java_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -307,6 +315,7 @@ fn test_kotlin_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -353,6 +362,7 @@ fn test_gradle_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -383,6 +393,7 @@ fn test_c_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 
@@ -431,6 +442,7 @@ fn test_cpp_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
+        content: None,
         content_excluded: false,
     };
 

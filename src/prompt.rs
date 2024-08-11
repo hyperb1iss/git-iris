@@ -124,14 +124,23 @@ fn format_detailed_changes(
         .iter()
         .map(|file| {
             let relevance = relevance_scores.get(&file.path).unwrap_or(&0.0);
-            format!(
+            let mut file_info = format!(
                 "File: {} (Relevance: {:.2})\nChange Type: {}\nAnalysis:\n{}\n\nDiff:\n{}",
                 file.path,
                 relevance,
                 format_change_type(&file.change_type),
                 file.analysis.join("\n"),
                 file.diff
-            )
+            );
+
+            // Add full file content if available
+            if let Some(content) = &file.content {
+                file_info.push_str("\n\n---\n\nFull File Content:\n");
+                file_info.push_str(content);
+                file_info.push_str("\n\n--- End of File ---\n");
+            }
+
+            file_info
         })
         .collect::<Vec<_>>()
         .join("\n\n---\n\n")

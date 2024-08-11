@@ -1,4 +1,4 @@
-use crate::context::{CommitContext, RecentCommit, StagedFile};
+use crate::context::CommitContext;
 use tiktoken_rs::cl100k_base;
 
 pub struct TokenOptimizer {
@@ -15,98 +15,99 @@ impl TokenOptimizer {
     }
 
     pub fn optimize_context(&self, context: &mut CommitContext) {
-        let total_tokens = self.count_total_tokens(context);
-        if total_tokens <= self.max_tokens {
-            return;
-        }
+        let mut remaining_tokens = self.max_tokens;
 
-        let (commit_tokens, staged_tokens) = self.allocate_tokens(context);
-
-        self.truncate_recent_commits(&mut context.recent_commits, commit_tokens);
-        self.truncate_staged_files(&mut context.staged_files, staged_tokens);
-
-        // Ensure we don't exceed the max tokens
-        self.final_adjustment(context);
-    }
-
-    fn allocate_tokens(&self, context: &CommitContext) -> (usize, usize) {
-        let commit_weight = context.recent_commits.len() as f32;
-        let staged_weight = context.staged_files.len() as f32;
-        let total_weight = commit_weight + staged_weight;
-
-        let commit_tokens = (self.max_tokens as f32 * commit_weight / total_weight) as usize;
-        let staged_tokens = (self.max_tokens as f32 * staged_weight / total_weight) as usize;
-
-        (commit_tokens, staged_tokens)
-    }
-
-    fn final_adjustment(&self, context: &mut CommitContext) {
-        while self.count_total_tokens(context) > self.max_tokens {
-            let commit_tokens = context.recent_commits.iter().map(|c| self.count_tokens(&c.message)).sum::<usize>();
-            let staged_tokens = context.staged_files.iter().map(|f| self.count_tokens(&f.diff)).sum::<usize>();
-
-            if staged_tokens >= commit_tokens && !context.staged_files.is_empty() {
-                context.staged_files.pop();
-            } else if !context.recent_commits.is_empty() {
-                context.recent_commits.pop();
+        // Step 1: Allocate tokens for the diffs (highest priority)
+        for file in &mut context.staged_files {
+            let diff_tokens = self.count_tokens(&file.diff);
+            if diff_tokens > remaining_tokens {
+                file.diff = self.truncate_string(&file.diff, remaining_tokens);
+                remaining_tokens = 0;
             } else {
-                break;
+                remaining_tokens = remaining_tokens.saturating_sub(diff_tokens);
+            }
+
+            if remaining_tokens == 0 {
+                // If we exhaust the tokens in step 1, clear commits and contents
+                self.clear_commits_and_contents(context);
+                return;
+            }
+        }
+
+        // Step 2: Allocate remaining tokens for recent commits (medium priority)
+        for commit in &mut context.recent_commits {
+            let commit_tokens = self.count_tokens(&commit.message);
+            if commit_tokens > remaining_tokens {
+                commit.message = self.truncate_string(&commit.message, remaining_tokens);
+                remaining_tokens = 0;
+            } else {
+                remaining_tokens = remaining_tokens.saturating_sub(commit_tokens);
+            }
+
+            if remaining_tokens == 0 {
+                // If we exhaust the tokens in step 2, clear contents
+                self.clear_contents(context);
+                return;
+            }
+        }
+
+        // Step 3: Allocate any leftover tokens for full file contents (lowest priority)
+        for file in &mut context.staged_files {
+            if let Some(content) = &mut file.content {
+                let content_tokens = self.count_tokens(content);
+                if content_tokens > remaining_tokens {
+                    *content = self.truncate_string(content, remaining_tokens);
+                    remaining_tokens = 0;
+                } else {
+                    remaining_tokens = remaining_tokens.saturating_sub(content_tokens);
+                }
+
+                if remaining_tokens == 0 {
+                    return; // Exit early if we've exhausted the token budget
+                }
             }
         }
     }
 
-    fn count_total_tokens(&self, context: &CommitContext) -> usize {
-        let commit_tokens: usize = context
-            .recent_commits
-            .iter()
-            .map(|c| self.count_tokens(&c.message))
-            .sum();
-        let staged_tokens: usize = context
-            .staged_files
-            .iter()
-            .map(|f| self.count_tokens(&f.diff))
-            .sum();
-        commit_tokens + staged_tokens
-    }
-
-    fn truncate_recent_commits(&self, commits: &mut Vec<RecentCommit>, max_tokens: usize) {
-        let mut total_tokens = 0;
-        commits.retain_mut(|commit| {
-            if total_tokens >= max_tokens {
-                return false;
-            }
-            let available_tokens = max_tokens.saturating_sub(total_tokens).max(1);
-            commit.message = self.truncate_string(&commit.message, available_tokens);
-            total_tokens += self.count_tokens(&commit.message);
-            true
-        });
-    }
-
-    fn truncate_staged_files(&self, files: &mut Vec<StagedFile>, max_tokens: usize) {
-        let mut total_tokens = 0;
-        files.retain_mut(|file| {
-            if total_tokens >= max_tokens {
-                return false;
-            }
-            let available_tokens = max_tokens.saturating_sub(total_tokens);
-            file.diff = self.truncate_string(&file.diff, available_tokens);
-            total_tokens += self.count_tokens(&file.diff);
-            true
-        });
-    }
-
+    // Truncate a string to fit within the specified token limit
     pub fn truncate_string(&self, s: &str, max_tokens: usize) -> String {
         let tokens = self.encoder.encode_ordinary(s);
+
         if tokens.len() <= max_tokens {
-            s.to_string()
-        } else {
-            let mut truncated_tokens = tokens[..max_tokens.saturating_sub(1)].to_vec();
-            truncated_tokens.push(self.encoder.encode_ordinary("…")[0]);
-            self.encoder.decode(truncated_tokens).unwrap()
+            return s.to_string();
+        }
+
+        let truncation_limit = max_tokens.saturating_sub(1); // Reserve space for the ellipsis
+        let mut truncated_tokens = tokens[..truncation_limit].to_vec();
+        truncated_tokens.push(self.encoder.encode_ordinary("…")[0]);
+        let truncated_string = self.encoder.decode(truncated_tokens).unwrap();
+
+        truncated_string
+    }
+
+    // Clear all recent commits and full file contents
+    fn clear_commits_and_contents(&self, context: &mut CommitContext) {
+        self.clear_commits(context);
+        self.clear_contents(context);
+    }
+
+    // Clear all recent commits
+    fn clear_commits(&self, context: &mut CommitContext) {
+        for commit in &mut context.recent_commits {
+            commit.message.clear();
         }
     }
 
+    // Clear all full file contents
+    fn clear_contents(&self, context: &mut CommitContext) {
+        for file in &mut context.staged_files {
+            file.content = None;
+        }
+    }
+
+    // Count the number of tokens in a string
     pub fn count_tokens(&self, s: &str) -> usize {
-        self.encoder.encode_ordinary(s).len()
+        let tokens = self.encoder.encode_ordinary(s);
+        tokens.len()
     }
 }

@@ -20,10 +20,7 @@ pub async fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitCo
     let staged_files = get_file_statuses(&repo)?;
 
     // Get the list of changed file paths
-    let changed_files: Vec<String> = staged_files
-        .iter()
-        .map(|file| file.path.clone())
-        .collect();
+    let changed_files: Vec<String> = staged_files.iter().map(|file| file.path.clone()).collect();
 
     log_debug!("Changed files for metadata extraction: {:?}", changed_files);
 
@@ -175,8 +172,20 @@ fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
             let diff = if should_exclude {
                 String::from("[Content excluded]")
             } else {
-                get_diff_for_file(repo, path, true)?
+                get_diff_for_file(repo, path)?
             };
+
+            let content =
+                if should_exclude || change_type != ChangeType::Modified || is_binary_diff(&diff) {
+                    None
+                } else {
+                    let path_obj = Path::new(path);
+                    if path_obj.exists() {
+                        Some(fs::read_to_string(path_obj)?)
+                    } else {
+                        None
+                    }
+                };
 
             let analyzer = file_analyzers::get_analyzer(path);
             let staged_file = StagedFile {
@@ -184,6 +193,7 @@ fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
                 change_type: change_type.clone(),
                 diff: diff.clone(),
                 analysis: Vec::new(),
+                content: content.clone(),
                 content_excluded: should_exclude,
             };
             let analysis = if should_exclude {
@@ -197,28 +207,22 @@ fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
                 change_type,
                 diff,
                 analysis,
+                content,
                 content_excluded: should_exclude,
             });
         }
     }
 
-    log_debug!(
-        "Found {} staged files",
-        staged_files.len(),
-    );
+    log_debug!("Found {} staged files", staged_files.len(),);
     Ok(staged_files)
 }
 
-fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<String> {
+fn get_diff_for_file(repo: &Repository, path: &str) -> Result<String> {
     log_debug!("Getting diff for file: {}", path);
     let mut diff_options = DiffOptions::new();
     diff_options.pathspec(path);
 
-    let tree = if staged {
-        Some(repo.head()?.peel_to_tree()?)
-    } else {
-        None
-    };
+    let tree = Some(repo.head()?.peel_to_tree()?);
 
     let diff = repo.diff_tree_to_workdir_with_index(tree.as_ref(), Some(&mut diff_options))?;
 
