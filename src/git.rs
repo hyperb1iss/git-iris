@@ -1,23 +1,37 @@
 use crate::change_analyzer::{AnalyzedChange, ChangeAnalyzer};
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
-use crate::file_analyzers;
+use crate::file_analyzers::{self, FileAnalyzer};
 use crate::log_debug;
 use anyhow::{anyhow, Result};
+use futures::future::join_all;
 use git2::{DiffOptions, Repository, StatusOptions};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use walkdir::WalkDir;
+use tokio::task;
 
-pub fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext> {
+pub async fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext> {
     log_debug!("Getting git info for repo path: {:?}", repo_path);
     let repo = Repository::open(repo_path)?;
 
     let branch = get_current_branch(&repo)?;
     let recent_commits = get_recent_commits(&repo, 5)?;
     let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
-    let project_metadata = get_project_metadata(repo_path)?;
+
+    // Get the list of changed file paths
+    let changed_files: Vec<String> = staged_files
+        .iter()
+        .map(|file| file.path.clone())
+        .chain(unstaged_files.iter().cloned())
+        .collect();
+
+    log_debug!("Changed files for metadata extraction: {:?}", changed_files);
+
+    let project_metadata = get_project_metadata(&changed_files).await?;
+
+    log_debug!("Extracted project metadata: {:?}", project_metadata);
+
     let user_name = repo.config()?.get_string("user.name")?;
     let user_email = repo.config()?.get_string("user.email")?;
 
@@ -94,34 +108,47 @@ pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec
 }
 
 fn should_exclude_file(path: &str) -> bool {
+    log_debug!("Checking if file should be excluded: {}", path);
     let exclude_patterns = vec![
-        String::from(r"\.git"),
-        String::from(r"\.svn"),
-        String::from(r"\.hg"),
-        String::from(r"\.DS_Store"),
-        String::from(r"node_modules"),
-        String::from(r"target"),
-        String::from(r"build"),
-        String::from(r"dist"),
-        String::from(r"\.vscode"),
-        String::from(r"\.idea"),
-        String::from(r"\.vs"),
-        String::from(r"package-lock\.json"),
-        String::from(r"\.lock"),
-        String::from(r"\.log"),
-        String::from(r"\.tmp"),
-        String::from(r"\.temp"),
-        String::from(r"\.swp"),
-        String::from(r"\.min\.js"),
-        // Add more patterns as needed
+        (String::from(r"\.git"), false),
+        (String::from(r"\.svn"), false),
+        (String::from(r"\.hg"), false),
+        (String::from(r"\.DS_Store"), false),
+        (String::from(r"node_modules"), false),
+        (String::from(r"target"), false),
+        (String::from(r"build"), false),
+        (String::from(r"dist"), false),
+        (String::from(r"\.vscode"), false),
+        (String::from(r"\.idea"), false),
+        (String::from(r"\.vs"), false),
+        (String::from(r"package-lock\.json$"), true),
+        (String::from(r"\.lock$"), true),
+        (String::from(r"\.log$"), true),
+        (String::from(r"\.tmp$"), true),
+        (String::from(r"\.temp$"), true),
+        (String::from(r"\.swp$"), true),
+        (String::from(r"\.min\.js$"), true),
     ];
 
-    for pattern in exclude_patterns {
+    let path = Path::new(path);
+
+    for (pattern, is_extension) in exclude_patterns {
         let re = Regex::new(&pattern).unwrap();
-        if re.is_match(path) {
-            return true;
+        if is_extension {
+            if let Some(file_name) = path.file_name() {
+                if re.is_match(file_name.to_str().unwrap()) {
+                    log_debug!("File excluded: {}", path.display());
+                    return true;
+                }
+            }
+        } else {
+            if re.is_match(path.to_str().unwrap()) {
+                log_debug!("File excluded: {}", path.display());
+                return true;
+            }
         }
     }
+    log_debug!("File not excluded: {}", path.display());
     false
 }
 
@@ -223,43 +250,78 @@ fn is_binary_diff(diff: &str) -> bool {
     diff.contains("Binary files") || diff.contains("GIT binary patch")
 }
 
-fn get_project_metadata(repo_path: &Path) -> Result<ProjectMetadata> {
-    log_debug!("Getting project metadata for repo path: {:?}", repo_path);
-    let mut combined_metadata = ProjectMetadata::default();
+pub async fn get_project_metadata(changed_files: &[String]) -> Result<ProjectMetadata> {
+    log_debug!(
+        "Getting project metadata for changed files: {:?}",
+        changed_files
+    );
 
-    for entry in WalkDir::new(repo_path).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
-            let file_path = entry.path();
-            let file_name = file_path.file_name().unwrap().to_str().unwrap();
-            let analyzer = file_analyzers::get_analyzer(file_name);
+    let metadata_futures = changed_files.iter().map(|file_path| {
+        let file_path = file_path.clone();
+        task::spawn(async move {
+            let file_name = Path::new(&file_path).file_name().unwrap().to_str().unwrap();
+            let analyzer: Box<dyn FileAnalyzer + Send + Sync> =
+                file_analyzers::get_analyzer(file_name);
 
-            if let Ok(content) = std::fs::read_to_string(file_path) {
-                let metadata = analyzer.extract_metadata(file_name, &content);
-                merge_metadata(&mut combined_metadata, metadata);
+            log_debug!("Analyzing file: {}", file_path);
+
+            if !should_exclude_file(&file_path) {
+                if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
+                    let metadata = analyzer.extract_metadata(file_name, &content);
+                    log_debug!("Extracted metadata for {}: {:?}", file_name, metadata);
+                    Some(metadata)
+                } else {
+                    log_debug!("Failed to read file: {}", file_path);
+                    None
+                }
+            } else {
+                log_debug!("File excluded: {}", file_path);
+                None
             }
+        })
+    });
+
+    let results = join_all(metadata_futures).await;
+
+    let mut combined_metadata = ProjectMetadata::default();
+    let mut any_file_analyzed = false;
+    for result in results {
+        if let Ok(Some(metadata)) = result {
+            log_debug!("Merging metadata: {:?}", metadata);
+            merge_metadata(&mut combined_metadata, metadata);
+            any_file_analyzed = true;
         }
+    }
+
+    log_debug!("Final combined metadata: {:?}", combined_metadata);
+
+    if !any_file_analyzed {
+        log_debug!("No files were analyzed!");
+        combined_metadata.language = Some("Unknown".to_string());
+    } else if combined_metadata.language.is_none() {
+        combined_metadata.language = Some("Unknown".to_string());
     }
 
     Ok(combined_metadata)
 }
 
 fn merge_metadata(combined: &mut ProjectMetadata, new: ProjectMetadata) {
-    if combined.language.is_none() {
-        combined.language = new.language;
+    if let Some(new_lang) = new.language {
+        match &mut combined.language {
+            Some(lang) if !lang.contains(&new_lang) => {
+                lang.push_str(", ");
+                lang.push_str(&new_lang);
+            }
+            None => combined.language = Some(new_lang),
+            _ => {}
+        }
     }
-    if combined.framework.is_none() {
-        combined.framework = new.framework;
-    }
-    if combined.version.is_none() {
-        combined.version = new.version;
-    }
-    if combined.build_system.is_none() {
-        combined.build_system = new.build_system;
-    }
-    if combined.test_framework.is_none() {
-        combined.test_framework = new.test_framework;
-    }
-    combined.dependencies.extend(new.dependencies);
+    combined.dependencies.extend(new.dependencies.clone());
+    combined.framework = combined.framework.take().or(new.framework);
+    combined.version = combined.version.take().or(new.version);
+    combined.build_system = combined.build_system.take().or(new.build_system);
+    combined.test_framework = combined.test_framework.take().or(new.test_framework);
+    combined.plugins.extend(new.plugins);
     combined.dependencies.sort();
     combined.dependencies.dedup();
 }

@@ -1,11 +1,12 @@
 use git2::Repository;
 use git_iris::config::Config;
 use git_iris::context::ChangeType;
-use git_iris::git::{commit, get_git_info};
+use git_iris::git::{commit, get_git_info, get_project_metadata};
 use git_iris::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::token_optimizer::TokenOptimizer;
 use std::fs;
 use std::path::Path;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 fn setup_git_repo() -> TempDir {
@@ -41,12 +42,12 @@ fn setup_git_repo() -> TempDir {
     temp_dir
 }
 
-#[test]
-fn test_get_git_info() {
+#[tokio::test]
+async fn test_get_git_info() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
 
     // Test branch name
     assert!(
@@ -84,7 +85,7 @@ fn test_get_git_info() {
     fs::write(&unstaged_file_path, "Unstaged content").unwrap();
 
     // Get updated git info
-    let updated_context = get_git_info(temp_dir.path(), &config).unwrap();
+    let updated_context = get_git_info(temp_dir.path(), &config).await.unwrap();
 
     // Test staged files
     assert_eq!(updated_context.staged_files.len(), 1);
@@ -99,8 +100,8 @@ fn test_get_git_info() {
     assert_eq!(updated_context.unstaged_files[0], "unstaged.txt");
 }
 
-#[test]
-fn test_commit() {
+#[tokio::test]
+async fn test_commit() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -117,15 +118,15 @@ fn test_commit() {
     assert!(result.is_ok());
 
     // Verify commit
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
     assert_eq!(context.recent_commits.len(), 2);
     assert!(context.recent_commits[0]
         .message
         .contains("Test commit message"));
 }
 
-#[test]
-fn test_multiple_staged_files() {
+#[tokio::test]
+async fn test_multiple_staged_files() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -141,7 +142,7 @@ fn test_multiple_staged_files() {
         index.write().unwrap();
     }
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
     assert_eq!(context.staged_files.len(), 3);
     for i in 1..=3 {
         assert!(context
@@ -151,8 +152,8 @@ fn test_multiple_staged_files() {
     }
 }
 
-#[test]
-fn test_modified_file() {
+#[tokio::test]
+async fn test_modified_file() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -164,7 +165,7 @@ fn test_modified_file() {
     index.add_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(
         context
@@ -175,8 +176,8 @@ fn test_modified_file() {
     );
 }
 
-#[test]
-fn test_deleted_file() {
+#[tokio::test]
+async fn test_deleted_file() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -188,7 +189,7 @@ fn test_deleted_file() {
     index.remove_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(context
         .staged_files
@@ -196,8 +197,8 @@ fn test_deleted_file() {
         .any(|file| file.path == "initial.txt" && matches!(file.change_type, ChangeType::Deleted)));
 }
 
-#[test]
-fn test_binary_file() {
+#[tokio::test]
+async fn test_binary_file() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -218,7 +219,7 @@ fn test_binary_file() {
     index.add_path(Path::new("image.png")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
 
     // Check if the binary file is in staged files
     assert!(context
@@ -238,8 +239,8 @@ fn test_binary_file() {
     assert!(matches!(binary_file.change_type, ChangeType::Added));
 }
 
-#[test]
-fn test_get_git_info_with_excluded_files() {
+#[tokio::test]
+async fn test_get_git_info_with_excluded_files() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -272,7 +273,7 @@ fn test_get_git_info_with_excluded_files() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
 
     // Check excluded files
     let excluded_files: Vec<_> = context
@@ -309,8 +310,8 @@ fn test_get_git_info_with_excluded_files() {
     }
 }
 
-#[test]
-fn test_multiple_staged_files_with_exclusions() {
+#[tokio::test]
+async fn test_multiple_staged_files_with_exclusions() {
     let temp_dir = setup_git_repo();
     let config = Config::default();
 
@@ -344,7 +345,7 @@ fn test_multiple_staged_files_with_exclusions() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).unwrap();
+    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
 
     assert_eq!(context.staged_files.len(), 5);
 
@@ -375,8 +376,8 @@ fn test_multiple_staged_files_with_exclusions() {
     }
 }
 
-#[test]
-fn test_token_optimization_integration() {
+#[tokio::test]
+async fn test_token_optimization_integration() {
     let temp_dir = setup_git_repo();
     let repo_path = temp_dir.path();
 
@@ -384,7 +385,7 @@ fn test_token_optimization_integration() {
     let small_token_limit = 200;
     let config = Config::default();
 
-    let context = get_git_info(repo_path, &config).unwrap();
+    let context = get_git_info(repo_path, &config).await.unwrap();
 
     let system_prompt = create_system_prompt(&config);
     let user_prompt = create_user_prompt(&context);
@@ -472,5 +473,74 @@ fn test_token_optimization_integration() {
     assert!(
         !large_prompt.ends_with('…'),
         "Large prompt should not end with truncation indicator"
+    );
+}
+
+#[tokio::test]
+async fn test_project_metadata_parallelism() {
+    // Create a temporary directory for our test files
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create multiple files with different "languages"
+    let files = vec![
+        ("file1.rs", "fn main() {}"),
+        ("file2.py", "def main(): pass"),
+        ("file3.js", "function main() {}"),
+        ("file4.c", "int main() { return 0; }"),
+        ("file5.kt", "fun main() {}"),
+    ];
+
+    let file_paths: Vec<String> = files
+        .into_iter()
+        .map(|(filename, content)| {
+            let file_path = temp_dir.path().join(filename);
+            fs::write(&file_path, content).unwrap();
+            let path_str = file_path.to_str().unwrap().to_string();
+            println!("Created file: {} with content: {}", path_str, content);
+            assert!(
+                Path::new(&path_str).exists(),
+                "File does not exist: {}",
+                path_str
+            );
+            path_str
+        })
+        .collect();
+
+    // Measure the time taken to process metadata
+    let start = Instant::now();
+    let metadata = get_project_metadata(&file_paths).await.unwrap();
+    let duration = start.elapsed();
+
+    // Detailed logging
+    println!("File paths: {:?}", file_paths);
+    println!("Metadata: {:?}", metadata);
+    println!("Detected language: {:?}", metadata.language);
+    println!("Detected dependencies: {:?}", metadata.dependencies);
+    println!("Processing time: {:?}", duration);
+
+    // Assertions
+    assert!(metadata.language.is_some(), "Language should be detected");
+
+    let languages = metadata.language.unwrap();
+    assert!(languages.contains("Rust"), "Rust should be detected");
+    assert!(languages.contains("Python"), "Python should be detected");
+    assert!(
+        languages.contains("JavaScript"),
+        "JavaScript should be detected"
+    );
+    assert!(languages.contains("C"), "C should be detected");
+    assert!(languages.contains("Kotlin"), "Kotlin should be detected");
+
+    // We're not expecting any dependencies in this test
+    assert!(
+        metadata.dependencies.is_empty(),
+        "No dependencies should be detected"
+    );
+
+    // Check if the operation was faster than sequential execution would be
+    assert!(
+        duration < Duration::from_millis(500),
+        "Parallel execution took too long: {:?}",
+        duration
     );
 }

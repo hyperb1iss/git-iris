@@ -1,7 +1,7 @@
 use crate::context::{ProjectMetadata, StagedFile};
 
 /// Trait for analyzing files and extracting relevant information
-pub trait FileAnalyzer {
+pub trait FileAnalyzer: Send + Sync {
     fn analyze(&self, file: &str, staged_file: &StagedFile) -> Vec<String>;
     fn get_file_type(&self) -> &'static str;
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata;
@@ -31,7 +31,7 @@ mod rust;
 mod yaml;
 
 /// Get the appropriate file analyzer based on the file extension
-pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer> {
+pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer + Send + Sync> {
     if file.ends_with(".c") || file == "Makefile" {
         Box::new(c::CAnalyzer)
     } else if file.ends_with(".cpp") || file.ends_with(".cc") || file.ends_with(".cxx") ||  file == "CMakeLists.txt" {

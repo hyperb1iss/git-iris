@@ -46,7 +46,7 @@ impl GitIrisService {
             }
         }
 
-        let context = git::get_git_info(&self.repo_path, &self.config)?;
+        let context = git::get_git_info(&self.repo_path, &self.config).await?;
         {
             let mut cached_context = self.cached_context.write().await; // Await the write lock
             *cached_context = Some(context.clone());
