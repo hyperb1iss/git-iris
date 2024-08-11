@@ -63,9 +63,6 @@ async fn test_get_git_info() {
     // Test staged files (should be empty after commit)
     assert_eq!(context.staged_files.len(), 0);
 
-    // Test unstaged files (should be empty after commit)
-    assert_eq!(context.unstaged_files.len(), 0);
-
     // Test project metadata
     assert_eq!(
         context.project_metadata.language,
@@ -95,9 +92,6 @@ async fn test_get_git_info() {
         ChangeType::Added
     ));
 
-    // Test unstaged files
-    assert_eq!(updated_context.unstaged_files.len(), 1);
-    assert_eq!(updated_context.unstaged_files[0], "unstaged.txt");
 }
 
 #[tokio::test]

@@ -18,7 +18,6 @@ fn create_mock_commit_context() -> CommitContext {
             analysis: vec!["Modified function: main".to_string()],
             content_excluded: false,
         }],
-        unstaged_files: vec!["unstaged_file.txt".to_string()],
         project_metadata: ProjectMetadata {
             language: Some("Rust".to_string()),
             framework: None,
@@ -43,7 +42,6 @@ fn test_create_user_prompt_basic() {
     assert!(prompt.contains("Initial commit"));
     assert!(prompt.contains("file1.rs"));
     assert!(prompt.contains("Modified"));
-    assert!(prompt.contains("unstaged_file.txt"));
 }
 
 #[test]
@@ -104,7 +102,6 @@ fn test_create_user_prompt() {
     assert!(prompt.contains("file1.rs"));
     assert!(prompt.contains("Modified"));
     assert!(prompt.contains("- old line\n+ new line"));
-    assert!(prompt.contains("unstaged_file.txt"));
 }
 
 #[test]

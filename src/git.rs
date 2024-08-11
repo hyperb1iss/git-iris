@@ -17,13 +17,12 @@ pub async fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitCo
 
     let branch = get_current_branch(&repo)?;
     let recent_commits = get_recent_commits(&repo, 5)?;
-    let (staged_files, unstaged_files) = get_file_statuses(&repo)?;
+    let staged_files = get_file_statuses(&repo)?;
 
     // Get the list of changed file paths
     let changed_files: Vec<String> = staged_files
         .iter()
         .map(|file| file.path.clone())
-        .chain(unstaged_files.iter().cloned())
         .collect();
 
     log_debug!("Changed files for metadata extraction: {:?}", changed_files);
@@ -39,7 +38,6 @@ pub async fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitCo
         branch,
         recent_commits,
         staged_files,
-        unstaged_files,
         project_metadata,
         user_name,
         user_email,
@@ -152,10 +150,9 @@ fn should_exclude_file(path: &str) -> bool {
     false
 }
 
-fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)> {
+fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
     log_debug!("Getting file statuses");
     let mut staged_files = Vec::new();
-    let mut unstaged_files = Vec::new();
 
     let mut opts = StatusOptions::new();
     opts.include_untracked(true);
@@ -202,17 +199,14 @@ fn get_file_statuses(repo: &Repository) -> Result<(Vec<StagedFile>, Vec<String>)
                 analysis,
                 content_excluded: should_exclude,
             });
-        } else if status.is_wt_modified() || status.is_wt_new() || status.is_wt_deleted() {
-            unstaged_files.push(path.to_string());
         }
     }
 
     log_debug!(
-        "Found {} staged files and {} unstaged files",
+        "Found {} staged files",
         staged_files.len(),
-        unstaged_files.len()
     );
-    Ok((staged_files, unstaged_files))
+    Ok(staged_files)
 }
 
 fn get_diff_for_file(repo: &Repository, path: &str, staged: bool) -> Result<String> {

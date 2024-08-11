@@ -34,7 +34,6 @@ fn create_test_context() -> CommitContext {
                 content_excluded: false,
             },
         ],
-        unstaged_files: vec!["unstaged1.rs".to_string(), "unstaged2.rs".to_string()],
         project_metadata: ProjectMetadata {
             language: Some("Rust".to_string()),
             framework: None,
@@ -69,15 +68,7 @@ fn test_token_optimizer_extremely_small_limit() {
     // Check that we have at least one item in each category
     assert!(!context.recent_commits.is_empty(), "Should have at least one commit");
     assert!(!context.staged_files.is_empty(), "Should have at least one staged file");
-    // In extremely small token limits, it's possible to have no unstaged files
-    if !context.unstaged_files.is_empty() {
-        for file in &context.unstaged_files {
-            assert!(
-                file.ends_with('…'),
-                "Unstaged file name should be truncated"
-            );
-        }
-    }
+
 
     // Check that all remaining strings were truncated
     for commit in &context.recent_commits {
@@ -113,15 +104,6 @@ fn print_debug_info(context: &CommitContext, optimizer: &TokenOptimizer) {
             optimizer.count_tokens(&file.diff)
         );
     }
-    println!("Unstaged files: {}", context.unstaged_files.len());
-    for (i, file) in context.unstaged_files.iter().enumerate() {
-        println!(
-            "Unstaged file {}: '{}' ({} tokens)",
-            i,
-            file,
-            optimizer.count_tokens(file)
-        );
-    }
 }
 
 fn count_total_tokens(context: &CommitContext, optimizer: &TokenOptimizer) -> usize {
@@ -135,12 +117,7 @@ fn count_total_tokens(context: &CommitContext, optimizer: &TokenOptimizer) -> us
         .iter()
         .map(|f| optimizer.count_tokens(&f.diff))
         .sum();
-    let unstaged_tokens: usize = context
-        .unstaged_files
-        .iter()
-        .map(|f| optimizer.count_tokens(f))
-        .sum();
-    commit_tokens + staged_tokens + unstaged_tokens
+    commit_tokens + staged_tokens 
 }
 
 #[test]
@@ -162,11 +139,6 @@ fn test_token_optimizer() {
         context.staged_files.len() <= 2,
         "Expected 2 or fewer staged files, got {}",
         context.staged_files.len()
-    );
-    assert!(
-        context.unstaged_files.len() <= 2,
-        "Expected 2 or fewer unstaged files, got {}",
-        context.unstaged_files.len()
     );
 
     // Check total tokens
@@ -191,14 +163,6 @@ fn test_token_optimizer() {
             assert!(
                 file.diff.ends_with('…'),
                 "Truncated diff should end with '…'"
-            );
-        }
-    }
-    for file in &context.unstaged_files {
-        if optimizer.count_tokens(file) < optimizer.count_tokens("unstaged1.rs") {
-            assert!(
-                file.ends_with('…'),
-                "Truncated unstaged file name should end with '…'"
             );
         }
     }
@@ -238,14 +202,6 @@ fn test_token_optimizer_very_small_limit() {
             );
         }
     }
-    for file in &context.unstaged_files {
-        if optimizer.count_tokens(file) < optimizer.count_tokens("unstaged1.rs") {
-            assert!(
-                file.ends_with('…'),
-                "Truncated unstaged file name should end with '…'"
-            );
-        }
-    }
 }
 
 #[test]
@@ -255,14 +211,12 @@ fn test_token_optimizer_large_limit() {
 
     let original_commits = context.recent_commits.len();
     let original_staged = context.staged_files.len();
-    let original_unstaged = context.unstaged_files.len();
 
     optimizer.optimize_context(&mut context);
 
     // Check that nothing was truncated
     assert_eq!(context.recent_commits.len(), original_commits);
     assert_eq!(context.staged_files.len(), original_staged);
-    assert_eq!(context.unstaged_files.len(), original_unstaged);
 
     // Check that no strings were modified
     for (original, optimized) in create_test_context()
@@ -279,5 +233,4 @@ fn test_token_optimizer_large_limit() {
     {
         assert_eq!(original.diff, optimized.diff);
     }
-    assert_eq!(create_test_context().unstaged_files, context.unstaged_files);
 }

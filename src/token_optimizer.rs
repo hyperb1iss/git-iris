@@ -20,38 +20,32 @@ impl TokenOptimizer {
             return;
         }
 
-        let (commit_tokens, staged_tokens, unstaged_tokens) = self.allocate_tokens(context);
+        let (commit_tokens, staged_tokens) = self.allocate_tokens(context);
 
         self.truncate_recent_commits(&mut context.recent_commits, commit_tokens);
         self.truncate_staged_files(&mut context.staged_files, staged_tokens);
-        self.truncate_unstaged_files(&mut context.unstaged_files, unstaged_tokens);
 
         // Ensure we don't exceed the max tokens
         self.final_adjustment(context);
     }
 
-    fn allocate_tokens(&self, context: &CommitContext) -> (usize, usize, usize) {
+    fn allocate_tokens(&self, context: &CommitContext) -> (usize, usize) {
         let commit_weight = context.recent_commits.len() as f32;
         let staged_weight = context.staged_files.len() as f32;
-        let unstaged_weight = context.unstaged_files.len() as f32;
-        let total_weight = commit_weight + staged_weight + unstaged_weight;
+        let total_weight = commit_weight + staged_weight;
 
         let commit_tokens = (self.max_tokens as f32 * commit_weight / total_weight) as usize;
         let staged_tokens = (self.max_tokens as f32 * staged_weight / total_weight) as usize;
-        let unstaged_tokens = self.max_tokens - commit_tokens - staged_tokens;
 
-        (commit_tokens, staged_tokens, unstaged_tokens)
+        (commit_tokens, staged_tokens)
     }
 
     fn final_adjustment(&self, context: &mut CommitContext) {
         while self.count_total_tokens(context) > self.max_tokens {
             let commit_tokens = context.recent_commits.iter().map(|c| self.count_tokens(&c.message)).sum::<usize>();
             let staged_tokens = context.staged_files.iter().map(|f| self.count_tokens(&f.diff)).sum::<usize>();
-            let unstaged_tokens = context.unstaged_files.iter().map(|f| self.count_tokens(f)).sum::<usize>();
 
-            if unstaged_tokens >= staged_tokens && unstaged_tokens >= commit_tokens && !context.unstaged_files.is_empty() {
-                context.unstaged_files.pop();
-            } else if staged_tokens >= commit_tokens && !context.staged_files.is_empty() {
+            if staged_tokens >= commit_tokens && !context.staged_files.is_empty() {
                 context.staged_files.pop();
             } else if !context.recent_commits.is_empty() {
                 context.recent_commits.pop();
@@ -72,12 +66,7 @@ impl TokenOptimizer {
             .iter()
             .map(|f| self.count_tokens(&f.diff))
             .sum();
-        let unstaged_tokens: usize = context
-            .unstaged_files
-            .iter()
-            .map(|f| self.count_tokens(f))
-            .sum();
-        commit_tokens + staged_tokens + unstaged_tokens
+        commit_tokens + staged_tokens
     }
 
     fn truncate_recent_commits(&self, commits: &mut Vec<RecentCommit>, max_tokens: usize) {
@@ -102,19 +91,6 @@ impl TokenOptimizer {
             let available_tokens = max_tokens.saturating_sub(total_tokens);
             file.diff = self.truncate_string(&file.diff, available_tokens);
             total_tokens += self.count_tokens(&file.diff);
-            true
-        });
-    }
-
-    fn truncate_unstaged_files(&self, files: &mut Vec<String>, max_tokens: usize) {
-        let mut total_tokens = 0;
-        files.retain_mut(|file| {
-            if total_tokens >= max_tokens {
-                return false;
-            }
-            let available_tokens = max_tokens.saturating_sub(total_tokens);
-            *file = self.truncate_string(file, available_tokens);
-            total_tokens += self.count_tokens(file);
             true
         });
     }

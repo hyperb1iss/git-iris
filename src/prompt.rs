@@ -70,13 +70,11 @@ pub fn create_user_prompt(context: &CommitContext) -> String {
         Branch: {}\n\n\
         Recent commits:\n{}\n\n\
         Staged changes:\n{}\n\n\
-        Unstaged files:\n{}\n\n\
         Project metadata:\n{}\n\n\
         Detailed changes:\n{}",
         context.branch,
         format_recent_commits(&context.recent_commits),
         format_staged_files(&context.staged_files, &relevance_scores),
-        context.unstaged_files.join(", "),
         format_project_metadata(&context.project_metadata),
         detailed_changes
     );
