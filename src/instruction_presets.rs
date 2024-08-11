@@ -198,6 +198,16 @@ impl InstructionPresetLibrary {
             }
         );
 
+        presets.insert(
+            "hater".to_string(),
+            InstructionPreset {
+                name: "Hater".to_string(),
+                description: "Hyper-critical and brutally honest style".to_string(),
+                instructions: "Adopt a hyper-critical approach. Focus on finding flaws, weaknesses, and potential issues. Provide brutally honest feedback and don't hesitate to point out even minor imperfections.".to_string(),
+                emoji: "💢".to_string(),
+            },
+        );
+
         InstructionPresetLibrary { presets }
     }
 
