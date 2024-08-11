@@ -5,5 +5,11 @@ use git_iris::cli;
 #[tokio::main]
 async fn main() -> Result<()> {
     git_iris::logger::init().expect("Failed to initialize logger");
-    cli::main().await
+    match cli::main().await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
 }

@@ -48,7 +48,7 @@ pub async fn handle_gen_command(
         ui::print_info("1. Git is installed and accessible from the command line.");
         ui::print_info("2. You are running this command from within a Git repository.");
         ui::print_info("3. You have set up your configuration using 'git-iris config'.");
-        return Ok(());
+        return Err(e);
     }
 
     let git_info = service.get_git_info().await?;

@@ -80,13 +80,18 @@ impl TuiCommit {
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
         terminal.show_cursor()?;
 
-        result
+        if let Err(e) = result {
+            eprintln!("Error in TUI: {}", e);
+            return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
+        }
+
+        Ok(())
     }
 
     async fn main_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    ) -> io::Result<()> {
+    ) -> anyhow::Result<()> {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<GeneratedMessage, anyhow::Error>>(1);
         let mut task_spawned = false;
 
@@ -142,7 +147,7 @@ impl TuiCommit {
                         self.state.mode = Mode::Normal; // Exit Generating mode
                         self.state.spinner = None; // Stop the spinner
                         self.state
-                            .set_status(format!("Failed to generate new message: {}", e));
+                            .set_status(format!("Failed to generate new message: {}. Press 'r' to retry or 'Esc' to exit.", e));
                         task_spawned = false; // Reset for future regenerations
                     }
                 },
