@@ -14,6 +14,9 @@ pub struct TestLLMProvider {
     fail_count: Arc<AtomicUsize>,
     delay: Arc<AtomicU64>,
     total_calls: Arc<AtomicUsize>,
+    response: Option<String>,
+    bad_response: Option<String>,
+    json_validation_failures: Arc<AtomicUsize>,
 }
 
 impl TestLLMProvider {
@@ -24,6 +27,9 @@ impl TestLLMProvider {
             fail_count: Arc::new(AtomicUsize::new(0)),
             delay: Arc::new(AtomicU64::new(0)),
             total_calls: Arc::new(AtomicUsize::new(0)),
+            response: None,
+            bad_response: None,
+            json_validation_failures: Arc::new(AtomicUsize::new(0)),
         })
     }
 
@@ -39,10 +45,23 @@ impl TestLLMProvider {
         self.total_calls.load(Ordering::SeqCst)
     }
 
+    pub fn set_response(&mut self, response: String) {
+        self.response = Some(response);
+    }
+
+    pub fn set_bad_response(&mut self, bad_response: String) {
+        self.bad_response = Some(bad_response);
+    }
+
+    pub fn set_json_validation_failures(&self, count: usize) {
+        self.json_validation_failures.store(count, Ordering::SeqCst);
+    }
+
     pub fn reset(&self) {
         self.fail_count.store(0, Ordering::SeqCst);
         self.delay.store(0, Ordering::SeqCst);
         self.total_calls.store(0, Ordering::SeqCst);
+        self.json_validation_failures.store(0, Ordering::SeqCst);
     }
 }
 
@@ -68,12 +87,23 @@ impl LLMProvider for TestLLMProvider {
             Err(anyhow!("Simulated failure"))
         } else {
             println!("TestLLMProvider: Generating success response");
-            Ok(format!(
-                "Test response from model '{}'. System prompt: '{}', User prompt: '{}'",
-                self.config.model,
-                system_prompt.replace('\'', "\\'"),
-                user_prompt.replace('\'', "\\'")
-            ))
+            let json_validation_failures = self.json_validation_failures.load(Ordering::SeqCst);
+            if total_calls < json_validation_failures {
+                if let Some(bad_response) = &self.bad_response {
+                    Ok(bad_response.clone())
+                } else {
+                    Err(anyhow!("Simulated JSON validation failure"))
+                }
+            } else if let Some(response) = &self.response {
+                Ok(response.clone())
+            } else {
+                Ok(format!(
+                    "Test response from model '{}'. System prompt: '{}', User prompt: '{}'",
+                    self.config.model,
+                    system_prompt.replace('\'', "\\'"),
+                    user_prompt.replace('\'', "\\'")
+                ))
+            }
         }
     }
 }

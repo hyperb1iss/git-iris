@@ -1,5 +1,6 @@
 use anyhow::Result;
 use git_iris::config::Config;
+use git_iris::context::GeneratedMessage;
 use git_iris::llm::{
     get_available_provider_names, get_default_model_for_provider,
     get_default_token_limit_for_provider, get_refined_message, get_refined_message_with_provider,
@@ -9,21 +10,33 @@ use git_iris::llm_providers::{LLMProviderConfig, LLMProviderType};
 use std::str::FromStr;
 
 #[tokio::test]
-async fn test_get_refined_message() -> Result<()> {
+async fn test_get_refined_message_validating() -> Result<()> {
     let mut config = Config::default();
     config.default_provider = "test".to_string();
 
+    let provider_config = LLMProviderConfig {
+        api_key: String::new(),
+        model: "test-model".to_string(),
+        additional_params: Default::default(),
+    };
+
+    // Provide the provider response so we can test the validation logic
+    let mut test_provider = TestLLMProvider::new(provider_config.clone())?;
+    test_provider.set_response(
+        "{\"emoji\": \"🚀\", \"title\": \"Test Title\", \"message\": \"Test Message\"}".to_string(),
+    );
+
     // Call get_refined_message with the test provider
-    let result = get_refined_message(
-        &config,
-        &LLMProviderType::Test,
+    let result: GeneratedMessage = get_refined_message_with_provider::<GeneratedMessage>(
+        Box::new(test_provider.clone()),
         "System prompt including any custom instructions",
         "User prompt",
     )
     .await?;
-    assert!(result.contains("Test response from model 'test-model'"));
-    assert!(result.contains("System prompt: 'System prompt including any custom instructions'"));
-    assert!(result.contains("User prompt: 'User prompt'"));
+
+    assert_eq!(result.emoji, Some("🚀".to_string()));
+    assert_eq!(result.title, "Test Title");
+    assert_eq!(result.message, "Test Message");
     Ok(())
 }
 
@@ -35,7 +48,7 @@ async fn test_get_refined_message_with_preset_and_custom_instructions() -> Resul
     config.instructions = "Custom instructions".to_string();
 
     // Call get_refined_message with the test provider
-    let result = get_refined_message(
+    let result = get_refined_message::<String>(
         &config,
         &LLMProviderType::Test,
         "System prompt with preset: default and custom instructions: Custom instructions",
@@ -133,7 +146,7 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     println!("result 1: {:?}", result);
 
     assert!(result.is_ok(), "Expected Ok result, got {:?}", result);
-    let message = result.unwrap();
+    let message: String = result.unwrap();
     assert!(message.contains("Test response from model 'test-model'"));
     assert!(message.contains("System prompt:"));
     assert!(message.contains("User prompt:"));
@@ -143,7 +156,7 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
 
     // Test immediate success
     let test_provider = TestLLMProvider::new(provider_config.clone())?;
-    let result = get_refined_message_with_provider(
+    let result = get_refined_message_with_provider::<String>(
         Box::new(test_provider.clone()),
         "System prompt",
         "User prompt",
@@ -160,7 +173,7 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     test_provider.set_fail_count(3); // Set to 3 to ensure it always fails
 
     println!("start 3");
-    let result = get_refined_message_with_provider(
+    let result = get_refined_message_with_provider::<String>(
         Box::new(test_provider.clone()),
         "System prompt",
         "User prompt",
@@ -172,5 +185,38 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     // We expect 3 total calls: 3 failures
     assert_eq!(test_provider.get_total_calls(), 3);
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_refined_message_json_validation_failures() -> Result<()> {
+    let mut config = Config::default();
+    config.default_provider = "test".to_string();
+
+    let provider_config = LLMProviderConfig {
+        api_key: String::new(),
+        model: "test-model".to_string(),
+        additional_params: Default::default(),
+    };
+
+    // Provide the provider response so we can test the validation logic
+    let mut test_provider = TestLLMProvider::new(provider_config.clone())?;
+    test_provider.set_response(
+        "{\"emoji\": \"🚀\", \"title\": \"Test Title\", \"message\": \"Test Message\"}".to_string(),
+    );
+    test_provider.set_bad_response("{\"invalid_key\": \"invalid_value\"}".to_string());
+    test_provider.set_json_validation_failures(2);
+
+    // Call get_refined_message with the test provider
+    let result: GeneratedMessage = get_refined_message_with_provider::<GeneratedMessage>(
+        Box::new(test_provider.clone()),
+        "System prompt including any custom instructions",
+        "User prompt",
+    )
+    .await?;
+
+    assert_eq!(result.emoji, Some("🚀".to_string()));
+    assert_eq!(result.title, "Test Title");
+    assert_eq!(result.message, "Test Message");
     Ok(())
 }

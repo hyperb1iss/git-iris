@@ -5,17 +5,23 @@ use crate::llm_providers::{
 };
 use crate::{log_debug, LLMProvider};
 use anyhow::{anyhow, Result};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::time::Duration;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 
 /// Generates a message using the given configuration
-pub async fn get_refined_message(
+pub async fn get_refined_message<T>(
     config: &Config,
     provider_type: &LLMProviderType,
     system_prompt: &str,
     user_prompt: &str,
-) -> Result<String> {
+) -> Result<T>
+where
+    T: Serialize + DeserializeOwned + std::fmt::Debug,
+    String: Into<T>,
+{
     // Get provider metadata and configuration
     let provider_metadata = get_provider_metadata(provider_type);
     let provider_config = if provider_metadata.requires_api_key {
@@ -41,22 +47,26 @@ pub async fn get_refined_message(
     log_debug!("User prompt: {}", user_prompt);
 
     // Call get_refined_message_with_provider
-    let result =
-        get_refined_message_with_provider(llm_provider, system_prompt, user_prompt).await?;
+    let result = get_refined_message_with_provider::<T>(
+        llm_provider,
+        system_prompt,
+        user_prompt,
+    )
+    .await?;
 
-    // Clean the JSON string from the LLM provider
-    let cleaned_message = clean_json_from_llm(&result);
-    log_debug!("Cleaned refined message: {}", cleaned_message);
-
-    Ok(cleaned_message)
+    Ok(result)
 }
 
 /// Generates a message using the given provider (mainly for testing purposes)
-pub async fn get_refined_message_with_provider(
+pub async fn get_refined_message_with_provider<T>(
     llm_provider: Box<dyn LLMProvider + Send + Sync>,
     system_prompt: &str,
     user_prompt: &str,
-) -> Result<String> {
+) -> Result<T>
+where
+    T: Serialize + DeserializeOwned + std::fmt::Debug,
+    String: Into<T>,
+{
     log_debug!("Entering get_refined_message_with_provider");
 
     let retry_strategy = ExponentialBackoff::from_millis(10).factor(2).take(2); // 2 attempts total: initial + 1 retry
@@ -71,7 +81,20 @@ pub async fn get_refined_message_with_provider(
         {
             Ok(Ok(refined_message)) => {
                 log_debug!("Received response from provider");
-                Ok(refined_message)
+                let cleaned_message = clean_json_from_llm(&refined_message);
+                if std::any::type_name::<T>() == std::any::type_name::<String>() {
+                    // If T is String, return the raw string response
+                    Ok(cleaned_message.into())
+                } else {
+                    // Attempt to deserialize the response
+                    match serde_json::from_str::<T>(&cleaned_message) {
+                        Ok(message) => Ok(message),
+                        Err(e) => {
+                            log_debug!("Deserialization error: {}", e);
+                            Err(anyhow!("Deserialization error: {}", e))
+                        }
+                    }
+                }
             }
             Ok(Err(e)) => {
                 log_debug!("Provider error: {}", e);
@@ -87,7 +110,7 @@ pub async fn get_refined_message_with_provider(
 
     match result {
         Ok(message) => {
-            log_debug!("Refined message: {}", message);
+            log_debug!("Deserialized message: {:?}", message);
             Ok(message)
         }
         Err(e) => {

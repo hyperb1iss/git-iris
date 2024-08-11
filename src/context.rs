@@ -38,6 +38,12 @@ pub struct GeneratedMessage {
     pub message: String,
 }
 
+impl From<String> for GeneratedMessage {
+    fn from(value: String) -> Self {
+        serde_json::from_str(&value).unwrap()
+    }
+}
+
 #[derive(Serialize, Debug, Clone)]
 pub enum ChangeType {
     Added,
