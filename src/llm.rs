@@ -47,12 +47,8 @@ where
     log_debug!("User prompt: {}", user_prompt);
 
     // Call get_refined_message_with_provider
-    let result = get_refined_message_with_provider::<T>(
-        llm_provider,
-        system_prompt,
-        user_prompt,
-    )
-    .await?;
+    let result =
+        get_refined_message_with_provider::<T>(llm_provider, system_prompt, user_prompt).await?;
 
     Ok(result)
 }
@@ -90,7 +86,7 @@ where
                     match serde_json::from_str::<T>(&cleaned_message) {
                         Ok(message) => Ok(message),
                         Err(e) => {
-                            log_debug!("Deserialization error: {}", e);
+                            log_debug!("Deserialization error: {} message: {}", e, cleaned_message);
                             Err(anyhow!("Deserialization error: {}", e))
                         }
                     }
@@ -205,8 +201,10 @@ pub fn get_combined_config(
 }
 
 fn clean_json_from_llm(json_str: &str) -> String {
-    // Remove potential leading/trailing whitespace
-    let trimmed = json_str.trim();
+    // Remove potential leading/trailing whitespace and invisible characters
+    let trimmed = json_str
+        .trim_start_matches(|c: char| c.is_whitespace() || !c.is_ascii())
+        .trim_end_matches(|c: char| c.is_whitespace() || !c.is_ascii());
 
     // If wrapped in code block, remove the markers
     let without_codeblock = if trimmed.starts_with("```") && trimmed.ends_with("```") {

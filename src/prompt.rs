@@ -19,7 +19,7 @@ pub fn create_system_prompt(config: &Config) -> String {
         3. Capitalize the subject line.
         4. Do not end the subject line with a period.
         5. Separate subject from body with a blank line.
-        6. Wrap the body at 72 characters.
+        6. Ensure that each line of the message body does not exceed 72 characters.
         7. Use the body to explain what changes were made and their impact, not how they were implemented.
         8. Be specific and avoid vague language.
         9. Focus on the concrete changes and their effects, not assumptions about intent.
@@ -42,6 +42,9 @@ pub fn create_system_prompt(config: &Config) -> String {
             \"title\": \"<title>\",
             \"message\": \"<message>\"
         }
+
+        Be sure to quote newlines and any other control characters in your response.
+
         The message should be based entirely on the information provided in the context,
         without any speculation or assumptions."
     );
