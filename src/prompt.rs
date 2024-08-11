@@ -46,16 +46,15 @@ pub fn create_system_prompt(config: &Config) -> String {
         without any speculation or assumptions."
     );
 
+    prompt.push_str(get_combined_instructions(config).as_str());
+
     if config.use_gitmoji {
         prompt.push_str(
             "\n\nUse a single gitmoji at the start of the commit message. \
-            Choose the most relevant emoji from the following list:\n\n",
+        Choose the most relevant emoji from the following list:\n\n",
         );
         prompt.push_str(&get_gitmoji_list());
     }
-
-    prompt.push_str(get_combined_instructions(config).as_str());
-
     prompt
 }
 
@@ -169,7 +168,7 @@ pub fn get_combined_instructions(config: &Config) -> String {
     if let Some(preset_instructions) = preset_library.get_preset(config.instruction_preset.as_str())
     {
         prompt.push_str(&format!(
-            "\n\nWrite your response using these instructions:\n{}\n\n",
+            "\n\nUse this style for your response:\n{}\n\n",
             preset_instructions.instructions
         ));
     }
