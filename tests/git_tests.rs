@@ -2,7 +2,7 @@ use git2::Repository;
 use git_iris::config::Config;
 use git_iris::context::ChangeType;
 use git_iris::git::{commit, get_git_info, get_project_metadata};
-use git_iris::prompt::{create_system_prompt, create_user_prompt};
+use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::token_optimizer::TokenOptimizer;
 use std::fs;
 use std::path::Path;

@@ -2,7 +2,7 @@ use crate::change_analyzer::{AnalyzedChange, ChangeMetrics};
 use crate::common::DetailLevel;
 use crate::config::Config;
 use crate::gitmoji::get_gitmoji_list;
-use crate::prompt::get_combined_instructions;
+use crate::common::get_combined_instructions;
 
 pub fn create_changelog_system_prompt(config: &Config) -> String {
     let mut prompt = String::from(

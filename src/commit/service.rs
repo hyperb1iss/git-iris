@@ -8,9 +8,9 @@ use crate::context::{CommitContext, GeneratedMessage};
 use crate::git;
 use crate::llm;
 use crate::llm_providers::LLMProviderType;
-use crate::prompt;
+use super::prompt::{create_system_prompt, create_user_prompt, process_commit_message};
 
-pub struct GitIrisService {
+pub struct IrisCommitService {
     config: Config,
     repo_path: PathBuf,
     provider_type: LLMProviderType,
@@ -18,7 +18,7 @@ pub struct GitIrisService {
     cached_context: Arc<RwLock<Option<CommitContext>>>,
 }
 
-impl GitIrisService {
+impl IrisCommitService {
     pub fn new(
         config: Config,
         repo_path: PathBuf,
@@ -65,8 +65,8 @@ impl GitIrisService {
 
         let context = self.get_git_info().await?;
 
-        let system_prompt = prompt::create_system_prompt(&config_clone);
-        let user_prompt = prompt::create_user_prompt(&context);
+        let system_prompt = create_system_prompt(&config_clone);
+        let user_prompt = create_user_prompt(&context);
 
         let mut generated_message = llm::get_refined_message::<GeneratedMessage>(
             &config_clone,
@@ -86,7 +86,7 @@ impl GitIrisService {
 
     pub fn perform_commit(&self, message: &str) -> Result<()> {
         let processed_message =
-            prompt::process_commit_message(message.to_string(), self.use_gitmoji);
+            process_commit_message(message.to_string(), self.use_gitmoji);
         git::commit(&self.repo_path, &processed_message)
     }
 

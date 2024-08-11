@@ -1,4 +1,5 @@
 use crate::commands;
+use crate::commit;
 use crate::common::CommonParams;
 use crate::llm::get_available_provider_names;
 use crate::log_debug;
@@ -200,7 +201,7 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             ui::print_version(crate_version!());
             println!();
 
-            commands::handle_gen_command(common, auto_commit, !no_gitmoji, print).await?;
+            commit::handle_gen_command(common, auto_commit, !no_gitmoji, print).await?;
         }
         Commands::Config {
             common,

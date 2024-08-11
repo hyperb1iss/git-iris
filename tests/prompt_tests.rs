@@ -1,6 +1,6 @@
 use git_iris::config::Config;
 use git_iris::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
-use git_iris::prompt::{create_system_prompt, create_user_prompt};
+use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 
 fn create_mock_commit_context() -> CommitContext {
     CommitContext {

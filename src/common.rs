@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm_providers::LLMProviderType;
 use anyhow::Result;
 use clap::Args;
@@ -34,7 +35,7 @@ impl DetailLevel {
     }
 }
 
-#[derive(Args, Default, Debug)]
+#[derive(Args, Clone, Default, Debug)]
 pub struct CommonParams {
     /// Override default LLM provider
     #[arg(long, help = "Override default LLM provider", value_parser = available_providers_parser)]
@@ -90,4 +91,26 @@ pub fn available_providers_parser(s: &str) -> Result<String, String> {
             available_providers.join(", ")
         ))
     }
+}
+
+pub fn get_combined_instructions(config: &Config) -> String {
+    let mut prompt = String::from("\n\n");
+
+    let preset_library = get_instruction_preset_library();
+    if let Some(preset_instructions) = preset_library.get_preset(config.instruction_preset.as_str())
+    {
+        prompt.push_str(&format!(
+            "\n\nUse this style for the commit message:\n{}\n\n",
+            preset_instructions.instructions
+        ));
+    }
+
+    if !config.instructions.is_empty() {
+        prompt.push_str(&format!(
+            "\n\nAdditional instructions for the commit message:\n{}\n\n",
+            config.instructions
+        ));
+    }
+
+    prompt
 }

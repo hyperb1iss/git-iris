@@ -1,7 +1,7 @@
 use anyhow::Result;
 use git_iris::config::Config;
 use git_iris::llm_providers::LLMProviderType;
-use git_iris::service::GitIrisService;
+use git_iris::commit::IrisCommitService;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -33,7 +33,7 @@ async fn test_generate_message() -> Result<()> {
     let provider_type = LLMProviderType::Test;
     let use_gitmoji = true;
 
-    let service = GitIrisService::new(config, repo_path, provider_type, use_gitmoji);
+    let service = IrisCommitService::new(config, repo_path, provider_type, use_gitmoji);
 
     let result = service
         .generate_message("default", "Test instructions")
@@ -58,7 +58,7 @@ fn test_perform_commit() -> Result<()> {
     let provider_type = LLMProviderType::Test;
     let use_gitmoji = true;
 
-    let service = GitIrisService::new(config, repo_path.clone(), provider_type, use_gitmoji);
+    let service = IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji);
 
     let result = service.perform_commit("Test commit message");
 
@@ -80,7 +80,7 @@ fn test_check_environment() -> Result<()> {
     let provider_type = LLMProviderType::Test;
     let use_gitmoji = true;
 
-    let service = GitIrisService::new(config, repo_path, provider_type, use_gitmoji);
+    let service = IrisCommitService::new(config, repo_path, provider_type, use_gitmoji);
 
     let result = service.check_environment();
 

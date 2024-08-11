@@ -1,10 +1,10 @@
+use crate::common::get_combined_instructions;
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
-use crate::instruction_presets::get_instruction_preset_library;
 
 use crate::log_debug;
-use crate::relevance::RelevanceScorer;
+use super::relevance::RelevanceScorer;
 use std::collections::HashMap;
 
 pub fn create_system_prompt(config: &Config) -> String {
@@ -160,26 +160,4 @@ pub fn process_commit_message(message: String, use_gitmoji: bool) -> String {
     } else {
         message
     }
-}
-
-pub fn get_combined_instructions(config: &Config) -> String {
-    let mut prompt = String::from("\n\n");
-
-    let preset_library = get_instruction_preset_library();
-    if let Some(preset_instructions) = preset_library.get_preset(config.instruction_preset.as_str())
-    {
-        prompt.push_str(&format!(
-            "\n\nUse this style for the commit message:\n{}\n\n",
-            preset_instructions.instructions
-        ));
-    }
-
-    if !config.instructions.is_empty() {
-        prompt.push_str(&format!(
-            "\n\nAdditional instructions for the commit message:\n{}\n\n",
-            config.instructions
-        ));
-    }
-
-    prompt
 }

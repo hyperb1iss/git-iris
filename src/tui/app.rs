@@ -1,6 +1,6 @@
+use crate::commit::IrisCommitService;
 use crate::context::GeneratedMessage;
 use crate::log_debug;
-use crate::service::GitIrisService;
 use anyhow::{Error, Result};
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::{
@@ -20,7 +20,7 @@ use super::ui::draw_ui;
 
 pub struct TuiCommit {
     pub state: TuiState,
-    service: Arc<GitIrisService>,
+    service: Arc<IrisCommitService>,
 }
 
 impl TuiCommit {
@@ -30,7 +30,7 @@ impl TuiCommit {
         preset: String,
         user_name: String,
         user_email: String,
-        service: Arc<GitIrisService>,
+        service: Arc<IrisCommitService>,
         use_gitmoji: bool,
     ) -> Self {
         let state = TuiState::new(
@@ -51,7 +51,7 @@ impl TuiCommit {
         selected_preset: String,
         user_name: String,
         user_email: String,
-        service: Arc<GitIrisService>,
+        service: Arc<IrisCommitService>,
         use_gitmoji: bool,
     ) -> Result<()> {
         let mut app = TuiCommit::new(
@@ -227,7 +227,7 @@ pub async fn run_tui_commit(
     selected_preset: String,
     user_name: String,
     user_email: String,
-    service: Arc<GitIrisService>,
+    service: Arc<IrisCommitService>,
     use_gitmoji: bool,
 ) -> Result<()> {
     TuiCommit::run(
