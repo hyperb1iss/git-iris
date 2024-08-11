@@ -20,23 +20,21 @@ pub fn create_system_prompt(config: &Config) -> String {
         4. Do not end the subject line with a period.
         5. Separate subject from body with a blank line.
         6. Ensure that each line of the message body does not exceed 72 characters.
-        7. Use the body to explain what changes were made and their impact, not how they were implemented.
+        7. Use the body to explain what changes were made and their impact, and how they were implemented.
         8. Be specific and avoid vague language.
         9. Focus on the concrete changes and their effects, not assumptions about intent.
         10. If the changes are part of a larger feature or fix, state this fact if evident from the context.
         11. For non-trivial changes, include a brief explanation of the change's purpose if clearly indicated in the context.
         12. Do not include a conclusion or end summary section.
-        13. Keep the message concise and to the point, avoiding unnecessary elaboration.
-        14. Avoid common cliché words (like 'enhance', 'streamline', 'leverage', etc) and phrases.
-        15. Don't mention filenames in the subject line unless absolutely necessary.
-        16. Only describe changes that are explicitly shown in the provided context.
-        17. Do not speculate about the purpose of a change or add any information not directly supported by the context.
-        18. If the purpose or impact of a change is not clear from the context, focus on describing the change itself without inferring intent.
-        19. Do not use phrases like 'seems to', 'appears to', or 'might be' - only state what is certain based on the context.
-        20. If there's not enough information to create a complete, authoritative message, state only what can be confidently determined from the context.
-        21. NO YAPPING!
+        13. Avoid common cliché words (like 'enhance', 'streamline', 'leverage', etc) and phrases.
+        14. Don't mention filenames in the subject line unless absolutely necessary.
+        15. Only describe changes that are explicitly shown in the provided context.
+        16. If the purpose or impact of a change is not clear from the context, focus on describing the change itself without inferring intent.
+        17. Do not use phrases like 'seems to', 'appears to', or 'might be' - only state what is certain based on the context.
+        18. If there's not enough information to create a complete, authoritative message, state only what can be confidently determined from the context.
+        19. NO YAPPING!
 
-        Generate only the commit message in JSON format with the following structure:
+        *ALWAYS* generate only the commit message in valid JSON format with the following structure:
         {
             \"emoji\": \"<emoji if used>\",
             \"title\": \"<title>\",
@@ -171,14 +169,14 @@ pub fn get_combined_instructions(config: &Config) -> String {
     if let Some(preset_instructions) = preset_library.get_preset(config.instruction_preset.as_str())
     {
         prompt.push_str(&format!(
-            "\n\nUse this style for your response:\n{}\n\n",
+            "\n\nUse this style for the commit message:\n{}\n\n",
             preset_instructions.instructions
         ));
     }
 
     if !config.instructions.is_empty() {
         prompt.push_str(&format!(
-            "\n\nAdditional instructions:\n{}\n\n",
+            "\n\nAdditional instructions for the commit message:\n{}\n\n",
             config.instructions
         ));
     }
