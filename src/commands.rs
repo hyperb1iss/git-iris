@@ -50,7 +50,7 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let git_info = service.get_git_info()?;
+    let git_info = service.get_git_info().await?;
 
     if git_info.staged_files.is_empty() {
         ui::print_warning(

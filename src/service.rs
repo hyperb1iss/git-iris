@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
-use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
 
 use crate::config::Config;
 use crate::context::{CommitContext, GeneratedMessage};
@@ -14,6 +15,7 @@ pub struct GitIrisService {
     repo_path: PathBuf,
     provider_type: LLMProviderType,
     use_gitmoji: bool,
+    cached_context: Arc<RwLock<Option<CommitContext>>>,
 }
 
 impl GitIrisService {
@@ -28,6 +30,7 @@ impl GitIrisService {
             repo_path,
             provider_type,
             use_gitmoji,
+            cached_context: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -35,8 +38,20 @@ impl GitIrisService {
         Config::check_environment()
     }
 
-    pub fn get_git_info(&self) -> Result<CommitContext> {
-        git::get_git_info(&self.repo_path, &self.config)
+    pub async fn get_git_info(&self) -> Result<CommitContext> {
+        {
+            let cached_context = self.cached_context.read().await; // Await the read lock
+            if let Some(context) = &*cached_context {
+                return Ok(context.clone());
+            }
+        }
+
+        let context = git::get_git_info(&self.repo_path, &self.config)?;
+        {
+            let mut cached_context = self.cached_context.write().await; // Await the write lock
+            *cached_context = Some(context.clone());
+        }
+        Ok(context)
     }
 
     pub async fn generate_message(
@@ -44,14 +59,14 @@ impl GitIrisService {
         preset: &str,
         instructions: &str,
     ) -> Result<GeneratedMessage> {
-        let git_info = self.get_git_info()?;
-
         let mut config_clone = self.config.clone();
         config_clone.instruction_preset = preset.to_string();
         config_clone.instructions = instructions.to_string();
 
+        let context = self.get_git_info().await?;
+
         let system_prompt = prompt::create_system_prompt(&config_clone);
-        let user_prompt = prompt::create_user_prompt(&git_info);
+        let user_prompt = prompt::create_user_prompt(&context);
 
         let mut generated_message = llm::get_refined_message::<GeneratedMessage>(
             &config_clone,
