@@ -104,17 +104,7 @@ fn handle_normal_mode(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
             app.state.set_status(String::from("Committing..."));
             app.state.spinner = Some(SpinnerState::new());
 
-            // Perform the commit
-            match app.perform_commit(&commit_message) {
-                Ok(()) => {
-                    app.state.set_status(String::from("Commit successful!"));
-                    InputResult::Exit // Exit the TUI after successful commit
-                }
-                Err(e) => {
-                    app.state.set_status(format!("Commit failed: {}", e));
-                    InputResult::Continue
-                }
-            }
+            InputResult::Commit(commit_message)
         }
         KeyCode::Esc => InputResult::Exit,
         _ => InputResult::Continue,
@@ -340,4 +330,5 @@ fn is_emoji(c: char) -> bool {
 pub enum InputResult {
     Continue,
     Exit,
+    Commit(String),
 }

@@ -67,22 +67,38 @@ impl TuiCommit {
     }
 
     pub async fn run_app(&mut self) -> io::Result<()> {
+        // Setup
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen)?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
+        // Run main loop
         let result = self.main_loop(&mut terminal).await;
 
-        // restore terminal
+        // Cleanup
         disable_raw_mode()?;
         execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
         terminal.show_cursor()?;
 
-        if let Err(e) = result {
-            eprintln!("Error in TUI: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
+        // Handle result and display appropriate message
+        match result {
+            Ok(exit_status) => match exit_status {
+                ExitStatus::Committed(_message) => {
+                    println!("Commit successful!");
+                }
+                ExitStatus::Cancelled => {
+                    println!("Commit operation cancelled. Your changes remain staged.");
+                }
+                ExitStatus::Error(error_message) => {
+                    eprintln!("An error occurred: {}", error_message);
+                }
+            },
+            Err(e) => {
+                eprintln!("An unexpected error occurred: {}", e);
+                return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
+            }
         }
 
         Ok(())
@@ -91,7 +107,7 @@ impl TuiCommit {
     async fn main_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<ExitStatus> {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Result<GeneratedMessage, anyhow::Error>>(1);
         let mut task_spawned = false;
 
@@ -164,8 +180,15 @@ impl TuiCommit {
             if event::poll(Duration::from_millis(20))? {
                 if let Event::Key(key) = event::read()? {
                     match handle_input(self, key) {
-                        InputResult::Exit => break,
-                        InputResult::Continue => self.state.dirty = true, // Mark dirty on input
+                        InputResult::Exit => return Ok(ExitStatus::Cancelled),
+                        InputResult::Commit(message) => match self.perform_commit(&message) {
+                            Ok(status) => return Ok(status),
+                            Err(e) => {
+                                self.state.set_status(format!("Commit failed: {}", e));
+                                self.state.dirty = true;
+                            }
+                        },
+                        InputResult::Continue => self.state.dirty = true,
                     }
                 }
             }
@@ -182,7 +205,7 @@ impl TuiCommit {
             }
         }
 
-        Ok(())
+        Ok(ExitStatus::Cancelled)
     }
 
     pub fn handle_regenerate(&mut self) {
@@ -190,8 +213,11 @@ impl TuiCommit {
         self.state.spinner = Some(SpinnerState::new());
     }
 
-    pub fn perform_commit(&self, message: &str) -> Result<(), Error> {
-        self.service.perform_commit(message)
+    pub fn perform_commit(&self, message: &str) -> Result<ExitStatus, Error> {
+        match self.service.perform_commit(message) {
+            Ok(()) => Ok(ExitStatus::Committed(message.to_string())),
+            Err(e) => Ok(ExitStatus::Error(e.to_string())),
+        }
     }
 }
 
@@ -214,4 +240,10 @@ pub async fn run_tui_commit(
         use_gitmoji,
     )
     .await
+}
+
+pub enum ExitStatus {
+    Committed(String),
+    Cancelled,
+    Error(String),
 }

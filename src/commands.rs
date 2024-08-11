@@ -85,7 +85,7 @@ pub async fn handle_gen_command(
     if auto_commit {
         service.perform_commit(&format_commit_message(&initial_message))?;
         println!(
-            "Commit created with message: {}",
+            "🌟 Commit created with message: {}",
             format_commit_message(&initial_message)
         );
         return Ok(());
