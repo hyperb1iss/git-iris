@@ -4,6 +4,7 @@ use crate::context::format_commit_message;
 use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm_providers::{get_available_providers, LLMProviderType};
 use crate::log_debug;
+use crate::messages;
 use crate::service::GitIrisService;
 use crate::tui::run_tui_commit;
 use crate::ui;
@@ -63,10 +64,18 @@ pub async fn handle_gen_command(
     let effective_instructions = instructions.unwrap_or_else(|| config.instructions.clone());
     let preset_str = preset.as_deref().unwrap_or("");
 
+    // Create and start the spinner
+    let spinner = ui::create_spinner("");
+    let random_message = messages::get_random_message();
+    spinner.set_message(random_message.text);
+    
     // Generate an initial message
     let initial_message = service
         .generate_message(preset_str, &effective_instructions)
         .await?;
+
+    // Stop the spinner
+    spinner.finish_and_clear();
 
     if print {
         println!("{}", format_commit_message(&initial_message));
