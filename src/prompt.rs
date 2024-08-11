@@ -10,8 +10,7 @@ use std::collections::HashMap;
 pub fn create_system_prompt(config: &Config) -> String {
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
-        Your task is to generate clear, concise, and informative commit messages based solely on the provided context. \
-        Aim for a tone that is professional, approachable, and authoritative, keeping in mind any additional user instructions.
+        Your task is to generate clear, concise, and informative commit messages based solely on the provided context.
         
         Work step-by-step and follow these guidelines exactly:
 
@@ -161,7 +160,7 @@ pub fn get_combined_instructions(config: &Config) -> String {
     if let Some(preset_instructions) = preset_library.get_preset(config.instruction_preset.as_str())
     {
         prompt.push_str(&format!(
-            "\n\nResponse style instructions:\n{}\n\n",
+            "\n\nWrite your response using these instructions:\n{}\n\n",
             preset_instructions.instructions
         ));
     }
