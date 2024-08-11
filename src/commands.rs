@@ -1,4 +1,5 @@
-use crate::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
+use crate::changelog::{ChangelogGenerator, ReleaseNotesGenerator};
+use crate::common::{CommonParams, DetailLevel};
 use crate::config::Config;
 use crate::context::format_commit_message;
 use crate::instruction_presets::get_instruction_preset_library;
@@ -18,21 +19,16 @@ use unicode_width::UnicodeWidthStr;
 
 /// Handle the 'gen' command
 pub async fn handle_gen_command(
-    use_gitmoji: bool,
-    provider: Option<String>,
+    common: CommonParams,
     auto_commit: bool,
-    instructions: Option<String>,
-    preset: Option<String>,
+    use_gitmoji: bool,
     print: bool,
 ) -> Result<()> {
-    let config = Config::load()?;
+    let mut config = Config::load()?;
+    common.apply_to_config(&mut config)?;
     let current_dir = std::env::current_dir()?;
 
-    let provider_type = if let Some(p) = provider {
-        LLMProviderType::from_str(&p)?
-    } else {
-        LLMProviderType::from_str(&config.default_provider)?
-    };
+    let provider_type = LLMProviderType::from_str(&config.default_provider)?;
 
     let service = Arc::new(GitIrisService::new(
         config.clone(),
@@ -61,14 +57,16 @@ pub async fn handle_gen_command(
         return Ok(());
     }
 
-    let effective_instructions = instructions.unwrap_or_else(|| config.instructions.clone());
-    let preset_str = preset.as_deref().unwrap_or("");
+    let effective_instructions = common
+        .instructions
+        .unwrap_or_else(|| config.instructions.clone());
+    let preset_str = common.preset.as_deref().unwrap_or("");
 
     // Create and start the spinner
     let spinner = ui::create_spinner("");
     let random_message = messages::get_random_message();
     spinner.set_message(random_message.text);
-    
+
     // Generate an initial message
     let initial_message = service
         .generate_message(preset_str, &effective_instructions)
@@ -107,22 +105,20 @@ pub async fn handle_gen_command(
 
 /// Handle the 'config' command
 pub fn handle_config_command(
-    provider: Option<String>,
+    common: CommonParams,
     api_key: Option<String>,
     model: Option<String>,
-    param: Option<Vec<String>>,
-    gitmoji: Option<bool>,
-    instructions: Option<String>,
     token_limit: Option<usize>,
-    preset: Option<String>,
+    param: Option<Vec<String>>,
 ) -> Result<()> {
-    log_debug!("Starting 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}, preset: {:?}",
-               provider, api_key, model, param, gitmoji, instructions, token_limit, preset);
+    log_debug!("Starting 'config' command with common: {:?}, api_key: {:?}, model: {:?}, token_limit: {:?}, param: {:?}",
+               common, api_key, model, token_limit, param);
 
     let mut config = Config::load()?;
+    common.apply_to_config(&mut config)?;
     let mut changes_made = false;
 
-    if let Some(provider) = provider {
+    if let Some(provider) = common.provider {
         if !get_available_providers()
             .iter()
             .any(|p| p.to_string() == provider)
@@ -162,13 +158,13 @@ pub fn handle_config_command(
             changes_made = true;
         }
     }
-    if let Some(use_gitmoji) = gitmoji {
+    if let Some(use_gitmoji) = common.gitmoji {
         if config.use_gitmoji != use_gitmoji {
             config.use_gitmoji = use_gitmoji;
             changes_made = true;
         }
     }
-    if let Some(instr) = instructions {
+    if let Some(instr) = common.instructions {
         if config.instructions != instr {
             config.instructions = instr;
             changes_made = true;
@@ -180,7 +176,7 @@ pub fn handle_config_command(
             changes_made = true;
         }
     }
-    if let Some(preset) = preset {
+    if let Some(preset) = common.preset {
         let preset_library = get_instruction_preset_library();
         if preset_library.get_preset(&preset).is_some() {
             if config.instruction_preset != preset {
@@ -229,30 +225,19 @@ pub fn handle_config_command(
 }
 
 pub async fn handle_changelog_command(
+    common: CommonParams,
     from: String,
     to: Option<String>,
-    instructions: Option<String>,
-    preset: Option<String>,
-    detail_level: String,
-    gitmoji: Option<bool>,
 ) -> Result<()> {
     let mut config = Config::load()?;
+    common.apply_to_config(&mut config)?;
     let spinner = ui::create_spinner("Generating changelog...");
 
     let repo_path = env::current_dir()?;
     let to = to.unwrap_or_else(|| "HEAD".to_string());
 
-    // Set temporary instructions and preset
-    config.set_temp_instructions(instructions);
-    config.set_temp_preset(preset);
-
     // Parse detail level
-    let detail_level = DetailLevel::from_str(&detail_level)?;
-
-    // Override gitmoji setting if provided
-    if let Some(use_gitmoji) = gitmoji {
-        config.use_gitmoji = use_gitmoji;
-    }
+    let detail_level = DetailLevel::from_str(&common.detail_level)?;
 
     let changelog =
         ChangelogGenerator::generate(&repo_path, &from, &to, &config, detail_level).await?;
@@ -267,30 +252,19 @@ pub async fn handle_changelog_command(
 }
 
 pub async fn handle_release_notes_command(
+    common: CommonParams,
     from: String,
     to: Option<String>,
-    instructions: Option<String>,
-    preset: Option<String>,
-    detail_level: String,
-    gitmoji: Option<bool>,
 ) -> Result<()> {
     let mut config = Config::load()?;
+    common.apply_to_config(&mut config)?;
     let spinner = ui::create_spinner("Generating release notes...");
 
     let repo_path = env::current_dir()?;
     let to = to.unwrap_or_else(|| "HEAD".to_string());
 
-    // Set temporary instructions and preset
-    config.set_temp_instructions(instructions);
-    config.set_temp_preset(preset);
-
     // Parse detail level
-    let detail_level = DetailLevel::from_str(&detail_level)?;
-
-    // Override gitmoji setting if provided
-    if let Some(use_gitmoji) = gitmoji {
-        config.use_gitmoji = use_gitmoji;
-    }
+    let detail_level = DetailLevel::from_str(&common.detail_level)?;
 
     let release_notes =
         ReleaseNotesGenerator::generate(&repo_path, &from, &to, &config, detail_level).await?;
@@ -362,3 +336,5 @@ pub fn handle_list_presets_command() -> Result<()> {
 
     Ok(())
 }
+
+

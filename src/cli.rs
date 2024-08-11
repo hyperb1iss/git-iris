@@ -1,4 +1,5 @@
 use crate::commands;
+use crate::common::CommonParams;
 use crate::llm::get_available_provider_names;
 use crate::log_debug;
 use crate::ui;
@@ -52,25 +53,16 @@ pub enum Commands {
         after_help = get_dynamic_help()
     )]
     Gen {
+        #[command(flatten)]
+        common: CommonParams,
+
         /// Automatically commit with the generated message
         #[arg(short, long, help = "Automatically commit with the generated message")]
         auto_commit: bool,
 
-        /// Custom instructions for this commit
-        #[arg(short, long, help = "Custom instructions for this commit")]
-        instructions: Option<String>,
-
-        /// Override default LLM provider
-        #[arg(long, help = "Override default LLM provider", value_parser = available_providers_parser)]
-        provider: Option<String>,
-
         /// Disable Gitmoji for this commit
         #[arg(long, help = "Disable Gitmoji for this commit")]
         no_gitmoji: bool,
-
-        /// Select an instruction preset
-        #[arg(long, help = "Select an instruction preset")]
-        preset: Option<String>,
 
         /// Print the generated message to stdout and exit
         #[arg(short, long, help = "Print the generated message to stdout and exit")]
@@ -79,9 +71,8 @@ pub enum Commands {
     /// Configure the AI-assisted Git commit message generator
     #[command(about = "Configure the AI-assisted Git commit message generator")]
     Config {
-        /// Set default LLM provider
-        #[arg(long, help = "Set default LLM provider", value_parser = available_providers_parser)]
-        provider: Option<String>,
+        #[command(flatten)]
+        common: CommonParams,
 
         /// Set API key for the specified provider
         #[arg(long, help = "Set API key for the specified provider")]
@@ -101,32 +92,21 @@ pub enum Commands {
             help = "Set additional parameters for the specified provider (key=value)"
         )]
         param: Option<Vec<String>>,
-
-        /// Set Gitmoji usage preference
-        #[arg(long, help = "Enable or disable Gitmoji")]
-        gitmoji: Option<bool>,
-
-        /// Set instructions for the commit message generation
-        #[arg(
-            short,
-            long,
-            help = "Set instructions for the commit message generation"
-        )]
-        instructions: Option<String>,
-
-        /// Set default instruction preset
-        #[arg(long, help = "Set default instruction preset")]
-        preset: Option<String>,
     },
+
     /// List available instruction presets
     #[command(about = "List available instruction presets")]
     ListPresets,
+
     /// Generate a changelog
     #[command(
         about = "Generate a changelog",
         long_about = "Generate a changelog between two specified Git references."
     )]
     Changelog {
+        #[command(flatten)]
+        common: CommonParams,
+
         /// Starting Git reference (commit hash, tag, or branch name)
         #[arg(long, required = true)]
         from: String,
@@ -134,26 +114,6 @@ pub enum Commands {
         /// Ending Git reference (commit hash, tag, or branch name). Defaults to HEAD if not specified.
         #[arg(long)]
         to: Option<String>,
-
-        /// Custom instructions for changelog generation
-        #[arg(short, long, help = "Custom instructions for changelog generation")]
-        instructions: Option<String>,
-
-        /// Select an instruction preset for changelog generation
-        #[arg(long, help = "Select an instruction preset for changelog generation")]
-        preset: Option<String>,
-
-        /// Set the detail level for the changelog
-        #[arg(
-            long,
-            help = "Set the detail level (minimal, standard, detailed)",
-            default_value = "standard"
-        )]
-        detail_level: String,
-
-        /// Enable or disable Gitmoji in the changelog
-        #[arg(long, help = "Enable or disable Gitmoji in the changelog")]
-        gitmoji: Option<bool>,
     },
     /// Generate release notes
     #[command(
@@ -161,6 +121,9 @@ pub enum Commands {
         long_about = "Generate comprehensive release notes between two specified Git references."
     )]
     ReleaseNotes {
+        #[command(flatten)]
+        common: CommonParams,
+
         /// Starting Git reference (commit hash, tag, or branch name)
         #[arg(long, required = true)]
         from: String,
@@ -168,29 +131,6 @@ pub enum Commands {
         /// Ending Git reference (commit hash, tag, or branch name). Defaults to HEAD if not specified.
         #[arg(long)]
         to: Option<String>,
-
-        /// Custom instructions for release notes generation
-        #[arg(short, long, help = "Custom instructions for release notes generation")]
-        instructions: Option<String>,
-
-        /// Select an instruction preset for release notes generation
-        #[arg(
-            long,
-            help = "Select an instruction preset for release notes generation"
-        )]
-        preset: Option<String>,
-
-        /// Set the detail level for the release notes
-        #[arg(
-            long,
-            help = "Set the detail level (minimal, standard, detailed)",
-            default_value = "standard"
-        )]
-        detail_level: String,
-
-        /// Enable or disable Gitmoji in the release notes
-        #[arg(long, help = "Enable or disable Gitmoji in the release notes")]
-        gitmoji: Option<bool>,
     },
 }
 
@@ -215,19 +155,6 @@ pub fn parse_args() -> Cli {
 fn get_dynamic_help() -> String {
     let providers = get_available_provider_names().join(", ");
     format!("Available providers: {}", providers)
-}
-
-/// Validate provider input against available providers
-fn available_providers_parser(s: &str) -> Result<String, String> {
-    let available_providers = get_available_provider_names();
-    if available_providers.contains(&s.to_lowercase()) && s.to_lowercase() != "test" {
-        Ok(s.to_lowercase())
-    } else {
-        Err(format!(
-            "Invalid provider. Available providers are: {}",
-            available_providers.join(", ")
-        ))
-    }
 }
 
 /// Main function to parse arguments and handle the command
@@ -260,106 +187,55 @@ pub async fn main() -> anyhow::Result<()> {
 pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
     match command {
         Commands::Gen {
+            common,
             auto_commit,
-            instructions,
-            provider,
             no_gitmoji,
-            preset,
             print,
         } => {
             log_debug!(
-                "Handling 'gen' command with auto_commit: {}, instructions: {:?}, provider: {:?}, no_gitmoji: {}, preset: {:?}, print: {}",
-                auto_commit,
-                instructions,
-                provider,
-                no_gitmoji,
-                preset,
-                print
+                "Handling 'gen' command with common: {:?}, auto_commit: {}, no_gitmoji: {}, print: {}",
+                common, auto_commit, no_gitmoji, print
             );
 
             ui::print_version(crate_version!());
             println!();
 
-            commands::handle_gen_command(
-                !no_gitmoji,
-                provider,
-                auto_commit,
-                instructions,
-                preset,
-                print,
-            )
-            .await?;
+            commands::handle_gen_command(common, auto_commit, !no_gitmoji, print).await?;
         }
         Commands::Config {
-            provider,
+            common,
             api_key,
             model,
-            param,
-            gitmoji,
-            instructions,
             token_limit,
-            preset,
+            param,
         } => {
-            log_debug!("Handling 'config' command with provider: {:?}, api_key: {:?}, model: {:?}, param: {:?}, gitmoji: {:?}, instructions: {:?}, token_limit: {:?}, preset: {:?}",
-                       provider, api_key, model, param, gitmoji, instructions, token_limit, preset);
-            commands::handle_config_command(
-                provider,
-                api_key,
-                model,
-                param,
-                gitmoji,
-                instructions,
-                token_limit,
-                preset,
-            )?;
+            log_debug!(
+                "Handling 'config' command with common: {:?}, api_key: {:?}, model: {:?}, token_limit: {:?}, param: {:?}",
+                common, api_key, model, token_limit, param
+            );
+            commands::handle_config_command(common, api_key, model, token_limit, param)?;
         }
         Commands::ListPresets => {
             log_debug!("Handling 'list_presets' command");
             commands::handle_list_presets_command()?;
         }
-        Commands::Changelog {
-            from,
-            to,
-            instructions,
-            preset,
-            detail_level,
-            gitmoji,
-        } => {
+        Commands::Changelog { common, from, to } => {
             log_debug!(
-                "Handling 'changelog' command with from: {}, to: {:?}, instructions: {:?}, preset: {:?}, detail_level: {}, gitmoji: {:?}",
-                from, to, instructions, preset, detail_level, gitmoji
-            );
-            commands::handle_changelog_command(
+                "Handling 'changelog' command with common: {:?}, from: {}, to: {:?}",
+                common,
                 from,
-                to,
-                instructions,
-                preset,
-                detail_level,
-                gitmoji,
-            )
-            .await?;
+                to
+            );
+            commands::handle_changelog_command(common, from, to).await?;
         }
-        Commands::ReleaseNotes {
-            from,
-            to,
-            instructions,
-            preset,
-            detail_level,
-            gitmoji,
-        } => {
+        Commands::ReleaseNotes { common, from, to } => {
             log_debug!(
-                "Handling 'release-notes' command with from: {}, to: {:?}, instructions: {:?}, preset: {:?}, detail_level: {}, gitmoji: {:?}",
-                from, to, instructions, preset, detail_level, gitmoji
-            );
-            commands::handle_release_notes_command(
+                "Handling 'release-notes' command with common: {:?}, from: {}, to: {:?}",
+                common,
                 from,
-                to,
-                instructions,
-                preset,
-                detail_level,
-                gitmoji,
-            )
-            .await?;
+                to
+            );
+            commands::handle_release_notes_command(common, from, to).await?;
         }
     }
 

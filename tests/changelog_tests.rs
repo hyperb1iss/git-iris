@@ -1,8 +1,10 @@
 use anyhow::Result;
 use git2::Repository;
-use git_iris::changelog::{ChangelogGenerator, DetailLevel, ReleaseNotesGenerator};
+use git_iris::changelog::{ChangelogGenerator, ReleaseNotesGenerator};
+use git_iris::common::DetailLevel;
 use git_iris::config::Config;
 use std::path::Path;
+use std::str::FromStr;
 use tempfile::TempDir;
 
 fn setup_test_repo() -> Result<(TempDir, Repository)> {

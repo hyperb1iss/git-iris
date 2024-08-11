@@ -3,6 +3,7 @@ pub mod changelog;
 pub mod changelog_prompts;
 pub mod cli;
 pub mod commands;
+pub mod common;
 pub mod config;
 pub mod context;
 pub mod file_analyzers;

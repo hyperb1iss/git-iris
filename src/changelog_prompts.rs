@@ -1,5 +1,5 @@
 use crate::change_analyzer::{AnalyzedChange, ChangeMetrics};
-use crate::changelog::DetailLevel;
+use crate::common::DetailLevel;
 use crate::config::Config;
 use crate::gitmoji::get_gitmoji_list;
 use crate::prompt::get_combined_instructions;

@@ -1,5 +1,6 @@
 use crate::changelog_prompts;
 use crate::changelog_prompts::create_release_notes_user_prompt;
+use crate::common::DetailLevel;
 use crate::config::Config;
 use crate::git;
 use crate::llm;
@@ -110,23 +111,5 @@ impl ReleaseNotesGenerator {
                 .context("Failed to generate release notes summary")?;
 
         Ok(release_notes)
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum DetailLevel {
-    Minimal,
-    Standard,
-    Detailed,
-}
-
-impl DetailLevel {
-    pub fn from_str(s: &str) -> Result<Self> {
-        match s.to_lowercase().as_str() {
-            "minimal" => Ok(DetailLevel::Minimal),
-            "standard" => Ok(DetailLevel::Standard),
-            "detailed" => Ok(DetailLevel::Detailed),
-            _ => Err(anyhow::anyhow!("Invalid detail level: {}", s)),
-        }
     }
 }
