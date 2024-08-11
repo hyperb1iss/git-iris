@@ -1,7 +1,7 @@
+use crate::token_optimizer::TokenOptimizer;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-
-use crate::token_optimizer::TokenOptimizer;
+use textwrap::wrap;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct CommitContext {
@@ -112,11 +112,19 @@ impl CommitContext {
 
 pub fn format_commit_message(response: &GeneratedMessage) -> String {
     let mut message = String::new();
+
     if let Some(emoji) = &response.emoji {
         message.push_str(&format!("{} ", emoji));
     }
+
     message.push_str(&response.title);
     message.push_str("\n\n");
-    message.push_str(&response.message);
+
+    let wrapped_message = wrap(&response.message, 78);
+    for line in wrapped_message {
+        message.push_str(&line);
+        message.push_str("\n");
+    }
+
     message
 }
