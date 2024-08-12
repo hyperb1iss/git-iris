@@ -39,7 +39,9 @@ async fn test_generate_message() -> Result<()> {
         .generate_message("default", "Test instructions")
         .await;
 
-    assert!(result.is_ok());
+    println!("Generate message result: {:?}", result);
+    assert!(result.is_ok(), "Failed to generate message: {:?}", result.err());
+
     let message = result.unwrap();
     println!("{:?}", message);
     println!("... message {:?}", message.title);
@@ -61,8 +63,8 @@ fn test_perform_commit() -> Result<()> {
     let service = IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji);
 
     let result = service.perform_commit("Test commit message");
-
-    assert!(result.is_ok());
+    println!("Perform commit result: {:?}", result);
+    assert!(result.is_ok(), "Failed to perform commit: {:?}", result.err());
 
     // Verify the commit was made
     let repo = git2::Repository::open(&repo_path)?;
