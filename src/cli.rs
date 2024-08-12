@@ -1,3 +1,4 @@
+use crate::changes;
 use crate::commands;
 use crate::commit;
 use crate::common::CommonParams;
@@ -227,7 +228,7 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
                 from,
                 to
             );
-            commands::handle_changelog_command(common, from, to).await?;
+            changes::handle_changelog_command(common, from, to).await?;
         }
         Commands::ReleaseNotes { common, from, to } => {
             log_debug!(
@@ -236,7 +237,7 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
                 from,
                 to
             );
-            commands::handle_release_notes_command(common, from, to).await?;
+            changes::handle_release_notes_command(common, from, to).await?;
         }
     }
 

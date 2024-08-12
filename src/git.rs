@@ -1,4 +1,4 @@
-use crate::change_analyzer::{AnalyzedChange, ChangeAnalyzer};
+use crate::changes::change_analyzer::{AnalyzedChange, ChangeAnalyzer};
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers::{self, FileAnalyzer};

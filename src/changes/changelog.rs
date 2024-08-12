@@ -1,11 +1,10 @@
-use crate::changelog_prompts;
-use crate::changelog_prompts::create_release_notes_user_prompt;
+use super::prompt;
+use super::readme_reader::{find_and_read_readme, summarize_readme};
 use crate::common::DetailLevel;
 use crate::config::Config;
 use crate::git;
 use crate::llm;
 use crate::llm_providers::LLMProviderType;
-use crate::readme_reader::{find_and_read_readme, summarize_readme};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -30,7 +29,7 @@ impl ChangelogGenerator {
             None
         };
 
-        let mut system_prompt = changelog_prompts::create_changelog_system_prompt(config);
+        let mut system_prompt = prompt::create_changelog_system_prompt(config);
         let effective_instructions = config.get_effective_instructions();
         if !effective_instructions.is_empty() {
             system_prompt.push_str(&format!(
@@ -39,7 +38,7 @@ impl ChangelogGenerator {
             ));
         }
 
-        let user_prompt = changelog_prompts::create_changelog_user_prompt(
+        let user_prompt = prompt::create_changelog_user_prompt(
             &analyzed_changes,
             detail_level,
             from,
@@ -83,7 +82,7 @@ impl ReleaseNotesGenerator {
             None
         };
 
-        let mut system_prompt = changelog_prompts::create_release_notes_system_prompt(config);
+        let mut system_prompt = prompt::create_release_notes_system_prompt(config);
         let effective_instructions = config.get_effective_instructions();
         if !effective_instructions.is_empty() {
             system_prompt.push_str(&format!(
@@ -92,7 +91,7 @@ impl ReleaseNotesGenerator {
             ));
         }
 
-        let user_prompt = create_release_notes_user_prompt(
+        let user_prompt = prompt::create_release_notes_user_prompt(
             &changelog,
             detail_level,
             from,

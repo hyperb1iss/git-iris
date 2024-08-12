@@ -1,5 +1,5 @@
-use git_iris::change_analyzer::{AnalyzedChange, ChangeMetrics, FileChange};
-use git_iris::changelog_prompts::{
+use git_iris::changes::change_analyzer::{AnalyzedChange, ChangeMetrics, FileChange};
+use git_iris::changes::prompt::{
     create_changelog_system_prompt, create_changelog_user_prompt,
     create_release_notes_system_prompt, create_release_notes_user_prompt,
 };

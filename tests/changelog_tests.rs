@@ -1,6 +1,6 @@
 use anyhow::Result;
 use git2::Repository;
-use git_iris::changelog::{ChangelogGenerator, ReleaseNotesGenerator};
+use git_iris::changes::{ChangelogGenerator, ReleaseNotesGenerator};
 use git_iris::common::DetailLevel;
 use git_iris::config::Config;
 use std::path::Path;

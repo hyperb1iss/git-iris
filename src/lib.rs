@@ -1,6 +1,4 @@
-pub mod change_analyzer;
-pub mod changelog;
-pub mod changelog_prompts;
+pub mod changes;
 pub mod cli;
 pub mod commands;
 pub mod commit;
@@ -15,7 +13,6 @@ pub mod llm;
 pub mod llm_providers;
 pub mod logger;
 pub mod messages;
-pub mod readme_reader;
 pub mod token_optimizer;
 pub mod tui;
 pub mod ui;
