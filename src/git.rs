@@ -5,11 +5,21 @@ use crate::file_analyzers::{self, FileAnalyzer};
 use crate::log_debug;
 use anyhow::{anyhow, Result};
 use futures::future::join_all;
-use git2::{DiffOptions, Repository, StatusOptions};
+use git2::{DiffOptions, FileMode, Repository, Status, StatusOptions};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
 use tokio::task;
+
+#[derive(Debug)]
+pub struct CommitResult {
+    pub branch: String,
+    pub commit_hash: String,
+    pub files_changed: usize,
+    pub insertions: usize,
+    pub deletions: usize,
+    pub new_files: Vec<(String, FileMode)>, // (file_path, file_mode)
+}
 
 pub async fn get_git_info(repo_path: &Path, _config: &Config) -> Result<CommitContext> {
     log_debug!("Getting git info for repo path: {:?}", repo_path);
@@ -353,18 +363,16 @@ pub fn is_inside_work_tree() -> Result<bool> {
     }
 }
 
-pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
-    log_debug!("Committing changes with message: {}", message);
+pub fn commit(repo_path: &Path, message: &str) -> Result<CommitResult> {
     let repo = Repository::open(repo_path)?;
+
+    // Perform the commit
     let signature = repo.signature()?;
     let mut index = repo.index()?;
     let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
-
-    let head = repo.head()?;
-    let parent_commit = head.peel_to_commit()?;
-
-    let commit_id = repo.commit(
+    let parent_commit = repo.head()?.peel_to_commit()?;
+    let commit_oid = repo.commit(
         Some("HEAD"),
         &signature,
         &signature,
@@ -372,8 +380,51 @@ pub fn commit(repo_path: &Path, message: &str) -> Result<()> {
         &tree,
         &[&parent_commit],
     )?;
-    log_debug!("Commit successful. Commit ID: {}", commit_id);
-    Ok(())
+
+    // Get the branch name
+    let branch_name = repo.head()?.shorthand().unwrap_or("HEAD").to_string();
+
+    // Get the short commit hash
+    let commit = repo.find_commit(commit_oid)?;
+    let short_hash = commit.id().to_string()[..7].to_string();
+
+    // Get diff stats
+    let mut files_changed = 0;
+    let mut insertions = 0;
+    let mut deletions = 0;
+    let mut new_files = Vec::new();
+
+    let diff = repo.diff_tree_to_tree(Some(&parent_commit.tree()?), Some(&tree), None)?;
+
+    diff.print(git2::DiffFormat::NameStatus, |_, _, line| {
+        files_changed += 1;
+        if line.origin() == '+' {
+            insertions += 1;
+        } else if line.origin() == '-' {
+            deletions += 1;
+        }
+        true
+    })?;
+
+    // Check for new files
+    let statuses = repo.statuses(None)?;
+    for entry in statuses.iter() {
+        if entry.status().contains(Status::INDEX_NEW) {
+            new_files.push((
+                entry.path().unwrap().to_string(),
+                entry.index_to_workdir().unwrap().new_file().mode(),
+            ));
+        }
+    }
+
+    Ok(CommitResult {
+        branch: branch_name,
+        commit_hash: short_hash,
+        files_changed,
+        insertions,
+        deletions,
+        new_files,
+    })
 }
 
 pub fn find_and_read_readme(repo_path: &Path) -> Result<Option<String>> {

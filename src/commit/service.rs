@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 
+use super::prompt::{create_system_prompt, create_user_prompt, process_commit_message};
 use crate::config::Config;
 use crate::context::{CommitContext, GeneratedMessage};
 use crate::git;
 use crate::llm;
 use crate::llm_providers::LLMProviderType;
-use super::prompt::{create_system_prompt, create_user_prompt, process_commit_message};
 
 pub struct IrisCommitService {
     config: Config,
@@ -84,9 +84,8 @@ impl IrisCommitService {
         Ok(generated_message)
     }
 
-    pub fn perform_commit(&self, message: &str) -> Result<()> {
-        let processed_message =
-            process_commit_message(message.to_string(), self.use_gitmoji);
+    pub fn perform_commit(&self, message: &str) -> Result<git::CommitResult> {
+        let processed_message = process_commit_message(message.to_string(), self.use_gitmoji);
         git::commit(&self.repo_path, &processed_message)
     }
 

@@ -1,4 +1,4 @@
-use crate::commit::IrisCommitService;
+use crate::commit::{format_commit_result, IrisCommitService};
 use crate::context::GeneratedMessage;
 use crate::log_debug;
 use anyhow::{Error, Result};
@@ -86,8 +86,8 @@ impl TuiCommit {
         // Handle result and display appropriate message
         match result {
             Ok(exit_status) => match exit_status {
-                ExitStatus::Committed(_message) => {
-                    println!("Commit successful!");
+                ExitStatus::Committed(message) => {
+                    println!("{}", message);
                 }
                 ExitStatus::Cancelled => {
                     println!("Commit operation cancelled. Your changes remain staged.");
@@ -218,7 +218,10 @@ impl TuiCommit {
 
     pub fn perform_commit(&self, message: &str) -> Result<ExitStatus, Error> {
         match self.service.perform_commit(message) {
-            Ok(()) => Ok(ExitStatus::Committed(message.to_string())),
+            Ok(result) => {
+                let output = format_commit_result(&result, message);
+                Ok(ExitStatus::Committed(output))
+            }
             Err(e) => Ok(ExitStatus::Error(e.to_string())),
         }
     }

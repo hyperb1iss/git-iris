@@ -1,12 +1,13 @@
-use anyhow::Result;
+use super::format_commit_result;
+use super::service::IrisCommitService;
 use crate::common::CommonParams;
 use crate::config::Config;
 use crate::context::format_commit_message;
 use crate::llm_providers::LLMProviderType;
 use crate::messages;
-use crate::ui;
 use crate::tui::run_tui_commit;
-use super::service::IrisCommitService;
+use crate::ui;
+use anyhow::Result;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -73,11 +74,17 @@ pub async fn handle_gen_command(
     }
 
     if auto_commit {
-        service.perform_commit(&format_commit_message(&initial_message))?;
-        println!(
-            "🌟 Commit created with message: {}",
-            format_commit_message(&initial_message)
-        );
+        match service.perform_commit(&format_commit_message(&initial_message)) {
+            Ok(result) => {
+                let output =
+                    format_commit_result(&result, &format_commit_message(&initial_message));
+                println!("{}", output);
+            }
+            Err(e) => {
+                eprintln!("Failed to commit: {}", e);
+                return Err(e.into());
+            }
+        }
         return Ok(());
     }
 
