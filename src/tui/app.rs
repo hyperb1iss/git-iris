@@ -2,6 +2,7 @@ use crate::commit::IrisCommitService;
 use crate::context::GeneratedMessage;
 use crate::log_debug;
 use anyhow::{Error, Result};
+use crossterm::event::KeyEventKind;
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::{
     event::{self, Event},
@@ -179,16 +180,18 @@ impl TuiCommit {
             // Poll for input events
             if event::poll(Duration::from_millis(20))? {
                 if let Event::Key(key) = event::read()? {
-                    match handle_input(self, key) {
-                        InputResult::Exit => return Ok(ExitStatus::Cancelled),
-                        InputResult::Commit(message) => match self.perform_commit(&message) {
-                            Ok(status) => return Ok(status),
-                            Err(e) => {
-                                self.state.set_status(format!("Commit failed: {}", e));
-                                self.state.dirty = true;
-                            }
-                        },
-                        InputResult::Continue => self.state.dirty = true,
+                    if key.kind == KeyEventKind::Press {
+                        match handle_input(self, key) {
+                            InputResult::Exit => return Ok(ExitStatus::Cancelled),
+                            InputResult::Commit(message) => match self.perform_commit(&message) {
+                                Ok(status) => return Ok(status),
+                                Err(e) => {
+                                    self.state.set_status(format!("Commit failed: {}", e));
+                                    self.state.dirty = true;
+                                }
+                            },
+                            InputResult::Continue => self.state.dirty = true,
+                        }
                     }
                 }
             }
