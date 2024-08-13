@@ -9,6 +9,11 @@ fn setup_test_repo() -> Result<TempDir> {
     let temp_dir = TempDir::new()?;
     let repo = git2::Repository::init(temp_dir.path())?;
 
+    // Configure git user
+    let mut config = repo.config().unwrap();
+    config.set_str("user.name", "Git-Iris")?;
+    config.set_str("user.email", "git-iris@is-aweso.me")?;
+
     // Create an initial commit
     let signature = git2::Signature::now("Test User", "test@example.com")?;
     let tree_id = repo.index()?.write_tree()?;
