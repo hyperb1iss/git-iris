@@ -1,4 +1,4 @@
-use crate::messages::get_random_message;
+use crate::messages::get_waiting_message;
 use crate::messages::ColoredMessage;
 use ratatui::style::Color;
 use unicode_width::UnicodeWidthStr;
@@ -14,7 +14,7 @@ impl SpinnerState {
         Self {
             frames: vec!['✦', '✧', '✶', '✷', '✸', '✹', '✺', '✻', '✼', '✽'],
             current_frame: 0,
-            message: get_random_message(),
+            message: get_waiting_message(),
         }
     }
 

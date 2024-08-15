@@ -1,6 +1,7 @@
 use crate::context::{format_commit_message, GeneratedMessage};
 use crate::gitmoji::get_gitmoji_list;
 use crate::instruction_presets::{get_instruction_preset_library, list_presets_formatted};
+use crate::messages::get_user_message;
 use ratatui::widgets::ListState;
 use tui_textarea::TextArea;
 
@@ -121,7 +122,10 @@ impl TuiState {
             messages,
             current_index: 0,
             custom_instructions,
-            status: String::from("🌌 Cosmic energies aligning. Press 'Esc' to exit."),
+            status: String::from(format!(
+                "{}.. Press 'Esc' to exit.",
+                get_user_message().text.to_string()
+            )),
             selected_emoji: None,
             selected_preset: preset,
             mode: Mode::Normal,

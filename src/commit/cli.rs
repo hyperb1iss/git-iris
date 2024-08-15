@@ -57,7 +57,7 @@ pub async fn handle_gen_command(
 
     // Create and start the spinner
     let spinner = ui::create_spinner("");
-    let random_message = messages::get_random_message();
+    let random_message = messages::get_waiting_message();
     spinner.set_message(random_message.text);
 
     // Generate an initial message
