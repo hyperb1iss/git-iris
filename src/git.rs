@@ -206,6 +206,7 @@ fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
                 content: content.clone(),
                 content_excluded: should_exclude,
             };
+
             let analysis = if should_exclude {
                 vec!["[Analysis excluded]".to_string()]
             } else {
@@ -255,7 +256,7 @@ fn get_diff_for_file(repo: &Repository, path: &str) -> Result<String> {
 }
 
 fn is_binary_diff(diff: &str) -> bool {
-    diff.contains("Binary files") || diff.contains("GIT binary patch")
+    diff.contains("Binary files") || diff.contains("GIT binary patch") || diff.contains("[Binary file changed]")
 }
 
 pub async fn get_project_metadata(changed_files: &[String]) -> Result<ProjectMetadata> {
