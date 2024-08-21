@@ -53,7 +53,7 @@ fn test_create_changelog_system_prompt() {
     assert!(prompt.contains("You are an AI assistant specialized in generating clear, concise, and informative changelogs"));
     assert!(prompt.contains("include tasteful, appropriate, and intelligent use of emojis"));
     assert!(prompt.contains("Always mention performance impacts"));
-    assert!(prompt.contains("*ALWAYS* generate the changelog in valid JSON format according to the following schema:"));
+    assert!(prompt.contains("Ensure that your response is a valid JSON object matching this structure"));
     assert!(prompt.contains("ChangelogResponse"));
     assert!(prompt.contains("sections"));
     assert!(prompt.contains("breaking_changes"));
@@ -128,7 +128,7 @@ fn test_create_release_notes_system_prompt() {
     assert!(prompt.contains("You are an AI assistant specialized in generating comprehensive and user-friendly release notes"));
     assert!(prompt.contains("include tasteful, appropriate, and intelligent use of emojis"));
     assert!(prompt.contains("Always mention performance impacts"));
-    assert!(prompt.contains("*ALWAYS* generate the release notes in valid JSON format according to the following schema:"));
+    assert!(prompt.contains("Ensure that your response is a valid JSON object matching this structure"));
     assert!(prompt.contains("ReleaseNotesResponse"));
     assert!(prompt.contains("highlights"));
     assert!(prompt.contains("sections"));

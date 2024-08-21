@@ -19,11 +19,11 @@ pub fn create_changelog_system_prompt(config: &Config) -> String {
 
         1. Categorize changes into the following types: Added, Changed, Deprecated, Removed, Fixed, Security.
         2. Use present tense and imperative mood in change descriptions.
-        3. Start each change entry with a lowercase letter and do not end with a period.
-        4. Be concise but descriptive in change entries.
-        5. Include commit hashes at the end of each entry.
-        6. Focus on the impact and significance of the changes.
-        7. Group related changes together under the appropriate category.
+        3. Start each change entry with a capital letter and do not end with a period.
+        4. Be concise but descriptive in change entries and ensure good grammar, capitalization, and punctuation.
+        5. Include *short* commit hashes at the end of each entry.
+        6. Focus on the impact and significance of the changes and omit trivial changes below the relevance threshold.
+        7. Find commonalities and group related changes together under the appropriate category.
         8. List the most impactful changes first within each category.
         9. Mention associated issue numbers and pull request numbers when available.
         10. Clearly identify and explain any breaking changes.
@@ -33,8 +33,65 @@ pub fn create_changelog_system_prompt(config: &Config) -> String {
         14. Highlight changes that affect multiple parts of the codebase or have cross-cutting concerns.
         15. NO YAPPING!
 
-        *ALWAYS* generate the changelog in valid JSON format according to the following schema:
+        Your response must be a valid JSON object with the following structure:
 
+        {
+          \"version\": \"string or null\",
+          \"release_date\": \"string or null\",
+          \"sections\": {
+            \"Added\": [{ \"description\": \"string\", \"commit_hashes\": [\"string\"], \"associated_issues\": [\"string\"], \"pull_request\": \"string or null\" }],
+            \"Changed\": [...],
+            \"Deprecated\": [...],
+            \"Removed\": [...],
+            \"Fixed\": [...],
+            \"Security\": [...]
+          },
+          \"breaking_changes\": [{ \"description\": \"string\", \"commit_hash\": \"string\" }],
+          \"metrics\": {
+            \"total_commits\": number,
+            \"files_changed\": number,
+            \"insertions\": number,
+            \"deletions\": number
+          }
+        }
+
+        Follow these steps to generate the changelog:
+
+        1. Analyze the provided commit information and group changes by type (Added, Changed, etc.).
+        2. For each change type, create an array of change entries with description, commit hashes, associated issues, and pull request (if available).
+        3. Identify any breaking changes and add them to the breaking_changes array.
+        4. Calculate the metrics based on the overall changes.
+        5. If provided, include the version and release date.
+        6. Construct the final JSON object ensuring all required fields are present.
+
+        Here's a minimal example of the expected output format:
+
+        {
+          \"version\": \"1.0.0\",
+          \"release_date\": \"2023-08-15\",
+          \"sections\": {
+            \"Added\": [
+              {
+                \"description\": \"add new feature X\",
+                \"commit_hashes\": [\"abc123\"],
+              }
+            ],
+            \"Changed\": [],
+            \"Deprecated\": [],
+            \"Removed\": [],
+            \"Fixed\": [],
+            \"Security\": []
+          },
+          \"breaking_changes\": [],
+          \"metrics\": {
+            \"total_commits\": 1,
+            \"files_changed\": 3,
+            \"insertions\": 100,
+            \"deletions\": 50
+          }
+        }
+
+        Ensure that your response is a valid JSON object matching this structure. Include all required fields, even if they are empty arrays or null values.
         "
     );
 
@@ -70,7 +127,7 @@ pub fn create_release_notes_system_prompt(config: &Config) -> String {
         Work step-by-step and follow these guidelines exactly:
 
         1. Provide a high-level summary of the release, highlighting key features, improvements, and fixes.
-        2. Group changes into meaningful sections (e.g., 'New Features', 'Improvements', 'Bug Fixes', 'Breaking Changes').
+        2. Find commonalities and group changes into meaningful sections (e.g., 'New Features', 'Improvements', 'Bug Fixes', 'Breaking Changes').
         3. Focus on the impact and benefits of the changes to users and developers.
         4. Highlight any significant new features or major improvements.
         5. Explain the rationale behind important changes when possible.
@@ -84,8 +141,69 @@ pub fn create_release_notes_system_prompt(config: &Config) -> String {
         13. Mention associated issue numbers and pull request numbers when relevant.
         14. NO YAPPING!
 
-        *ALWAYS* generate the release notes in valid JSON format according to the following schema:
+        Your response must be a valid JSON object with the following structure:
 
+        {
+          \"version\": \"string or null\",
+          \"release_date\": \"string or null\",
+          \"sections\": {
+            \"Added\": [{ \"description\": \"string\", \"commit_hashes\": [\"string\"], \"associated_issues\": [\"string\"], \"pull_request\": \"string or null\" }],
+            \"Changed\": [...],
+            \"Deprecated\": [...],
+            \"Removed\": [...],
+            \"Fixed\": [...],
+            \"Security\": [...]
+          },
+          \"breaking_changes\": [{ \"description\": \"string\", \"commit_hash\": \"string\" }],
+          \"metrics\": {
+            \"total_commits\": number,
+            \"files_changed\": number,
+            \"insertions\": number,
+            \"deletions\": number
+            \"total_lines_changed\": number
+          }
+        }
+
+        Follow these steps to generate the changelog:
+
+        1. Analyze the provided commit information and group changes by type (Added, Changed, etc.).
+        2. For each change type, create an array of change entries with description, commit hashes, associated issues, and pull request (if available).
+        3. Identify any breaking changes and add them to the breaking_changes array.
+        4. Calculate the metrics based on the overall changes.
+        5. If provided, include the version and release date.
+        6. Construct the final JSON object ensuring all required fields are present.
+
+        Here's a minimal example of the expected output format:
+
+        {
+          \"version\": \"1.0.0\",
+          \"release_date\": \"2023-08-15\",
+          \"sections\": {
+            \"Added\": [
+              {
+                \"description\": \"add new feature X\",
+                \"commit_hashes\": [\"abc123\"],
+                \"associated_issues\": [\"#42\"],
+                \"pull_request\": \"PR #100\"
+              }
+            ],
+            \"Changed\": [],
+            \"Deprecated\": [],
+            \"Removed\": [],
+            \"Fixed\": [],
+            \"Security\": []
+          },
+          \"breaking_changes\": [],
+          \"metrics\": {
+            \"total_commits\": 1,
+            \"files_changed\": 3,
+            \"insertions\": 100,
+            \"deletions\": 50
+            \"total_lines_changed\": 150
+          }
+        }
+
+        Ensure that your response is a valid JSON object matching this structure. Include all required fields, even if they are empty arrays or null values.
         "
     );
 
