@@ -1,12 +1,12 @@
+use super::changelog::ChangelogGenerator;
+use super::releasenotes::ReleaseNotesGenerator;
 use crate::common::{CommonParams, DetailLevel};
 use crate::config::Config;
-use super::changelog::ChangelogGenerator;
-use super::changelog::ReleaseNotesGenerator;
-use std::env;
-use anyhow::Result;
 use crate::ui;
-use std::str::FromStr;
+use anyhow::Result;
 use colored::*;
+use std::env;
+use std::str::FromStr;
 
 pub async fn handle_changelog_command(
     common: CommonParams,

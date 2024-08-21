@@ -1,6 +1,6 @@
 use crate::common::get_combined_instructions;
 use crate::config::Config;
-use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
+use crate::context::{ChangeType, CommitContext, GeneratedMessage, ProjectMetadata, RecentCommit, StagedFile};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 
 use crate::log_debug;
@@ -8,6 +8,10 @@ use super::relevance::RelevanceScorer;
 use std::collections::HashMap;
 
 pub fn create_system_prompt(config: &Config) -> String {
+
+    let commit_schema = schemars::schema_for!(GeneratedMessage);
+    let commit_schema_str = serde_json::to_string_pretty(&commit_schema);
+
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
         Your task is to generate clear, concise, and informative commit messages based solely on the provided context.
@@ -34,25 +38,23 @@ pub fn create_system_prompt(config: &Config) -> String {
         18. If there's not enough information to create a complete, authoritative message, state only what can be confidently determined from the context.
         19. NO YAPPING!
 
-        *ALWAYS* generate only the commit message in valid JSON format with the following structure:
-        {
-            \"emoji\": \"<emoji if used>\",
-            \"title\": \"<title>\",
-            \"message\": \"<message>\"
-        }
-
         Be sure to quote newlines and any other control characters in your response.
 
         The message should be based entirely on the information provided in the context,
-        without any speculation or assumptions."
+        without any speculation or assumptions.
+
+        *ALWAYS* generate only the commit message in valid JSON format with the following schema:
+        "
     );
+
+    prompt.push_str(&commit_schema_str.unwrap());
 
     prompt.push_str(get_combined_instructions(config).as_str());
 
     if config.use_gitmoji {
         prompt.push_str(
             "\n\nUse a single gitmoji at the start of the commit message. \
-        Choose the most relevant emoji from the following list:\n\n",
+            Choose the most relevant emoji from the following list:\n\n",
         );
         prompt.push_str(&get_gitmoji_list());
     }

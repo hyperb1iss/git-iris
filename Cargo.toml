@@ -47,6 +47,7 @@ crossterm = "0.28.1"
 tokio-retry = "0.3.0"
 log = "0.4.22"
 futures = "0.3.30"
+schemars = "0.8.21"
 
 [package.metadata.deb]
 maintainer = "Stefanie Jane <stef@hyperbliss.tech>"

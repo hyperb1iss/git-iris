@@ -1,4 +1,5 @@
 use crate::token_optimizer::TokenOptimizer;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use textwrap::wrap;
@@ -31,7 +32,7 @@ pub struct StagedFile {
     pub content_excluded: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone)]
 pub struct GeneratedMessage {
     pub emoji: Option<String>,
     pub title: String,

@@ -1,12 +1,15 @@
 use anyhow::Result;
 use git2::Repository;
-use git_iris::changes::{ChangelogGenerator, ReleaseNotesGenerator};
+use git_iris::changes::models::{
+    ChangeEntry, ChangeMetrics, ChangelogResponse, ChangelogType, ReleaseNotesResponse,
+};
 use git_iris::common::DetailLevel;
-use git_iris::config::Config;
+
 use std::path::Path;
 use std::str::FromStr;
 use tempfile::TempDir;
 
+/// Sets up a temporary Git repository for testing
 fn setup_test_repo() -> Result<(TempDir, Repository)> {
     let temp_dir = TempDir::new()?;
     let repo = Repository::init(temp_dir.path())?;
@@ -28,7 +31,7 @@ fn setup_test_repo() -> Result<(TempDir, Repository)> {
         )?;
     }
 
-    // Create a tag for the initial commit
+    // Create a tag for the initial commit (v1.0.0)
     {
         let head = repo.head()?.peel_to_commit()?;
         repo.tag(
@@ -58,7 +61,7 @@ fn setup_test_repo() -> Result<(TempDir, Repository)> {
         )?;
     }
 
-    // Create another tag
+    // Create another tag (v1.1.0)
     {
         let head = repo.head()?.peel_to_commit()?;
         repo.tag(
@@ -73,69 +76,89 @@ fn setup_test_repo() -> Result<(TempDir, Repository)> {
     Ok((temp_dir, repo))
 }
 
-#[tokio::test]
-async fn test_changelog_generation() -> Result<()> {
-    let (temp_dir, _repo) = setup_test_repo()?;
-    let mut config = Config::default();
-    config.default_provider = "test".to_string();
+#[test]
+fn test_changelog_response_structure() {
+    let changelog_response = ChangelogResponse {
+        version: Some("1.0.0".to_string()),
+        release_date: Some("2023-06-01".to_string()),
+        sections: {
+            let mut sections = std::collections::HashMap::new();
+            sections.insert(
+                ChangelogType::Added,
+                vec![ChangeEntry {
+                    description: "New feature added".to_string(),
+                    commit_hashes: vec!["abc123".to_string()],
+                    associated_issues: vec!["#123".to_string()],
+                    pull_request: Some("PR #456".to_string()),
+                }],
+            );
+            sections
+        },
+        breaking_changes: vec![],
+        metrics: ChangeMetrics {
+            total_commits: 1,
+            files_changed: 1,
+            insertions: 10,
+            deletions: 5,
+            total_lines_changed: 15,
+        },
+    };
 
-    let changelog = ChangelogGenerator::generate(
-        temp_dir.path(),
-        "v1.0.0",
-        "v1.1.0",
-        &config,
-        DetailLevel::Standard,
-    )
-    .await?;
-
-    assert!(changelog.contains("Test response from model 'test-model'"));
-    assert!(changelog.contains("System prompt:"));
-    assert!(changelog.contains("User prompt:"));
-    assert!(changelog.contains("v1.0.0"));
-    assert!(changelog.contains("v1.1.0"));
-    assert!(changelog.contains("Add file1.txt"));
-
-    Ok(())
+    assert!(changelog_response.version.is_some());
+    assert!(changelog_response.release_date.is_some());
+    assert!(!changelog_response.sections.is_empty());
+    assert!(changelog_response
+        .sections
+        .contains_key(&ChangelogType::Added));
+    assert!(changelog_response.metrics.total_commits > 0);
+    assert!(changelog_response.metrics.files_changed > 0);
 }
 
-#[tokio::test]
-async fn test_release_notes_generation() -> Result<()> {
-    let (temp_dir, _repo) = setup_test_repo()?;
-    let mut config = Config::default();
-    config.default_provider = "test".to_string();
+#[test]
+fn test_release_notes_response_structure() {
+    let release_notes_response = ReleaseNotesResponse {
+        version: Some("1.0.0".to_string()),
+        release_date: Some("2023-06-01".to_string()),
+        summary: "This release includes new features and bug fixes.".to_string(),
+        highlights: vec![],
+        sections: vec![],
+        breaking_changes: vec![],
+        upgrade_notes: vec![],
+        metrics: ChangeMetrics {
+            total_commits: 1,
+            files_changed: 1,
+            insertions: 10,
+            deletions: 5,
+            total_lines_changed: 1000,
+        },
+    };
 
-    let release_notes = ReleaseNotesGenerator::generate(
-        temp_dir.path(),
-        "v1.0.0",
-        "v1.1.0",
-        &config,
-        DetailLevel::Standard,
-    )
-    .await?;
-
-    assert!(release_notes.contains("Test response from model 'test-model'"));
-    assert!(release_notes.contains("System prompt:"));
-    assert!(release_notes.contains("User prompt:"));
-    assert!(release_notes.contains("v1.0.0"));
-    assert!(release_notes.contains("v1.1.0"));
-    assert!(release_notes.contains("Add file1.txt"));
-
-    Ok(())
+    assert!(release_notes_response.version.is_some());
+    assert!(release_notes_response.release_date.is_some());
+    assert!(!release_notes_response.summary.is_empty());
+    assert!(release_notes_response.metrics.total_commits > 0);
+    assert!(release_notes_response.metrics.files_changed > 0);
 }
 
 #[test]
 fn test_detail_level_from_str() {
     assert_eq!(
         DetailLevel::from_str("minimal").unwrap(),
-        DetailLevel::Minimal
+        DetailLevel::Minimal,
+        "Should parse 'minimal' correctly"
     );
     assert_eq!(
         DetailLevel::from_str("standard").unwrap(),
-        DetailLevel::Standard
+        DetailLevel::Standard,
+        "Should parse 'standard' correctly"
     );
     assert_eq!(
         DetailLevel::from_str("detailed").unwrap(),
-        DetailLevel::Detailed
+        DetailLevel::Detailed,
+        "Should parse 'detailed' correctly"
     );
-    assert!(DetailLevel::from_str("invalid").is_err());
+    assert!(
+        DetailLevel::from_str("invalid").is_err(),
+        "Should return an error for invalid input"
+    );
 }

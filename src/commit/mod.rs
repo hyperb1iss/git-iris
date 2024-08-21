@@ -1,5 +1,4 @@
 mod cli;
-mod models;
 mod relevance;
 
 pub mod prompt;

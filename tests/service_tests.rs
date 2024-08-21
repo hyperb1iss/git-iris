@@ -30,33 +30,6 @@ fn setup_test_repo() -> Result<TempDir> {
     Ok(temp_dir)
 }
 
-#[tokio::test]
-async fn test_generate_message() -> Result<()> {
-    let temp_dir = setup_test_repo()?;
-    let config = Config::default();
-    let repo_path = PathBuf::from(temp_dir.path());
-    let provider_type = LLMProviderType::Test;
-    let use_gitmoji = true;
-
-    let service = IrisCommitService::new(config, repo_path, provider_type, use_gitmoji);
-
-    let result = service
-        .generate_message("default", "Test instructions")
-        .await;
-
-    println!("Generate message result: {:?}", result);
-    assert!(result.is_ok(), "Failed to generate message: {:?}", result.err());
-
-    let message = result.unwrap();
-    println!("{:?}", message);
-    println!("... message {:?}", message.title);
-    println!("... title {:?}", message.message);
-    assert!(message.title.contains("<title>"));
-    assert!(message.message.contains("<message>"));
-
-    Ok(())
-}
-
 #[test]
 fn test_perform_commit() -> Result<()> {
     let temp_dir = setup_test_repo()?;

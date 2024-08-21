@@ -1,11 +1,10 @@
-use crate::changes::change_analyzer::{AnalyzedChange, ChangeAnalyzer};
 use crate::config::Config;
 use crate::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
 use crate::file_analyzers::{self, FileAnalyzer};
 use crate::log_debug;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures::future::join_all;
-use git2::{DiffOptions, FileMode, Repository, Status, StatusOptions};
+use git2::{DiffOptions, FileMode, Repository, Status, StatusOptions, Tree};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
@@ -85,11 +84,16 @@ fn get_recent_commits(repo: &Repository, count: usize) -> Result<Vec<RecentCommi
     Ok(commits)
 }
 
-pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec<AnalyzedChange>> {
-    log_debug!("Analyzing commits between '{}' and '{}'", from, to);
+pub fn get_commits_between_with_callback<T, F>(
+    repo_path: &Path,
+    from: &str,
+    to: &str,
+    mut callback: F,
+) -> Result<Vec<T>>
+where
+    F: FnMut(&RecentCommit) -> Result<T>,
+{
     let repo = Repository::open(repo_path)?;
-    let analyzer = ChangeAnalyzer::new(&repo);
-
     let from_commit = repo.revparse_single(from)?.peel_to_commit()?;
     let to_commit = repo.revparse_single(to)?.peel_to_commit()?;
 
@@ -97,19 +101,19 @@ pub fn get_commits_between(repo_path: &Path, from: &str, to: &str) -> Result<Vec
     revwalk.push(to_commit.id())?;
     revwalk.hide(from_commit.id())?;
 
-    let analyzed_commits: Vec<AnalyzedChange> = revwalk
+    revwalk
         .filter_map(|id| id.ok())
-        .filter_map(|id| repo.find_commit(id).ok())
-        .filter_map(|commit| analyzer.analyze_commit(&commit).ok())
-        .collect();
-
-    log_debug!(
-        "Analyzed {} commits between '{}' and '{}'",
-        analyzed_commits.len(),
-        from,
-        to
-    );
-    Ok(analyzed_commits)
+        .map(|id| {
+            let commit = repo.find_commit(id)?;
+            let recent_commit = RecentCommit {
+                hash: commit.id().to_string(),
+                message: commit.message().unwrap_or_default().to_string(),
+                author: commit.author().name().unwrap_or_default().to_string(),
+                timestamp: commit.time().seconds().to_string(),
+            };
+            callback(&recent_commit)
+        })
+        .collect()
 }
 
 fn should_exclude_file(path: &str) -> bool {
@@ -256,7 +260,9 @@ fn get_diff_for_file(repo: &Repository, path: &str) -> Result<String> {
 }
 
 fn is_binary_diff(diff: &str) -> bool {
-    diff.contains("Binary files") || diff.contains("GIT binary patch") || diff.contains("[Binary file changed]")
+    diff.contains("Binary files")
+        || diff.contains("GIT binary patch")
+        || diff.contains("[Binary file changed]")
 }
 
 pub async fn get_project_metadata(changed_files: &[String]) -> Result<ProjectMetadata> {
@@ -428,19 +434,48 @@ pub fn commit(repo_path: &Path, message: &str) -> Result<CommitResult> {
     })
 }
 
-pub fn find_and_read_readme(repo_path: &Path) -> Result<Option<String>> {
-    log_debug!("Searching for README file in {:?}", repo_path);
-    let readme_patterns = ["README.md", "README.txt", "README", "Readme.md"];
+pub fn get_readme_at_commit(repo_path: &Path, commit_ish: &str) -> Result<Option<String>> {
+    let repo = Repository::open(repo_path)?;
+    let obj = repo.revparse_single(commit_ish)?;
+    let tree = obj.peel_to_tree()?;
 
-    for pattern in readme_patterns.iter() {
-        let readme_path = repo_path.join(pattern);
-        if readme_path.exists() {
-            log_debug!("README file found: {:?}", readme_path);
-            let content = fs::read_to_string(readme_path)?;
-            return Ok(Some(content));
+    find_readme_in_tree(&repo, &tree).context("Failed to find and read README at specified commit")
+}
+
+fn find_readme_in_tree(repo: &Repository, tree: &Tree) -> Result<Option<String>> {
+    log_debug!("Searching for README file in the repository");
+
+    let readme_patterns = [
+        "README.md",
+        "README.markdown",
+        "README.txt",
+        "README",
+        "Readme.md",
+        "readme.md",
+    ];
+
+    for entry in tree.iter() {
+        let name = entry.name().unwrap_or("");
+        if readme_patterns
+            .iter()
+            .any(|&pattern| name.eq_ignore_ascii_case(pattern))
+        {
+            let object = entry.to_object(repo)?;
+            if let Some(blob) = object.as_blob() {
+                if let Ok(content) = std::str::from_utf8(blob.content()) {
+                    log_debug!("README file found: {}", name);
+                    return Ok(Some(content.to_string()));
+                }
+            }
         }
     }
 
     log_debug!("No README file found");
     Ok(None)
+}
+
+// Helper function to get a tree from a commit-ish string
+pub fn get_tree_from_commit_ish<'a>(repo: &'a Repository, commit_ish: &'a str) -> Result<Tree<'a>> {
+    let obj = repo.revparse_single(commit_ish)?;
+    obj.peel_to_tree().context("Failed to peel to tree")
 }
