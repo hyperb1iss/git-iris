@@ -69,6 +69,10 @@ pub enum Commands {
         /// Print the generated message to stdout and exit
         #[arg(short, long, help = "Print the generated message to stdout and exit")]
         print: bool,
+
+        /// Skip the verification step (pre/post commit hooks)
+        #[arg(long, help = "Skip verification steps (pre/post commit hooks)")]
+        no_verify: bool,
     },
     /// Configure the AI-assisted Git commit message generator
     #[command(about = "Configure the AI-assisted Git commit message generator")]
@@ -193,16 +197,17 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             auto_commit,
             no_gitmoji,
             print,
+            no_verify
         } => {
             log_debug!(
-                "Handling 'gen' command with common: {:?}, auto_commit: {}, no_gitmoji: {}, print: {}",
-                common, auto_commit, no_gitmoji, print
+                "Handling 'gen' command with common: {:?}, auto_commit: {}, no_gitmoji: {}, print: {}, no_verify: {}",
+                common, auto_commit, no_gitmoji, print, no_verify
             );
 
             ui::print_version(crate_version!());
             println!();
 
-            commit::handle_gen_command(common, auto_commit, !no_gitmoji, print).await?;
+            commit::handle_gen_command(common, auto_commit, !no_gitmoji, print, !no_verify).await?;
         }
         Commands::Config {
             common,

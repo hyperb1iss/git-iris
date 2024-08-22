@@ -16,6 +16,7 @@ pub async fn handle_gen_command(
     auto_commit: bool,
     use_gitmoji: bool,
     print: bool,
+    verify: bool,
 ) -> Result<()> {
     let mut config = Config::load()?;
     common.apply_to_config(&mut config)?;
@@ -28,6 +29,7 @@ pub async fn handle_gen_command(
         current_dir.clone(),
         provider_type.clone(),
         use_gitmoji && config.use_gitmoji,
+        verify,
     ));
 
     // Check environment prerequisites
@@ -48,6 +50,12 @@ pub async fn handle_gen_command(
         );
         ui::print_info("You can stage changes using 'git add <file>' or 'git add .'");
         return Ok(());
+    }
+
+    // Run pre-commit hook before we do anything else
+    if let Err(e) = service.pre_commit() {
+        ui::print_error(&format!("Pre-commit failed: {}", e));
+        return Err(e.into());
     }
 
     let effective_instructions = common

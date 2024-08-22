@@ -7,7 +7,9 @@ use futures::future::join_all;
 use git2::{DiffOptions, FileMode, Repository, Status, StatusOptions, Tree};
 use regex::Regex;
 use std::fs;
+use std::io;
 use std::path::Path;
+use std::process::{Command, Stdio};
 use tokio::task;
 
 #[derive(Debug)]
@@ -370,6 +372,24 @@ pub fn is_inside_work_tree() -> Result<bool> {
     }
 }
 
+pub fn commit_and_verify(repo_path: &Path, message: &str) -> Result<CommitResult> {
+    // Perform the commit
+    match commit(repo_path, message) {
+        Ok(result) => {
+            // Execute post-commit hook
+            if let Err(e) = execute_hook(repo_path, "post-commit") {
+                log_debug!("Post-commit hook failed: {}", e);
+                // We don't return an error here because the commit has already succeeded
+            }
+            Ok(result)
+        }
+        Err(e) => {
+            log_debug!("Commit failed: {}", e);
+            Err(e.into())
+        }
+    }
+}
+
 pub fn commit(repo_path: &Path, message: &str) -> Result<CommitResult> {
     let repo = Repository::open(repo_path)?;
 
@@ -478,4 +498,40 @@ fn find_readme_in_tree(repo: &Repository, tree: &Tree) -> Result<Option<String>>
 pub fn get_tree_from_commit_ish<'a>(repo: &'a Repository, commit_ish: &'a str) -> Result<Tree<'a>> {
     let obj = repo.revparse_single(commit_ish)?;
     obj.peel_to_tree().context("Failed to peel to tree")
+}
+
+// Find and execute a Git hook if it exists
+pub fn execute_hook(repo_path: &Path, hook_name: &str) -> Result<()> {
+    let hook_path = repo_path.join(".git").join("hooks").join(hook_name);
+
+    if hook_path.exists() {
+        let mut child = Command::new(&hook_path)
+            .current_dir(repo_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        // Stream output to console
+        std::thread::spawn(move || {
+            io::copy(&mut io::BufReader::new(stdout), &mut io::stdout()).unwrap();
+        });
+        std::thread::spawn(move || {
+            io::copy(&mut io::BufReader::new(stderr), &mut io::stderr()).unwrap();
+        });
+
+        let status = child.wait()?;
+
+        if !status.success() {
+            return Err(anyhow!(
+                "Hook '{}' failed with exit code: {:?}",
+                hook_name,
+                status.code()
+            ));
+        }
+    }
+
+    Ok(())
 }

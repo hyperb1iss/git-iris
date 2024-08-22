@@ -15,6 +15,7 @@ pub struct IrisCommitService {
     repo_path: PathBuf,
     provider_type: LLMProviderType,
     use_gitmoji: bool,
+    verify: bool,
     cached_context: Arc<RwLock<Option<CommitContext>>>,
 }
 
@@ -24,12 +25,14 @@ impl IrisCommitService {
         repo_path: PathBuf,
         provider_type: LLMProviderType,
         use_gitmoji: bool,
+        verify: bool,
     ) -> Self {
         Self {
             config,
             repo_path,
             provider_type,
             use_gitmoji,
+            verify,
             cached_context: Arc::new(RwLock::new(None)),
         }
     }
@@ -86,7 +89,17 @@ impl IrisCommitService {
 
     pub fn perform_commit(&self, message: &str) -> Result<git::CommitResult> {
         let processed_message = process_commit_message(message.to_string(), self.use_gitmoji);
+        if self.verify {
+            return git::commit_and_verify(&self.repo_path, &processed_message);
+        }
         git::commit(&self.repo_path, &processed_message)
+    }
+
+    pub fn pre_commit(&self) -> Result<()> {
+        if self.verify {
+            return git::execute_hook(&self.repo_path, "pre-commit");
+        }
+        Ok(())
     }
 
     pub fn create_message_channel(
@@ -97,4 +110,5 @@ impl IrisCommitService {
     ) {
         mpsc::channel(1)
     }
+
 }

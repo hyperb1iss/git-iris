@@ -38,7 +38,7 @@ fn test_perform_commit() -> Result<()> {
     let provider_type = LLMProviderType::Test;
     let use_gitmoji = true;
 
-    let service = IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji);
+    let service = IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji, true);
 
     let result = service.perform_commit("Test commit message");
     println!("Perform commit result: {:?}", result);
@@ -60,7 +60,7 @@ fn test_check_environment() -> Result<()> {
     let provider_type = LLMProviderType::Test;
     let use_gitmoji = true;
 
-    let service = IrisCommitService::new(config, repo_path, provider_type, use_gitmoji);
+    let service = IrisCommitService::new(config, repo_path, provider_type, use_gitmoji, true);
 
     let result = service.check_environment();
 
