@@ -1,14 +1,15 @@
 use crate::common::get_combined_instructions;
 use crate::config::Config;
-use crate::context::{ChangeType, CommitContext, GeneratedMessage, ProjectMetadata, RecentCommit, StagedFile};
+use crate::context::{
+    ChangeType, CommitContext, GeneratedMessage, ProjectMetadata, RecentCommit, StagedFile,
+};
 use crate::gitmoji::{apply_gitmoji, get_gitmoji_list};
 
-use crate::log_debug;
 use super::relevance::RelevanceScorer;
+use crate::log_debug;
 use std::collections::HashMap;
 
 pub fn create_system_prompt(config: &Config) -> String {
-
     let commit_schema = schemars::schema_for!(GeneratedMessage);
     let commit_schema_str = serde_json::to_string_pretty(&commit_schema);
 
@@ -23,7 +24,7 @@ pub fn create_system_prompt(config: &Config) -> String {
         3. Capitalize the subject line.
         4. Do not end the subject line with a period.
         5. Separate subject from body with a blank line.
-        6. Ensure that each line of the message body does not exceed 72 characters.
+        6. Wrap the body at 72 characters.
         7. Use the body to explain what changes were made and their impact, and how they were implemented.
         8. Be specific and avoid vague language.
         9. Focus on the concrete changes and their effects, not assumptions about intent.
@@ -43,7 +44,33 @@ pub fn create_system_prompt(config: &Config) -> String {
         The message should be based entirely on the information provided in the context,
         without any speculation or assumptions.
 
-        *ALWAYS* generate only the commit message in valid JSON format with the following schema:
+        Your response must be a valid JSON object with the following structure:
+
+        {
+          \"emoji\": \"string or null\",
+          \"title\": \"string\",
+          \"message\": \"string\"
+        }
+
+        Follow these steps to generate the commit message:
+
+        1. Analyze the provided context, including staged changes, recent commits, and project metadata.
+        2. Identify the main purpose of the commit based on the changes.
+        3. Create a concise and descriptive title (subject line) for the commit.
+        4. If using emojis (false unless stated below), select the most appropriate one for the commit type.
+        5. Write a detailed message body explaining the changes, their impact, and any other relevant information.
+        6. Ensure the message adheres to the guidelines above.
+        7. Construct the final JSON object with the emoji (if applicable), title, and message.
+
+         Here's a minimal example of the expected output format:
+
+        {
+          \"emoji\": \"✨\",
+          \"title\": \"Add user authentication feature\",
+          \"message\": \"Implement user authentication using JWT tokens\\n\\n- Add login and registration endpoints\\n- Create middleware for token verification\\n- Update user model to include password hashing\\n- Add unit tests for authentication functions\"
+        }
+
+        Ensure that your response is a valid JSON object matching this structure. Include an empty string for the emoji if not using one.
         "
     );
 
