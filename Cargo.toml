@@ -118,5 +118,5 @@ missing_panics_doc = { level = "allow", priority = 12 }
 missing_docs = { level = "allow", priority = 13 }
 significant_drop_tightening = { level = "allow", priority = 14 }
 # maybe this should be enabled in the future
-#unwrap_used = { level = "deny", priority = 10 }
+unwrap_used = { level = "deny", priority = 10 }
 #expect_used = { level = "deny", priority = 11 }

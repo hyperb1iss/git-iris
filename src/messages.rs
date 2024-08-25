@@ -199,6 +199,7 @@ lazy_static! {
     ];
 }
 
+#[allow(clippy::unwrap_used)] // todo: handle unwrap
 pub fn get_waiting_message() -> ColoredMessage {
     WAITING_MESSAGES
         .choose(&mut rand::thread_rng())
@@ -206,6 +207,7 @@ pub fn get_waiting_message() -> ColoredMessage {
         .clone()
 }
 
+#[allow(clippy::unwrap_used)] // todo: handle unwrap
 pub fn get_user_message() -> ColoredMessage {
     USER_MESSAGES
         .choose(&mut rand::thread_rng())

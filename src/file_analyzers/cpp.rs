@@ -48,12 +48,14 @@ impl CppAnalyzer {
     fn extract_cmake_metadata(content: &str, metadata: &mut ProjectMetadata) {
         metadata.build_system = Some("CMake".to_string());
 
-        let version_re = Regex::new(r"project\([^)]+\s+VERSION\s+([^\s)]+)").unwrap();
+        let version_re =
+            Regex::new(r"project\([^)]+\s+VERSION\s+([^\s)]+)").expect("Could not compile regex");
         if let Some(cap) = version_re.captures(content) {
             metadata.version = Some(cap[1].to_string());
         }
 
-        let dependency_re = Regex::new(r"find_package\(([^)]+)\)").unwrap();
+        let dependency_re =
+            Regex::new(r"find_package\(([^)]+)\)").expect("Could not compile regex");
         for cap in dependency_re.captures_iter(content) {
             let package = cap[1].split(' ').next().unwrap_or(&cap[1]);
             metadata.dependencies.push(package.to_string());
@@ -72,7 +74,7 @@ impl CppAnalyzer {
 }
 
 fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-]\s*(?:static\s+)?(?:inline\s+)?(?:const\s+)?(?:volatile\s+)?(?:unsigned\s+)?(?:signed\s+)?(?:short\s+)?(?:long\s+)?(?:void|int|char|float|double|struct\s+\w+|class\s+\w+)\s+(\w+)\s*\(").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*(?:static\s+)?(?:inline\s+)?(?:const\s+)?(?:volatile\s+)?(?:unsigned\s+)?(?:signed\s+)?(?:short\s+)?(?:long\s+)?(?:void|int|char|float|double|struct\s+\w+|class\s+\w+)\s+(\w+)\s*\(").expect("Could not compile regex");
     let functions: HashSet<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -86,7 +88,7 @@ fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
 }
 
 fn extract_modified_classes(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)").expect("Could not compile regex");
     let classes: HashSet<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -100,6 +102,6 @@ fn extract_modified_classes(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_include_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*#include").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*#include").expect("Could not compile regex");
     re.is_match(diff)
 }

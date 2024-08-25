@@ -118,6 +118,7 @@ where
         .collect()
 }
 
+#[allow(clippy::unwrap_used)] // todo: handle error
 fn should_exclude_file(path: &str) -> bool {
     log_debug!("Checking if file should be excluded: {}", path);
     let exclude_patterns = vec![
@@ -144,7 +145,7 @@ fn should_exclude_file(path: &str) -> bool {
     let path = Path::new(path);
 
     for (pattern, is_extension) in exclude_patterns {
-        let re = Regex::new(&pattern).unwrap();
+        let re = Regex::new(&pattern).expect("Could not compile regex");
         if is_extension {
             if let Some(file_name) = path.file_name() {
                 if re.is_match(file_name.to_str().unwrap()) {
@@ -161,7 +162,7 @@ fn should_exclude_file(path: &str) -> bool {
     false
 }
 
-fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
+fn get_file_statuses(repo: &Repository) -> anyhow::Result<Vec<StagedFile>> {
     log_debug!("Getting file statuses");
     let mut staged_files = Vec::new();
 
@@ -170,7 +171,7 @@ fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
     let statuses = repo.statuses(Some(&mut opts))?;
 
     for entry in statuses.iter() {
-        let path = entry.path().unwrap();
+        let path = entry.path().context("Could not get path")?;
         let status = entry.status();
 
         if status.is_index_new() || status.is_index_modified() || status.is_index_deleted() {
@@ -265,6 +266,7 @@ fn is_binary_diff(diff: &str) -> bool {
         || diff.contains("[Binary file changed]")
 }
 
+#[allow(clippy::unwrap_used)] // todo: handle error
 pub async fn get_project_metadata(changed_files: &[String]) -> Result<ProjectMetadata> {
     log_debug!(
         "Getting project metadata for changed files: {:?}",
@@ -381,7 +383,7 @@ pub fn commit_and_verify(repo_path: &Path, message: &str) -> Result<CommitResult
     }
 }
 
-pub fn commit(repo_path: &Path, message: &str) -> Result<CommitResult> {
+pub fn commit(repo_path: &Path, message: &str) -> anyhow::Result<CommitResult> {
     let repo = Repository::open(repo_path)?;
 
     // Perform the commit
@@ -429,8 +431,12 @@ pub fn commit(repo_path: &Path, message: &str) -> Result<CommitResult> {
     for entry in statuses.iter() {
         if entry.status().contains(Status::INDEX_NEW) {
             new_files.push((
-                entry.path().unwrap().to_string(),
-                entry.index_to_workdir().unwrap().new_file().mode(),
+                entry.path().context("Could not get path")?.to_string(),
+                entry
+                    .index_to_workdir()
+                    .context("Could not get index to workdir")?
+                    .new_file()
+                    .mode(),
             ));
         }
     }
@@ -492,7 +498,8 @@ pub fn get_tree_from_commit_ish<'a>(repo: &'a Repository, commit_ish: &'a str) -
 }
 
 // Find and execute a Git hook if it exists
-pub fn execute_hook(repo_path: &Path, hook_name: &str) -> Result<()> {
+#[allow(clippy::unwrap_used)] // todo: handle error
+pub fn execute_hook(repo_path: &Path, hook_name: &str) -> anyhow::Result<()> {
     let hook_path = repo_path.join(".git").join("hooks").join(hook_name);
 
     if hook_path.exists() {
@@ -502,8 +509,8 @@ pub fn execute_hook(repo_path: &Path, hook_name: &str) -> Result<()> {
             .stderr(Stdio::piped())
             .spawn()?;
 
-        let stdout = child.stdout.take().unwrap();
-        let stderr = child.stderr.take().unwrap();
+        let stdout = child.stdout.take().context("Could not get stdout")?;
+        let stderr = child.stderr.take().context("Could not get stderr")?;
 
         // Stream output to console
         std::thread::spawn(move || {

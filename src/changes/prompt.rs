@@ -6,6 +6,7 @@ use crate::common::{get_combined_instructions, DetailLevel};
 use crate::config::Config;
 use crate::gitmoji::get_gitmoji_list;
 
+#[allow(clippy::unwrap_used)] // todo: handle unwrap
 pub fn create_changelog_system_prompt(config: &Config) -> String {
     let changelog_schema = schemars::schema_for!(ChangelogResponse);
     let changelog_schema_str = serde_json::to_string_pretty(&changelog_schema).unwrap();
@@ -115,6 +116,7 @@ pub fn create_changelog_system_prompt(config: &Config) -> String {
     prompt
 }
 
+#[allow(clippy::unwrap_used)] // todo: handle unwrap maybe use try_from instead
 pub fn create_release_notes_system_prompt(config: &Config) -> String {
     let release_notes_schema = schemars::schema_for!(ReleaseNotesResponse);
     let release_notes_schema_str = serde_json::to_string_pretty(&release_notes_schema).unwrap();
@@ -228,9 +230,8 @@ pub fn create_changelog_user_prompt(
     to: &str,
     readme_summary: Option<&str>,
 ) -> String {
-    let mut prompt = format!(
-        "Based on the following changes from {from} to {to}, generate a changelog:\n\n"
-    );
+    let mut prompt =
+        format!("Based on the following changes from {from} to {to}, generate a changelog:\n\n");
 
     let total_metrics = calculate_total_metrics(changes);
     prompt.push_str("Overall Changes:\n");
@@ -326,9 +327,8 @@ pub fn create_release_notes_user_prompt(
     to: &str,
     readme_summary: Option<&str>,
 ) -> String {
-    let mut prompt = format!(
-        "Based on the following changes from {from} to {to}, generate release notes:\n\n"
-    );
+    let mut prompt =
+        format!("Based on the following changes from {from} to {to}, generate release notes:\n\n");
 
     let total_metrics = calculate_total_metrics(changes);
     prompt.push_str("Overall Changes:\n");

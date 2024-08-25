@@ -7,6 +7,7 @@ pub struct TokenOptimizer {
 }
 
 impl TokenOptimizer {
+    #[allow(clippy::unwrap_used)] // todo: handle unwrap
     pub fn new(max_tokens: usize) -> Self {
         Self {
             encoder: cl100k_base().unwrap(),
@@ -70,6 +71,7 @@ impl TokenOptimizer {
     }
 
     // Truncate a string to fit within the specified token limit
+    #[allow(clippy::unwrap_used)] // todo: handle unwrap
     pub fn truncate_string(&self, s: &str, max_tokens: usize) -> String {
         let tokens = self.encoder.encode_ordinary(s);
 

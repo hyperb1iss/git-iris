@@ -183,7 +183,7 @@ impl ChangeAnalyzer {
 
     /// Extract associated issue numbers from the commit message
     fn extract_associated_issues(commit_message: &str) -> Vec<String> {
-        let re = Regex::new(r"#(\d+)").unwrap();
+        let re = Regex::new(r"#(\d+)").expect("Could not compile regex");
         re.captures_iter(commit_message)
             .map(|cap| cap[1].to_string())
             .collect()
@@ -191,7 +191,7 @@ impl ChangeAnalyzer {
 
     /// Extract pull request number from the commit message
     fn extract_pull_request(commit_message: &str) -> Option<String> {
-        let re = Regex::new(r"(?i)pull request #?(\d+)").unwrap();
+        let re = Regex::new(r"(?i)pull request #?(\d+)").expect("Could not compile regex");
         re.captures(commit_message).map(|cap| cap[1].to_string())
     }
 

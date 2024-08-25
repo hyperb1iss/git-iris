@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // todo: remove unwrap by using parking_lot to handle mutex
 use chrono::Local;
 use log::{Level, LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;

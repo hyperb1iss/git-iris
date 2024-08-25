@@ -5,6 +5,7 @@ use crate::llm_providers::get_available_providers;
 use crate::log_debug;
 use crate::ui;
 use crate::ProviderConfig;
+use anyhow::Context;
 use anyhow::{anyhow, Result};
 use colored::Colorize;
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ pub fn handle_config_command(
     model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     log_debug!("Starting 'config' command with common: {:?}, api_key: {:?}, model: {:?}, token_limit: {:?}, param: {:?}",
                common, api_key, model, token_limit, param);
 
@@ -46,7 +47,10 @@ pub fn handle_config_command(
         }
     }
 
-    let provider_config = config.providers.get_mut(&config.default_provider).unwrap();
+    let provider_config = config
+        .providers
+        .get_mut(&config.default_provider)
+        .context("Could not get default provider")?;
 
     if let Some(key) = api_key {
         if provider_config.api_key != key {

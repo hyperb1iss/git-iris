@@ -22,7 +22,7 @@ pub fn create_spinner(message: &str) -> ProgressBar {
         ProgressStyle::default_spinner()
             .tick_chars("✦✧✶✷✸✹✺✻✼✽")
             .template("{spinner} {msg}")
-            .unwrap(),
+            .expect("Could not set spinner style"),
     );
     pb.set_message(message.to_string());
     pb.enable_steady_tick(Duration::from_millis(100));

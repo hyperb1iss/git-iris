@@ -82,9 +82,10 @@ impl JsonAnalyzer {
     }
 }
 
+#[allow(clippy::unwrap_used)] // todo: handle unwrap maybe use try_from instead
 fn extract_modified_top_level_keys(diff: &str) -> Option<Vec<String>> {
     let lines: Vec<&str> = diff.lines().collect();
-    let re = Regex::new(r#"^[+-]\s*"(\w+)"\s*:"#).unwrap();
+    let re = Regex::new(r#"^[+-]\s*"(\w+)"\s*:"#).expect("Could not compile regex");
     let mut keys = HashSet::new();
 
     for (i, line) in lines.iter().enumerate() {
@@ -107,11 +108,13 @@ fn extract_modified_top_level_keys(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_array_changes(diff: &str) -> bool {
-    let re = Regex::new(r#"(?m)^[+-]\s*(?:"[^"]+"\s*:\s*)?\[|\s*[+-]\s*"[^"]+","#).unwrap();
+    let re = Regex::new(r#"(?m)^[+-]\s*(?:"[^"]+"\s*:\s*)?\[|\s*[+-]\s*"[^"]+","#)
+        .expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn has_nested_object_changes(diff: &str) -> bool {
-    let re = Regex::new(r#"(?m)^[+-]\s*"[^"]+"\s*:\s*\{|\s*[+-]\s*"[^"]+"\s*:"#).unwrap();
+    let re = Regex::new(r#"(?m)^[+-]\s*"[^"]+"\s*:\s*\{|\s*[+-]\s*"[^"]+"\s*:"#)
+        .expect("Could not compile regex");
     re.is_match(diff)
 }

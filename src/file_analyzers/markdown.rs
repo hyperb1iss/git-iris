@@ -45,7 +45,7 @@ impl FileAnalyzer for MarkdownAnalyzer {
 impl MarkdownAnalyzer {
     fn extract_readme_metadata(content: &str, metadata: &mut ProjectMetadata) {
         // Extract project name from the first header
-        let title_re = Regex::new(r"(?m)^#\s+(.+)$").unwrap();
+        let title_re = Regex::new(r"(?m)^#\s+(.+)$").expect("Could not compile regex");
         if let Some(cap) = title_re.captures(content) {
             metadata.language = Some(cap[1].to_string());
         }
@@ -62,7 +62,8 @@ impl MarkdownAnalyzer {
         }
 
         // Extract version if present
-        let version_re = Regex::new(r"(?i)version[:\s]+(\d+\.\d+\.\d+)").unwrap();
+        let version_re =
+            Regex::new(r"(?i)version[:\s]+(\d+\.\d+\.\d+)").expect("Could not compile regex");
         if let Some(cap) = version_re.captures(content) {
             metadata.version = Some(cap[1].to_string());
         }
@@ -70,7 +71,7 @@ impl MarkdownAnalyzer {
 }
 
 fn extract_modified_headers(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"[+-]\s*(#{1,6})\s+(.+)").unwrap();
+    let re = Regex::new(r"[+-]\s*(#{1,6})\s+(.+)").expect("Could not compile regex");
     let headers: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(2).map(|m| m.as_str().to_string()))
@@ -84,16 +85,16 @@ fn extract_modified_headers(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_list_changes(diff: &str) -> bool {
-    let re = Regex::new(r"[+-]\s*[-*+]\s+").unwrap();
+    let re = Regex::new(r"[+-]\s*[-*+]\s+").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn has_code_block_changes(diff: &str) -> bool {
-    let re = Regex::new(r"[+-]\s*```").unwrap();
+    let re = Regex::new(r"[+-]\s*```").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn has_link_changes(diff: &str) -> bool {
-    let re = Regex::new(r"[+-]\s*\[.+\]\(.+\)").unwrap();
+    let re = Regex::new(r"[+-]\s*\[.+\]\(.+\)").expect("Could not compile regex");
     re.is_match(diff)
 }

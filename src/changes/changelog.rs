@@ -83,7 +83,12 @@ fn format_changelog_response(response: &ChangelogResponse) -> String {
 
     // Add breaking changes
     if !response.breaking_changes.is_empty() {
-        formatted.push_str(&"### ⚠️ Breaking Changes\n\n".bright_red().bold().to_string());
+        formatted.push_str(
+            &"### ⚠️ Breaking Changes\n\n"
+                .bright_red()
+                .bold()
+                .to_string(),
+        );
         for breaking_change in &response.breaking_changes {
             formatted.push_str(&format_breaking_change(breaking_change));
         }

@@ -9,9 +9,9 @@ use super::relevance::RelevanceScorer;
 use crate::log_debug;
 use std::collections::HashMap;
 
-pub fn create_system_prompt(config: &Config) -> String {
+pub fn create_system_prompt(config: &Config) -> anyhow::Result<String> {
     let commit_schema = schemars::schema_for!(GeneratedMessage);
-    let commit_schema_str = serde_json::to_string_pretty(&commit_schema);
+    let commit_schema_str = serde_json::to_string_pretty(&commit_schema)?;
 
     let mut prompt = String::from(
         "You are an AI assistant specializing in creating high-quality, professional Git commit messages. \
@@ -74,7 +74,7 @@ pub fn create_system_prompt(config: &Config) -> String {
         "
     );
 
-    prompt.push_str(&commit_schema_str.unwrap());
+    prompt.push_str(&commit_schema_str);
 
     prompt.push_str(get_combined_instructions(config).as_str());
 
@@ -85,7 +85,7 @@ pub fn create_system_prompt(config: &Config) -> String {
         );
         prompt.push_str(&get_gitmoji_list());
     }
-    prompt
+    Ok(prompt)
 }
 
 pub fn create_user_prompt(context: &CommitContext) -> String {
