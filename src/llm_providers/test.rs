@@ -20,9 +20,9 @@ pub struct TestLLMProvider {
 }
 
 impl TestLLMProvider {
-    /// Creates a new instance of TestLLMProvider with the given configuration
-    pub fn new(config: LLMProviderConfig) -> Result<Self> {
-        Ok(Self {
+    /// Creates a new instance of `TestLLMProvider` with the given configuration
+    pub fn new(config: LLMProviderConfig) -> Self {
+        Self {
             config,
             fail_count: Arc::new(AtomicUsize::new(0)),
             delay: Arc::new(AtomicU64::new(0)),
@@ -30,7 +30,7 @@ impl TestLLMProvider {
             response: None,
             bad_response: None,
             json_validation_failures: Arc::new(AtomicUsize::new(0)),
-        })
+        }
     }
 
     pub fn set_fail_count(&self, count: usize) {
@@ -77,7 +77,7 @@ impl LLMProvider for TestLLMProvider {
 
         let delay = self.delay.load(Ordering::SeqCst);
         if delay > 0 {
-            println!("TestLLMProvider: Delaying for {} ms", delay);
+            println!("TestLLMProvider: Delaying for {delay} ms");
             sleep(Duration::from_millis(delay)).await;
         }
 

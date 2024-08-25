@@ -229,8 +229,7 @@ pub fn create_changelog_user_prompt(
     readme_summary: Option<&str>,
 ) -> String {
     let mut prompt = format!(
-        "Based on the following changes from {} to {}, generate a changelog:\n\n",
-        from, to
+        "Based on the following changes from {from} to {to}, generate a changelog:\n\n"
     );
 
     let total_metrics = calculate_total_metrics(changes);
@@ -255,7 +254,7 @@ pub fn create_changelog_user_prompt(
             change.associated_issues.join(", ")
         ));
         if let Some(pr) = &change.pull_request {
-            prompt.push_str(&format!("Pull Request: {}\n", pr));
+            prompt.push_str(&format!("Pull Request: {pr}\n"));
         }
         prompt.push_str(&format!(
             "Files changed: {}\n",
@@ -282,7 +281,7 @@ pub fn create_changelog_user_prompt(
                     ));
                     if detail_level == DetailLevel::Detailed {
                         for analysis in &file_change.analysis {
-                            prompt.push_str(&format!("    * {}\n", analysis));
+                            prompt.push_str(&format!("    * {analysis}\n"));
                         }
                     }
                 }
@@ -328,8 +327,7 @@ pub fn create_release_notes_user_prompt(
     readme_summary: Option<&str>,
 ) -> String {
     let mut prompt = format!(
-        "Based on the following changes from {} to {}, generate release notes:\n\n",
-        from, to
+        "Based on the following changes from {from} to {to}, generate release notes:\n\n"
     );
 
     let total_metrics = calculate_total_metrics(changes);
@@ -354,7 +352,7 @@ pub fn create_release_notes_user_prompt(
             change.associated_issues.join(", ")
         ));
         if let Some(pr) = &change.pull_request {
-            prompt.push_str(&format!("Pull Request: {}\n", pr));
+            prompt.push_str(&format!("Pull Request: {pr}\n"));
         }
         prompt.push_str(&format!("Impact score: {:.2}\n", change.impact_score));
 
@@ -371,7 +369,7 @@ pub fn create_release_notes_user_prompt(
                     ));
                     if detail_level == DetailLevel::Detailed {
                         for analysis in &file_change.analysis {
-                            prompt.push_str(&format!("    * {}\n", analysis));
+                            prompt.push_str(&format!("    * {analysis}\n"));
                         }
                     }
                 }

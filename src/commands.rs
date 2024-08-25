@@ -4,13 +4,15 @@ use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm_providers::get_available_providers;
 use crate::log_debug;
 use crate::ui;
+use crate::ProviderConfig;
 use anyhow::{anyhow, Result};
-use colored::*;
+use colored::Colorize;
 use std::collections::HashMap;
 
 use unicode_width::UnicodeWidthStr;
 
 /// Handle the 'config' command
+#[allow(clippy::too_many_lines)]
 pub fn handle_config_command(
     common: CommonParams,
     api_key: Option<String>,
@@ -33,13 +35,13 @@ pub fn handle_config_command(
             return Err(anyhow!("Invalid provider: {}", provider));
         }
         if config.default_provider != provider {
-            config.default_provider = provider.clone();
+            config.default_provider.clone_from(&provider);
             changes_made = true;
         }
         if !config.providers.contains_key(&provider) {
             config
                 .providers
-                .insert(provider.clone(), Default::default());
+                .insert(provider.clone(), ProviderConfig::default());
             changes_made = true;
         }
     }
@@ -146,7 +148,7 @@ fn parse_additional_params(params: &[String]) -> HashMap<String, String> {
         .collect()
 }
 
-/// Handle the 'list_presets' command
+/// Handle the '`list_presets`' command
 pub fn handle_list_presets_command() -> Result<()> {
     let preset_library = get_instruction_preset_library();
 

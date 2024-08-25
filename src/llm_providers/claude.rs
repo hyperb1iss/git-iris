@@ -11,12 +11,12 @@ pub struct ClaudeProvider {
 }
 
 impl ClaudeProvider {
-    /// Creates a new instance of ClaudeProvider with the given configuration
-    pub fn new(config: LLMProviderConfig) -> Result<Self> {
-        Ok(Self {
+    /// Creates a new instance of `ClaudeProvider` with the given configuration
+    pub fn new(config: LLMProviderConfig) -> Self {
+        Self {
             config,
             client: Client::new(),
-        })
+        }
     }
 }
 
@@ -81,7 +81,7 @@ pub(super) fn get_metadata() -> ProviderMetadata {
     ProviderMetadata {
         name: "Claude",
         default_model: "claude-3-5-sonnet-20240620",
-        default_token_limit: 150000,
+        default_token_limit: 150_000,
         requires_api_key: true,
     }
 }

@@ -44,7 +44,7 @@ impl Scorer for ChangeTypeScorer {
 
 impl RelevanceScorer {
     pub fn new() -> Self {
-        RelevanceScorer {
+        Self {
             scorers: vec![Box::new(FileTypeScorer), Box::new(ChangeTypeScorer)],
         }
     }

@@ -39,8 +39,7 @@ async fn summarize_readme(
         Keep the summary informative yet brief, highlighting the most important aspects of the project.";
 
     let user_prompt = format!(
-        "Please summarize the following README content, adhering to the guidelines provided:\n\n{}",
-        readme_content
+        "Please summarize the following README content, adhering to the guidelines provided:\n\n{readme_content}"
     );
 
     llm::get_refined_message(config, provider_type, system_prompt, &user_prompt)

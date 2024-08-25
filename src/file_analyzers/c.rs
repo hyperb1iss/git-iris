@@ -35,9 +35,9 @@ impl FileAnalyzer for CAnalyzer {
         };
 
         if file == "Makefile" {
-            self.extract_makefile_metadata(content, &mut metadata);
+            Self::extract_makefile_metadata(content, &mut metadata);
         } else {
-            self.extract_c_file_metadata(content, &mut metadata);
+            Self::extract_c_file_metadata(content, &mut metadata);
         }
 
         metadata
@@ -45,7 +45,7 @@ impl FileAnalyzer for CAnalyzer {
 }
 
 impl CAnalyzer {
-    fn extract_makefile_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_makefile_metadata(content: &str, metadata: &mut ProjectMetadata) {
         metadata.build_system = Some("Makefile".to_string());
 
         let version_re = Regex::new(r"VERSION\s*=\s*([^\s]+)").unwrap();
@@ -59,7 +59,7 @@ impl CAnalyzer {
         }
     }
 
-    fn extract_c_file_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_c_file_metadata(content: &str, metadata: &mut ProjectMetadata) {
         if content.contains("#include <stdio.h>") {
             metadata.framework = Some("Standard I/O".to_string());
         }

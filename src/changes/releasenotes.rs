@@ -6,7 +6,7 @@ use super::prompt;
 use crate::common::DetailLevel;
 use crate::config::Config;
 use anyhow::Result;
-use colored::*;
+use colored::Colorize;
 use std::path::Path;
 
 /// Struct responsible for generating release notes
@@ -48,7 +48,7 @@ impl ReleaseNotesGenerator {
     }
 }
 
-/// Formats the ReleaseNotesResponse into human-readable release notes
+/// Formats the `ReleaseNotesResponse` into human-readable release notes
 fn format_release_notes_response(response: &ReleaseNotesResponse) -> String {
     let mut formatted = String::new();
 
@@ -95,7 +95,7 @@ fn format_release_notes_response(response: &ReleaseNotesResponse) -> String {
     if !response.upgrade_notes.is_empty() {
         formatted.push_str(&"## 🔧 Upgrade Notes\n\n".yellow().bold().to_string());
         for note in &response.upgrade_notes {
-            formatted.push_str(&format!("- {}\n", note));
+            formatted.push_str(&format!("- {note}\n"));
         }
         formatted.push('\n');
     }

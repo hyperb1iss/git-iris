@@ -112,62 +112,56 @@ fn handle_normal_mode(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
 }
 
 fn handle_editing_message(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
-    match key.code {
-        KeyCode::Esc => {
-            app.state.mode = Mode::Normal;
-            let edited_content = app.state.message_textarea.lines().join("\n");
-            if let Some(message) = app.state.messages.get_mut(app.state.current_index) {
-                // Split the edited content into title and message
-                let mut lines = edited_content.lines();
-                let title_line = lines.next().unwrap_or("").trim();
+    if key.code == KeyCode::Esc {
+        app.state.mode = Mode::Normal;
+        let edited_content = app.state.message_textarea.lines().join("\n");
+        if let Some(message) = app.state.messages.get_mut(app.state.current_index) {
+            // Split the edited content into title and message
+            let mut lines = edited_content.lines();
+            let title_line = lines.next().unwrap_or("").trim();
 
-                // Extract emoji if present at the start of the title
-                let (emoji, title) = if let Some(first_char) = title_line.chars().next() {
-                    if is_emoji(first_char) {
-                        let (emoji, rest) = title_line.split_at(first_char.len_utf8());
-                        (Some(emoji.to_string()), rest.trim().to_string())
-                    } else {
-                        (None, title_line.to_string())
-                    }
+            // Extract emoji if present at the start of the title
+            let (emoji, title) = if let Some(first_char) = title_line.chars().next() {
+                if is_emoji(first_char) {
+                    let (emoji, rest) = title_line.split_at(first_char.len_utf8());
+                    (Some(emoji.to_string()), rest.trim().to_string())
                 } else {
                     (None, title_line.to_string())
-                };
+                }
+            } else {
+                (None, title_line.to_string())
+            };
 
-                // Update message fields
-                message.emoji = emoji;
-                message.title = title;
+            // Update message fields
+            message.emoji = emoji;
+            message.title = title;
 
-                // Collect the rest of the lines, skipping any leading empty lines
-                message.message = lines
-                    .skip_while(|line| line.trim().is_empty())
-                    .collect::<Vec<&str>>()
-                    .join("\n");
-            }
-            app.state
-                .set_status(String::from("Commit message updated."));
-            app.state.update_message_textarea();
-            InputResult::Continue
+            // Collect the rest of the lines, skipping any leading empty lines
+            message.message = lines
+                .skip_while(|line| line.trim().is_empty())
+                .collect::<Vec<&str>>()
+                .join("\n");
         }
-        _ => {
-            app.state.message_textarea.input(key);
-            InputResult::Continue
-        }
+        app.state
+            .set_status(String::from("Commit message updated."));
+        app.state.update_message_textarea();
+        InputResult::Continue
+    } else {
+        app.state.message_textarea.input(key);
+        InputResult::Continue
     }
 }
 
 fn handle_editing_instructions(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
-    match key.code {
-        KeyCode::Esc => {
-            app.state.mode = Mode::Normal;
-            app.state.custom_instructions = app.state.instructions_textarea.lines().join("\n");
-            app.state.set_status(String::from("Instructions updated."));
-            app.handle_regenerate();
-            InputResult::Continue
-        }
-        _ => {
-            app.state.instructions_textarea.input(key);
-            InputResult::Continue
-        }
+    if key.code == KeyCode::Esc {
+        app.state.mode = Mode::Normal;
+        app.state.custom_instructions = app.state.instructions_textarea.lines().join("\n");
+        app.state.set_status(String::from("Instructions updated."));
+        app.handle_regenerate();
+        InputResult::Continue
+    } else {
+        app.state.instructions_textarea.input(key);
+        InputResult::Continue
     }
 }
 
@@ -236,7 +230,9 @@ fn handle_selecting_preset(app: &mut TuiCommit, key: KeyEvent) -> InputResult {
         }
         KeyCode::Enter => {
             if let Some(selected) = app.state.preset_list_state.selected() {
-                app.state.selected_preset = app.state.preset_list[selected].0.clone();
+                app.state
+                    .selected_preset
+                    .clone_from(&app.state.preset_list[selected].0);
                 app.state.mode = Mode::Normal;
                 app.state.set_status(format!(
                     "Preset selected: {}",

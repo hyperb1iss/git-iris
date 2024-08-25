@@ -32,15 +32,14 @@ impl FromStr for LLMProviderType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "openai" => Ok(LLMProviderType::OpenAI),
-            "claude" => Ok(LLMProviderType::Claude),
-            "ollama" => Ok(LLMProviderType::Ollama),
-            "test" => Ok(LLMProviderType::Test),
+            "openai" => Ok(Self::OpenAI),
+            "claude" => Ok(Self::Claude),
+            "ollama" => Ok(Self::Ollama),
+            "test" => Ok(Self::Test),
             _ => Err(anyhow::anyhow!("Unsupported provider: {}", s)),
         }
     }
 }
-
 
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
@@ -66,10 +65,10 @@ pub fn create_provider(
     config: LLMProviderConfig,
 ) -> Result<Box<dyn LLMProvider + Send + Sync>> {
     match provider_type {
-        LLMProviderType::OpenAI => Ok(Box::new(openai::OpenAIProvider::new(config)?)),
-        LLMProviderType::Claude => Ok(Box::new(claude::ClaudeProvider::new(config)?)),
-        LLMProviderType::Ollama => Ok(Box::new(ollama::OllamaProvider::new(config)?)),
-        LLMProviderType::Test => Ok(Box::new(test::TestLLMProvider::new(config)?)),
+        LLMProviderType::OpenAI => Ok(Box::new(openai::OpenAIProvider::new(config))),
+        LLMProviderType::Claude => Ok(Box::new(claude::ClaudeProvider::new(config))),
+        LLMProviderType::Ollama => Ok(Box::new(ollama::OllamaProvider::new(config))),
+        LLMProviderType::Test => Ok(Box::new(test::TestLLMProvider::new(config))),
     }
 }
 
@@ -85,4 +84,3 @@ pub fn get_provider_metadata(provider_type: &LLMProviderType) -> ProviderMetadat
 pub fn get_available_providers() -> Vec<LLMProviderType> {
     LLMProviderType::iter().collect()
 }
-

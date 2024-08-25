@@ -35,11 +35,11 @@ impl FileAnalyzer for JavaAnalyzer {
         };
 
         if file == "pom.xml" {
-            self.extract_maven_metadata(content, &mut metadata);
+            Self::extract_maven_metadata(content, &mut metadata);
         } else if file == "build.gradle" {
-            self.extract_gradle_metadata(content, &mut metadata);
+            Self::extract_gradle_metadata(content, &mut metadata);
         } else {
-            self.extract_java_file_metadata(content, &mut metadata);
+            Self::extract_java_file_metadata(content, &mut metadata);
         }
 
         metadata
@@ -47,7 +47,7 @@ impl FileAnalyzer for JavaAnalyzer {
 }
 
 impl JavaAnalyzer {
-    fn extract_maven_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_maven_metadata(content: &str, metadata: &mut ProjectMetadata) {
         metadata.build_system = Some("Maven".to_string());
 
         let version_re = Regex::new(r"<version>(.+?)</version>").unwrap();
@@ -65,7 +65,7 @@ impl JavaAnalyzer {
         }
     }
 
-    fn extract_gradle_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_gradle_metadata(content: &str, metadata: &mut ProjectMetadata) {
         metadata.build_system = Some("Gradle".to_string());
 
         let version_re = Regex::new(r#"version\s*=\s*['"](.*?)['"]"#).unwrap();
@@ -81,7 +81,7 @@ impl JavaAnalyzer {
         }
     }
 
-    fn extract_java_file_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_java_file_metadata(content: &str, metadata: &mut ProjectMetadata) {
         if content.contains("import org.springframework") {
             metadata.framework = Some("Spring".to_string());
         } else if content.contains("import javax.ws.rs") {

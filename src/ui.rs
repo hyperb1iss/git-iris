@@ -1,4 +1,4 @@
-use colored::*;
+use colored::Colorize;
 use console::Term;
 use indicatif::{ProgressBar, ProgressStyle};
 use ratatui::style::Color;
@@ -95,7 +95,7 @@ fn apply_gradient(text: &str, gradient: &[(u8, u8, u8)]) -> String {
 }
 
 pub fn write_gradient_text(
-    term: &mut Term,
+    term: &Term,
     text: &str,
     gradient: &[(u8, u8, u8)],
 ) -> std::io::Result<()> {
@@ -103,11 +103,11 @@ pub fn write_gradient_text(
     term.write_line(&gradient_text)
 }
 
-pub fn write_colored_text(term: &mut Term, text: &str, color: (u8, u8, u8)) -> std::io::Result<()> {
+pub fn write_colored_text(term: &Term, text: &str, color: (u8, u8, u8)) -> std::io::Result<()> {
     let colored_text = text.truecolor(color.0, color.1, color.2);
     term.write_line(&colored_text)
 }
 
-pub fn write_bold_text(term: &mut Term, text: &str) -> std::io::Result<()> {
+pub fn write_bold_text(term: &Term, text: &str) -> std::io::Result<()> {
     term.write_line(&text.bold())
 }

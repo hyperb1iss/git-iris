@@ -32,7 +32,7 @@ impl FileAnalyzer for JsonAnalyzer {
         let mut metadata = ProjectMetadata::default();
 
         if file == "package.json" {
-            self.extract_package_json_metadata(content, &mut metadata);
+            Self::extract_package_json_metadata(content, &mut metadata);
         } else if file == "tsconfig.json" {
             metadata.language = Some("TypeScript".to_string());
         }
@@ -42,7 +42,7 @@ impl FileAnalyzer for JsonAnalyzer {
 }
 
 impl JsonAnalyzer {
-    fn extract_package_json_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_package_json_metadata(content: &str, metadata: &mut ProjectMetadata) {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
             if let Some(version) = json["version"].as_str() {
                 metadata.version = Some(version.to_string());
@@ -93,7 +93,7 @@ fn extract_modified_top_level_keys(diff: &str) -> Option<Vec<String>> {
             let prev_line = if i > 0 { lines[i - 1] } else { "" };
             let next_line = lines.get(i + 1).unwrap_or(&"");
 
-            if !prev_line.trim().ends_with("{") && !next_line.trim().starts_with("}") {
+            if !prev_line.trim().ends_with('{') && !next_line.trim().starts_with('}') {
                 keys.insert(key.to_string());
             }
         }

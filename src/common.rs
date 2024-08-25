@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Args;
 use std::str::FromStr;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DetailLevel {
     Minimal,
     Standard,
@@ -17,9 +17,9 @@ impl FromStr for DetailLevel {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "minimal" => Ok(DetailLevel::Minimal),
-            "standard" => Ok(DetailLevel::Standard),
-            "detailed" => Ok(DetailLevel::Detailed),
+            "minimal" => Ok(Self::Minimal),
+            "standard" => Ok(Self::Standard),
+            "detailed" => Ok(Self::Detailed),
             _ => Err(anyhow::anyhow!("Invalid detail level: {}", s)),
         }
     }
@@ -28,9 +28,9 @@ impl FromStr for DetailLevel {
 impl DetailLevel {
     pub fn as_str(&self) -> &'static str {
         match self {
-            DetailLevel::Minimal => "minimal",
-            DetailLevel::Standard => "standard",
-            DetailLevel::Detailed => "detailed",
+            Self::Minimal => "minimal",
+            Self::Standard => "standard",
+            Self::Detailed => "detailed",
         }
     }
 }

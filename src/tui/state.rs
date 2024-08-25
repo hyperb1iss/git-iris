@@ -7,7 +7,7 @@ use tui_textarea::TextArea;
 
 use super::spinner::SpinnerState;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Mode {
     Normal,
     EditingMessage,
@@ -18,13 +18,13 @@ pub enum Mode {
     Generating,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum UserInfoFocus {
     Name,
     Email,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EmojiMode {
     None,
     Auto,
@@ -118,7 +118,7 @@ impl TuiState {
         let mut user_email_textarea = TextArea::default();
         user_email_textarea.insert_str(&user_email);
 
-        TuiState {
+        Self {
             messages,
             current_index: 0,
             custom_instructions,
@@ -158,7 +158,7 @@ impl TuiState {
         let current_message = &self.messages[self.current_index];
         let emoji_prefix = self
             .get_current_emoji()
-            .map_or(String::new(), |e| format!("{} ", e));
+            .map_or(String::new(), |e| format!("{e} "));
         let message_content = format!(
             "{}{}\n\n{}",
             emoji_prefix,
@@ -176,8 +176,10 @@ impl TuiState {
         self.preset_list
             .iter()
             .find(|(key, _, _, _)| key == &self.selected_preset)
-            .map(|(_, emoji, name, _)| format!("{} {}", emoji, name))
-            .unwrap_or_else(|| "None".to_string())
+            .map_or_else(
+                || "None".to_string(),
+                |(_, emoji, name, _)| format!("{emoji} {name}"),
+            )
     }
 
     pub fn get_current_emoji(&self) -> Option<String> {
@@ -190,7 +192,7 @@ impl TuiState {
 
     pub fn apply_selected_emoji(&mut self) {
         if let Some(message) = self.messages.get_mut(self.current_index) {
-            message.emoji = self.selected_emoji.clone();
+            message.emoji.clone_from(&self.selected_emoji);
         }
     }
 }

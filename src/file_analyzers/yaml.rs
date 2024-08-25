@@ -33,7 +33,9 @@ impl FileAnalyzer for YamlAnalyzer {
 
         if file == "docker-compose.yml" || file == "docker-compose.yaml" {
             metadata.build_system = Some("Docker Compose".to_string());
-        } else if file.ends_with(".github/workflows/ci.yml") || file.ends_with(".github/workflows/ci.yaml") {
+        } else if file.ends_with(".github/workflows/ci.yml")
+            || file.ends_with(".github/workflows/ci.yaml")
+        {
             metadata.build_system = Some("GitHub Actions".to_string());
         } else if file == ".travis.yml" {
             metadata.build_system = Some("Travis CI".to_string());
@@ -55,10 +57,10 @@ fn extract_modified_top_level_keys(diff: &str) -> Option<Vec<String>> {
         .captures_iter(diff)
         .filter_map(|cap| {
             let key = cap.get(1).map(|m| m.as_str().to_string())?;
-            if !diff.contains(&format!("  {}", key)) {
-                Some(key)
-            } else {
+            if diff.contains(&format!("  {key}")) {
                 None
+            } else {
+                Some(key)
             }
         })
         .collect();

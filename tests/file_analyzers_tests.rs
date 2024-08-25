@@ -25,7 +25,7 @@ fn test_rust_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.rs", &change);
-    println!("Rust Test Debug: Analysis results: {:?}", analysis);
+    println!("Rust Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.contains(&"Modified functions: new_function".to_string()));
     assert!(analysis.contains(&"Modified structs: OldStruct, NewStruct".to_string()));
 }
@@ -60,7 +60,7 @@ fn test_javascript_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.js", &change);
-    println!("JavaScript Test Debug: Analysis results: {:?}", analysis);
+    println!("JavaScript Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.contains(&"Modified functions: newFunction, FunctionalComponent".to_string()));
     assert!(analysis.contains(&"Modified classes: OldClass, NewClass".to_string()));
     assert!(analysis.contains(&"Import statements have been modified".to_string()));
@@ -99,7 +99,7 @@ fn test_python_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.py", &change);
-    println!("Python Test Debug: Analysis results: {:?}", analysis);
+    println!("Python Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.contains(&"Modified functions: new_function, decorated_function".to_string()));
     assert!(analysis.contains(&"Modified classes: OldClass, NewClass".to_string()));
     assert!(analysis.contains(&"Import statements have been modified".to_string()));
@@ -112,7 +112,7 @@ fn test_yaml_analyzer() {
     let change = StagedFile {
         path: "test.yaml".to_string(),
         change_type: ChangeType::Modified,
-        diff: r#"
+        diff: r"
 +new_key: value
 -old_key: value
  list:
@@ -120,7 +120,7 @@ fn test_yaml_analyzer() {
 -  - old item
  nested:
 +  inner_key: value
-        "#
+        "
         .to_string(),
         analysis: Vec::new(),
         content: None,
@@ -128,7 +128,7 @@ fn test_yaml_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.yaml", &change);
-    println!("YAML Test Debug: Analysis results: {:?}", analysis);
+    println!("YAML Test Debug: Analysis results: {analysis:?}");
 
     let top_level_keys_analysis = analysis
         .iter()
@@ -166,7 +166,7 @@ fn test_json_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.json", &change);
-    println!("JSON Test Debug: Analysis results: {:?}", analysis);
+    println!("JSON Test Debug: Analysis results: {analysis:?}");
 
     assert!(analysis
         .iter()
@@ -189,7 +189,7 @@ fn test_markdown_analyzer() {
     let change = StagedFile {
         path: "test.md".to_string(),
         change_type: ChangeType::Modified,
-        diff: r#"
+        diff: r"
 +# New Header
 -## Old Header
 + - New list item
@@ -199,7 +199,7 @@ fn test_markdown_analyzer() {
 +```
 +[New link](https://example.com)
 -[Old link](https://old-example.com)
-        "#
+        "
         .to_string(),
         analysis: Vec::new(),
         content: None,
@@ -207,7 +207,7 @@ fn test_markdown_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.md", &change);
-    println!("Markdown Test Debug: Analysis results: {:?}", analysis);
+    println!("Markdown Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.contains(&"Modified headers: New Header, Old Header".to_string()));
     assert!(analysis.contains(&"List structures have been modified".to_string()));
     assert!(analysis.contains(&"Code blocks have been modified".to_string()));
@@ -227,10 +227,7 @@ fn test_default_analyzer() {
     };
 
     let analysis = analyzer.analyze("unknown.xyz", &change);
-    println!(
-        "Default Analyzer Test Debug: Analysis results: {:?}",
-        analysis
-    );
+    println!("Default Analyzer Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.is_empty());
 }
 
@@ -261,7 +258,7 @@ fn test_java_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.java", &change);
-    println!("Java analysis results: {:?}", analysis);
+    println!("Java analysis results: {analysis:?}");
 
     // Check for modified classes
     let class_analysis = analysis
@@ -288,8 +285,7 @@ fn test_java_analyzer() {
     // Check for import changes
     assert!(
         analysis.contains(&"Import statements have been modified".to_string()),
-        "Failed to detect import changes. Analysis: {:?}",
-        analysis
+        "Failed to detect import changes. Analysis: {analysis:?}"
     );
 }
 
@@ -320,9 +316,10 @@ fn test_kotlin_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.kt", &change);
-    println!("Kotlin analysis results: {:?}", analysis);
+    println!("Kotlin analysis results: {analysis:?}");
 
     // Helper function to check if any string in the analysis contains all expected substrings
+    #[allow(clippy::items_after_statements)]
     fn contains_all_substrings(analysis: &[String], substrings: &[&str]) -> bool {
         analysis
             .iter()
@@ -347,7 +344,7 @@ fn test_gradle_analyzer() {
     let change = StagedFile {
         path: "build.gradle".to_string(),
         change_type: ChangeType::Modified,
-        diff: r#"
+        diff: r"
 +    implementation 'com.example:new-library:1.0.0'
 -    implementation 'com.example:old-library:0.9.0'
 +plugins {
@@ -359,7 +356,7 @@ fn test_gradle_analyzer() {
 +        println 'Executing new task'
 +    }
 +}
-        "#
+        "
         .to_string(),
         analysis: Vec::new(),
         content: None,
@@ -398,7 +395,7 @@ fn test_c_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.c", &change);
-    println!("C Test Debug: Analysis results: {:?}", analysis);
+    println!("C Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.contains(&"Modified functions: new_function".to_string()));
     assert!(analysis
         .iter()
@@ -409,10 +406,10 @@ fn test_c_analyzer() {
 #[test]
 fn test_c_analyzer_metadata() {
     let analyzer = get_analyzer("Makefile");
-    let content = r#"
+    let content = r"
 VERSION = 1.0
 LIBS += -lm
-    "#;
+    ";
 
     let metadata = analyzer.extract_metadata("Makefile", content);
     assert_eq!(metadata.language, Some("C".to_string()));
@@ -447,7 +444,7 @@ fn test_cpp_analyzer() {
     };
 
     let analysis = analyzer.analyze("test.cpp", &change);
-    println!("C++ Test Debug: Analysis results: {:?}", analysis);
+    println!("C++ Test Debug: Analysis results: {analysis:?}");
     assert!(analysis.contains(&"Modified functions: newFunction".to_string()));
     assert!(analysis
         .iter()
@@ -458,10 +455,10 @@ fn test_cpp_analyzer() {
 #[test]
 fn test_cpp_analyzer_metadata() {
     let analyzer = get_analyzer("CMakeLists.txt");
-    let content = r#"
+    let content = r"
 project(MyProject VERSION 1.0)
 find_package(Boost REQUIRED)
-    "#;
+    ";
 
     let metadata = analyzer.extract_metadata("CMakeLists.txt", content);
     assert_eq!(metadata.language, Some("C++".to_string()));

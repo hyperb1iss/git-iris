@@ -43,7 +43,7 @@ impl TuiCommit {
             use_gitmoji,
         );
 
-        TuiCommit { state, service }
+        Self { state, service }
     }
 
     pub async fn run(
@@ -55,7 +55,7 @@ impl TuiCommit {
         service: Arc<IrisCommitService>,
         use_gitmoji: bool,
     ) -> Result<()> {
-        let mut app = TuiCommit::new(
+        let mut app = Self::new(
             initial_messages,
             custom_instructions,
             selected_preset,
@@ -87,17 +87,17 @@ impl TuiCommit {
         match result {
             Ok(exit_status) => match exit_status {
                 ExitStatus::Committed(message) => {
-                    println!("{}", message);
+                    println!("{message}");
                 }
                 ExitStatus::Cancelled => {
                     println!("Commit operation cancelled. Your changes remain staged.");
                 }
                 ExitStatus::Error(error_message) => {
-                    eprintln!("An error occurred: {}", error_message);
+                    eprintln!("An error occurred: {error_message}");
                 }
             },
             Err(e) => {
-                eprintln!("An unexpected error occurred: {}", e);
+                eprintln!("An unexpected error occurred: {e}");
                 return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
             }
         }
@@ -105,6 +105,7 @@ impl TuiCommit {
         Ok(())
     }
 
+    #[allow(clippy::unused_async)] // todo: check if this is needed
     async fn main_loop(
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -164,7 +165,7 @@ impl TuiCommit {
                         self.state.mode = Mode::Normal; // Exit Generating mode
                         self.state.spinner = None; // Stop the spinner
                         self.state
-                            .set_status(format!("Failed to generate new message: {}. Press 'r' to retry or 'Esc' to exit.", e));
+                            .set_status(format!("Failed to generate new message: {e}. Press 'r' to retry or 'Esc' to exit."));
                         task_spawned = false; // Reset for future regenerations
                     }
                 },
@@ -186,7 +187,7 @@ impl TuiCommit {
                             InputResult::Commit(message) => match self.perform_commit(&message) {
                                 Ok(status) => return Ok(status),
                                 Err(e) => {
-                                    self.state.set_status(format!("Commit failed: {}", e));
+                                    self.state.set_status(format!("Commit failed: {e}"));
                                     self.state.dirty = true;
                                 }
                             },

@@ -28,7 +28,7 @@ impl log::Log for GitIrisLogger {
             }
 
             if *LOG_TO_STDOUT.lock().unwrap() {
-                print!("{}", message);
+                print!("{message}");
             }
         }
     }
