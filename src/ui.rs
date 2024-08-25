@@ -2,6 +2,7 @@ use colored::*;
 use console::Term;
 use indicatif::{ProgressBar, ProgressStyle};
 use ratatui::style::Color;
+use std::fmt::Write;
 use std::time::Duration;
 
 pub const STARLIGHT: Color = Color::Rgb(255, 255, 240);
@@ -81,15 +82,16 @@ fn apply_gradient(text: &str, gradient: &[(u8, u8, u8)]) -> String {
     let chars: Vec<char> = text.chars().collect();
     let step = (gradient.len() - 1) as f32 / (chars.len() - 1) as f32;
 
-    chars
-        .iter()
-        .enumerate()
-        .map(|(i, &c)| {
-            let index = (i as f32 * step) as usize;
-            let (r, g, b) = gradient[index];
-            format!("{}", c.to_string().truecolor(r, g, b))
-        })
-        .collect()
+    let mut result = String::new();
+
+    chars.iter().enumerate().fold(&mut result, |acc, (i, &c)| {
+        let index = (i as f32 * step) as usize;
+        let (r, g, b) = gradient[index];
+        write!(acc, "{}", c.to_string().truecolor(r, g, b)).unwrap();
+        acc
+    });
+
+    result
 }
 
 pub fn write_gradient_text(
