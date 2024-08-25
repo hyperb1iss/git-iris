@@ -3,7 +3,7 @@ use crate::llm_providers::{
     get_available_providers, get_provider_metadata, LLMProviderConfig, LLMProviderType,
 };
 use crate::log_debug;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -141,7 +141,7 @@ impl Config {
         use_gitmoji: Option<bool>,
         instructions: Option<String>,
         token_limit: Option<usize>,
-    ) {
+    ) -> anyhow::Result<()> {
         if let Some(provider) = provider {
             self.default_provider.clone_from(&provider);
             if !self.providers.contains_key(&provider) {
@@ -155,7 +155,10 @@ impl Config {
             }
         }
 
-        let provider_config = self.providers.get_mut(&self.default_provider).unwrap();
+        let provider_config = self
+            .providers
+            .get_mut(&self.default_provider)
+            .context("Could not get default provider")?;
 
         if let Some(key) = api_key {
             provider_config.api_key = key;
@@ -177,6 +180,7 @@ impl Config {
         }
 
         log_debug!("Configuration updated: {:?}", self);
+        Ok(())
     }
 
     /// Get the configuration for a specific provider
@@ -196,6 +200,7 @@ impl Config {
 }
 
 impl Default for Config {
+    #[allow(clippy::unwrap_used)] // todo: handle unwrap
     fn default() -> Self {
         let mut providers = HashMap::new();
         for provider in get_available_providers() {

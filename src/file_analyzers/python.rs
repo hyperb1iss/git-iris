@@ -60,12 +60,14 @@ impl PythonAnalyzer {
     }
 
     fn extract_setup_metadata(content: &str, metadata: &mut ProjectMetadata) {
-        let version_re = Regex::new(r#"version\s*=\s*['"]([^'"]+)['"]"#).unwrap();
+        let version_re =
+            Regex::new(r#"version\s*=\s*['"]([^'"]+)['"]"#).expect("Could not compile regex");
         if let Some(cap) = version_re.captures(content) {
             metadata.version = Some(cap[1].to_string());
         }
 
-        let install_requires_re = Regex::new(r"install_requires\s*=\s*\[(.*?)\]").unwrap();
+        let install_requires_re =
+            Regex::new(r"install_requires\s*=\s*\[(.*?)\]").expect("Could not compile regex");
         if let Some(cap) = install_requires_re.captures(content) {
             let deps = cap[1].split(',');
             for dep in deps {
@@ -93,7 +95,8 @@ impl PythonAnalyzer {
 }
 
 fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-](?:(?:\s*@\w+\s*\n)+)?\s*def\s+(\w+)").unwrap();
+    let re = Regex::new(r"(?m)^[+-](?:(?:\s*@\w+\s*\n)+)?\s*def\s+(\w+)")
+        .expect("Could not compile regex");
     let functions: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| {
@@ -114,7 +117,7 @@ fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
 }
 
 fn extract_modified_classes(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)").expect("Could not compile regex");
     let classes: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -128,12 +131,12 @@ fn extract_modified_classes(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_import_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*(import|from)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*(import|from)").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn extract_modified_decorators(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-]\s*@(\w+)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*@(\w+)").expect("Could not compile regex");
     let decorators: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))

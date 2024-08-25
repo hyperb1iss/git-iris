@@ -61,14 +61,14 @@ impl IrisCommitService {
         &self,
         preset: &str,
         instructions: &str,
-    ) -> Result<GeneratedMessage> {
+    ) -> anyhow::Result<GeneratedMessage> {
         let mut config_clone = self.config.clone();
         config_clone.instruction_preset = preset.to_string();
         config_clone.instructions = instructions.to_string();
 
         let context = self.get_git_info().await?;
 
-        let system_prompt = create_system_prompt(&config_clone);
+        let system_prompt = create_system_prompt(&config_clone)?;
         let user_prompt = create_user_prompt(&context);
 
         let mut generated_message = llm::get_refined_message::<GeneratedMessage>(
@@ -110,5 +110,4 @@ impl IrisCommitService {
     ) {
         mpsc::channel(1)
     }
-
 }

@@ -40,6 +40,7 @@ pub struct GeneratedMessage {
 }
 
 impl From<String> for GeneratedMessage {
+    #[allow(clippy::unwrap_used)] // todo: handle error maybe replace with try_from
     fn from(value: String) -> Self {
         serde_json::from_str(&value).unwrap()
     }

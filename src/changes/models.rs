@@ -117,6 +117,7 @@ pub struct SectionItem {
 
 impl From<String> for ChangelogResponse {
     /// Converts a JSON string to a `ChangelogResponse`
+    #[allow(clippy::unwrap_used)] // todo: handle unwrap maybe use try_from instead
     fn from(value: String) -> Self {
         serde_json::from_str(&value).unwrap()
     }
@@ -124,6 +125,7 @@ impl From<String> for ChangelogResponse {
 
 impl From<String> for ReleaseNotesResponse {
     /// Converts a JSON string to a `ReleaseNotesResponse`
+    #[allow(clippy::unwrap_used)] // todo: handle unwrap maybe use try_from instead
     fn from(value: String) -> Self {
         serde_json::from_str(&value).unwrap()
     }

@@ -101,7 +101,7 @@ fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
     let re = Regex::new(
         r"(?m)^[+-]\s*(function\s+(\w+)|const\s+(\w+)\s*=\s*(\([^)]*\)\s*=>|\function))",
     )
-    .unwrap();
+    .expect("Could not compile regex");
     let functions: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(2).or(cap.get(3)).map(|m| m.as_str().to_string()))
@@ -115,7 +115,7 @@ fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
 }
 
 fn extract_modified_classes(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)").expect("Could not compile regex");
     let classes: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -129,13 +129,14 @@ fn extract_modified_classes(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_import_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*(import|export)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*(import|export)").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn extract_modified_react_components(diff: &str) -> Option<Vec<String>> {
-    let class_re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)\s+extends\s+React\.Component").unwrap();
-    let func_re = Regex::new(r"(?m)^[+-]\s*(?:function\s+(\w+)|const\s+(\w+)\s*=)(?:\s*\([^)]*\))?\s*(?:=>)?\s*(?:\{[^}]*return|=>)\s*(?:<|\()").unwrap();
+    let class_re = Regex::new(r"(?m)^[+-]\s*class\s+(\w+)\s+extends\s+React\.Component")
+        .expect("Could not compile regex");
+    let func_re = Regex::new(r"(?m)^[+-]\s*(?:function\s+(\w+)|const\s+(\w+)\s*=)(?:\s*\([^)]*\))?\s*(?:=>)?\s*(?:\{[^}]*return|=>)\s*(?:<|\()").expect("Could not compile regex");
 
     let mut components = HashSet::new();
 

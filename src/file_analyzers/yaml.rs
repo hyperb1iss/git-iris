@@ -42,7 +42,8 @@ impl FileAnalyzer for YamlAnalyzer {
         }
 
         // Extract version if present
-        let version_re = Regex::new(r#"(?m)^version:\s*['"]?(.+?)['"]?$"#).unwrap();
+        let version_re =
+            Regex::new(r#"(?m)^version:\s*['"]?(.+?)['"]?$"#).expect("Could not compile regex");
         if let Some(cap) = version_re.captures(content) {
             metadata.version = Some(cap[1].to_string());
         }
@@ -52,7 +53,7 @@ impl FileAnalyzer for YamlAnalyzer {
 }
 
 fn extract_modified_top_level_keys(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"(?m)^[+-]\s*(\w+):(?:\s|$)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*(\w+):(?:\s|$)").expect("Could not compile regex");
     let keys: HashSet<String> = re
         .captures_iter(diff)
         .filter_map(|cap| {
@@ -73,11 +74,11 @@ fn extract_modified_top_level_keys(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_list_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*-\s+").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*-\s+").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn has_nested_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s+\w+:").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s+\w+:").expect("Could not compile regex");
     re.is_match(diff)
 }

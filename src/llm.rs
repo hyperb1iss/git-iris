@@ -124,8 +124,8 @@ pub fn get_available_provider_names() -> Vec<String> {
 }
 
 /// Returns the default model for a given provider
-pub fn get_default_model_for_provider(provider_type: &LLMProviderType) -> Result<&'static str> {
-    Ok(get_provider_metadata(provider_type).default_model)
+pub fn get_default_model_for_provider(provider_type: &LLMProviderType) -> &'static str {
+    get_provider_metadata(provider_type).default_model
 }
 
 /// Returns the default token limit for a given provider
@@ -163,9 +163,7 @@ pub fn get_combined_config(
 ) -> LLMProviderConfig {
     let default_config = LLMProviderConfig {
         api_key: String::new(),
-        model: get_default_model_for_provider(provider_type)
-            .unwrap()
-            .to_string(),
+        model: get_default_model_for_provider(provider_type).to_string(),
         additional_params: HashMap::default(),
     };
 

@@ -52,12 +52,13 @@ impl FileAnalyzer for RustAnalyzer {
 
 impl RustAnalyzer {
     fn extract_cargo_metadata(content: &str, metadata: &mut ProjectMetadata) {
-        let version_re = Regex::new(r#"version\s*=\s*"([^"]+)""#).unwrap();
+        let version_re = Regex::new(r#"version\s*=\s*"([^"]+)""#).expect("Could not compile regex");
         if let Some(cap) = version_re.captures(content) {
             metadata.version = Some(cap[1].to_string());
         }
 
-        let deps_re = Regex::new(r"(?m)^\[dependencies\](?:\s*\n(?:.*\s*=\s*.*)*)").unwrap();
+        let deps_re = Regex::new(r"(?m)^\[dependencies\](?:\s*\n(?:.*\s*=\s*.*)*)")
+            .expect("Could not compile regex");
         if let Some(deps_section) = deps_re.find(content) {
             let deps_lines = deps_section.as_str().lines().skip(1);
             for line in deps_lines {
@@ -84,7 +85,7 @@ impl RustAnalyzer {
 }
 
 fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"[+-]\s*(?:pub\s+)?fn\s+(\w+)").unwrap();
+    let re = Regex::new(r"[+-]\s*(?:pub\s+)?fn\s+(\w+)").expect("Could not compile regex");
     let functions: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -98,7 +99,7 @@ fn extract_modified_functions(diff: &str) -> Option<Vec<String>> {
 }
 
 fn extract_modified_structs(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"[+-]\s*(?:pub\s+)?struct\s+(\w+)").unwrap();
+    let re = Regex::new(r"[+-]\s*(?:pub\s+)?struct\s+(\w+)").expect("Could not compile regex");
     let structs: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -112,7 +113,7 @@ fn extract_modified_structs(diff: &str) -> Option<Vec<String>> {
 }
 
 fn extract_modified_traits(diff: &str) -> Option<Vec<String>> {
-    let re = Regex::new(r"[+-]\s*(?:pub\s+)?trait\s+(\w+)").unwrap();
+    let re = Regex::new(r"[+-]\s*(?:pub\s+)?trait\s+(\w+)").expect("Could not compile regex");
     let traits: Vec<String> = re
         .captures_iter(diff)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
@@ -126,6 +127,6 @@ fn extract_modified_traits(diff: &str) -> Option<Vec<String>> {
 }
 
 fn has_import_changes(diff: &str) -> bool {
-    let re = Regex::new(r"[+-]\s*(use|extern crate)").unwrap();
+    let re = Regex::new(r"[+-]\s*(use|extern crate)").expect("Could not compile regex");
     re.is_match(diff)
 }

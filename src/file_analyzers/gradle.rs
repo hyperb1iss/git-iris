@@ -52,27 +52,29 @@ impl FileAnalyzer for GradleAnalyzer {
 }
 
 fn has_dependency_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*(implementation|api|testImplementation|compile)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*(implementation|api|testImplementation|compile)")
+        .expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn has_plugin_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*(plugins|apply plugin)").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*(plugins|apply plugin)").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn has_task_changes(diff: &str) -> bool {
-    let re = Regex::new(r"(?m)^[+-]\s*task\s+").unwrap();
+    let re = Regex::new(r"(?m)^[+-]\s*task\s+").expect("Could not compile regex");
     re.is_match(diff)
 }
 
 fn extract_gradle_version(content: &str) -> Option<String> {
-    let version_re = Regex::new(r#"version\s*=\s*['"](.*?)['"]"#).unwrap();
+    let version_re = Regex::new(r#"version\s*=\s*['"](.*?)['"]"#).expect("Could not compile regex");
     version_re.captures(content).map(|cap| cap[1].to_string())
 }
 
 fn extract_gradle_dependencies(content: &str) -> Option<Vec<String>> {
-    let dependency_re = Regex::new(r#"implementation\s+['"](.+?):(.+?):(.+?)['"]"#).unwrap();
+    let dependency_re = Regex::new(r#"implementation\s+['"](.+?):(.+?):(.+?)['"]"#)
+        .expect("Could not compile regex");
     let dependencies: HashSet<String> = dependency_re
         .captures_iter(content)
         .map(|cap| format!("{}:{}:{}", &cap[1], &cap[2], &cap[3]))
@@ -86,7 +88,7 @@ fn extract_gradle_dependencies(content: &str) -> Option<Vec<String>> {
 }
 
 fn extract_gradle_plugins(content: &str) -> Option<Vec<String>> {
-    let plugin_re = Regex::new(r#"id\s+['"](.+?)['"]"#).unwrap();
+    let plugin_re = Regex::new(r#"id\s+['"](.+?)['"]"#).expect("Could not compile regex");
     let plugins: HashSet<String> = plugin_re
         .captures_iter(content)
         .map(|cap| cap[1].to_string())
