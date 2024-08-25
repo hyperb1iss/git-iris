@@ -49,7 +49,7 @@ impl ChangeAnalyzer {
         let commit_obj = repo.find_commit(commit.hash.parse()?)?;
         let parent = commit_obj.parent(0).ok();
         let diff = repo.diff_tree_to_tree(
-            parent.as_ref().map(|c| c.tree().ok()).flatten().as_ref(),
+            parent.as_ref().and_then(|c| c.tree().ok()).as_ref(),
             Some(&commit_obj.tree()?),
             None,
         )?;

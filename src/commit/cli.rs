@@ -27,7 +27,7 @@ pub async fn handle_gen_command(
     let service = Arc::new(IrisCommitService::new(
         config.clone(),
         current_dir.clone(),
-        provider_type.clone(),
+        provider_type,
         use_gitmoji && config.use_gitmoji,
         verify,
     ));
@@ -55,7 +55,7 @@ pub async fn handle_gen_command(
     // Run pre-commit hook before we do anything else
     if let Err(e) = service.pre_commit() {
         ui::print_error(&format!("Pre-commit failed: {}", e));
-        return Err(e.into());
+        return Err(e);
     }
 
     let effective_instructions = common
@@ -90,7 +90,7 @@ pub async fn handle_gen_command(
             }
             Err(e) => {
                 eprintln!("Failed to commit: {}", e);
-                return Err(e.into());
+                return Err(e);
             }
         }
         return Ok(());

@@ -14,6 +14,12 @@ pub struct InstructionPresetLibrary {
     presets: HashMap<String, InstructionPreset>,
 }
 
+impl Default for InstructionPresetLibrary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InstructionPresetLibrary {
     pub fn new() -> Self {
         let mut presets = HashMap::new();
@@ -238,7 +244,12 @@ pub fn list_presets_formatted(library: &InstructionPresetLibrary) -> String {
 
     presets
         .iter()
-        .map(|(key, preset)| format!("{} - {} - {} - {}", key, preset.emoji, preset.name, preset.description))
+        .map(|(key, preset)| {
+            format!(
+                "{} - {} - {} - {}",
+                key, preset.emoji, preset.name, preset.description
+            )
+        })
         .collect::<Vec<String>>()
         .join("\n")
 }

@@ -200,7 +200,7 @@ impl Default for Config {
         for provider in get_available_providers() {
             providers.insert(
                 provider.to_string(),
-                ProviderConfig::default_for(&provider.to_string()),
+                ProviderConfig::default_for(provider.as_ref()),
             );
         }
 

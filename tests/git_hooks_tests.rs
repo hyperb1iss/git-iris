@@ -1,3 +1,5 @@
+// only run this test on Linux
+#![cfg(target_os = "linux")]
 use anyhow::Result;
 use git2::Repository;
 use git_iris::git::{commit_and_verify, execute_hook};

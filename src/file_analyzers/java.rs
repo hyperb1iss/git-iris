@@ -29,8 +29,10 @@ impl FileAnalyzer for JavaAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("Java".to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some("Java".to_string()),
+            ..Default::default()
+        };
 
         if file == "pom.xml" {
             self.extract_maven_metadata(content, &mut metadata);
@@ -53,9 +55,13 @@ impl JavaAnalyzer {
             metadata.version = Some(cap[1].to_string());
         }
 
-        let dependency_re = Regex::new(r"<dependency>\s*<groupId>(.+?)</groupId>\s*<artifactId>(.+?)</artifactId>").unwrap();
+        let dependency_re =
+            Regex::new(r"<dependency>\s*<groupId>(.+?)</groupId>\s*<artifactId>(.+?)</artifactId>")
+                .unwrap();
         for cap in dependency_re.captures_iter(content) {
-            metadata.dependencies.push(format!("{}:{}", &cap[1], &cap[2]));
+            metadata
+                .dependencies
+                .push(format!("{}:{}", &cap[1], &cap[2]));
         }
     }
 
@@ -69,7 +75,9 @@ impl JavaAnalyzer {
 
         let dependency_re = Regex::new(r#"implementation\s+['"](.+?):(.+?):"#).unwrap();
         for cap in dependency_re.captures_iter(content) {
-            metadata.dependencies.push(format!("{}:{}", &cap[1], &cap[2]));
+            metadata
+                .dependencies
+                .push(format!("{}:{}", &cap[1], &cap[2]));
         }
     }
 

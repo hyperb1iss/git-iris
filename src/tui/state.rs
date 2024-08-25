@@ -76,7 +76,7 @@ impl TuiState {
             initial_messages
         };
         if let Some(first_message) = messages.first() {
-            message_textarea.insert_str(&format_commit_message(first_message));
+            message_textarea.insert_str(format_commit_message(first_message));
         }
 
         let mut instructions_textarea = TextArea::default();
@@ -122,10 +122,7 @@ impl TuiState {
             messages,
             current_index: 0,
             custom_instructions,
-            status: String::from(format!(
-                "{}.. Press 'Esc' to exit.",
-                get_user_message().text.to_string()
-            )),
+            status: format!("{}.. Press 'Esc' to exit.", get_user_message().text),
             selected_emoji: None,
             selected_preset: preset,
             mode: Mode::Normal,

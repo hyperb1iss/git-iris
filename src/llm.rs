@@ -26,18 +26,15 @@ where
     let provider_metadata = get_provider_metadata(provider_type);
     let provider_config = if provider_metadata.requires_api_key {
         config
-            .get_provider_config(&provider_type.to_string())
+            .get_provider_config(provider_type.as_ref())
             .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?
             .clone()
     } else {
-        ProviderConfig::default_for(&provider_type.to_string())
+        ProviderConfig::default_for(provider_type.as_ref())
     };
 
     // Create the LLM provider instance
-    let llm_provider = create_provider(
-        provider_type.clone(),
-        provider_config.to_llm_provider_config(),
-    )?;
+    let llm_provider = create_provider(*provider_type, provider_config.to_llm_provider_config())?;
 
     log_debug!(
         "Generating refined message using provider: {}",
@@ -145,7 +142,7 @@ pub fn validate_provider_config(config: &Config, provider_type: &LLMProviderType
 
     if metadata.requires_api_key {
         let provider_config = config
-            .get_provider_config(&provider_type.to_string())
+            .get_provider_config(provider_type.as_ref())
             .ok_or_else(|| anyhow!("Provider '{}' not found in configuration", provider_type))?;
 
         if provider_config.api_key.is_empty() {
@@ -171,7 +168,7 @@ pub fn get_combined_config(
     };
 
     let saved_config = config
-        .get_provider_config(&provider_type.to_string())
+        .get_provider_config(provider_type.as_ref())
         .cloned()
         .unwrap_or_default();
 

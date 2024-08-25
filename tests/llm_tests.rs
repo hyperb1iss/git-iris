@@ -11,9 +11,6 @@ use std::str::FromStr;
 
 #[tokio::test]
 async fn test_get_refined_message_validating() -> Result<()> {
-    let mut config = Config::default();
-    config.default_provider = "test".to_string();
-
     let provider_config = LLMProviderConfig {
         api_key: String::new(),
         model: "test-model".to_string(),
@@ -42,10 +39,12 @@ async fn test_get_refined_message_validating() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_refined_message_with_preset_and_custom_instructions() -> Result<()> {
-    let mut config = Config::default();
-    config.default_provider = "test".to_string();
-    config.instruction_preset = "default".to_string();
-    config.instructions = "Custom instructions".to_string();
+    let config = Config {
+        default_provider: "test".to_string(),
+        instruction_preset: "default".to_string(),
+        instructions: "Custom instructions".to_string(),
+        ..Default::default()
+    };
 
     // Call get_refined_message with the test provider
     let result = get_refined_message::<String>(
@@ -190,9 +189,6 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
 
 #[tokio::test]
 async fn test_get_refined_message_json_validation_failures() -> Result<()> {
-    let mut config = Config::default();
-    config.default_provider = "test".to_string();
-
     let provider_config = LLMProviderConfig {
         api_key: String::new(),
         model: "test-model".to_string(),

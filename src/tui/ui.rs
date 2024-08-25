@@ -48,13 +48,13 @@ pub fn draw_ui(f: &mut Frame, state: &mut TuiState) {
 
 fn draw_title(f: &mut Frame, area: Rect) {
     // Define the gradient colors transitioning from purple to cyan
-    let gradient_colors = vec![
+    let gradient_colors = [
         Color::Rgb(72, 61, 139),   // Dark Slate Blue (Deep space purple)
         Color::Rgb(93, 63, 211),   // Purple with a hint of blue
         NEBULA_PURPLE,             // Harmonized Nebula Purple
         Color::Rgb(139, 69, 255),  // Medium Purple
         Color::Rgb(171, 130, 255), // Light Purple
-        Color::Rgb(189, 183, 255), // Lavender Blue
+        Color::Rgb(189, 183, 255),
     ];
 
     // Define the title with emojis and text
@@ -125,7 +125,7 @@ fn draw_nav_bar(f: &mut Frame, area: Rect) {
         .flat_map(|(key, desc, color)| {
             vec![
                 Span::styled(
-                    format!("{}", key),
+                    key.to_string(),
                     Style::default().fg(color).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(format!(": {} ", desc), Style::default().fg(NEBULA_PURPLE)),

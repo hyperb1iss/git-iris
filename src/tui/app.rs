@@ -197,14 +197,14 @@ impl TuiCommit {
             }
 
             // Update the spinner state and redraw if in generating mode
-            if self.state.mode == Mode::Generating {
-                if self.state.last_spinner_update.elapsed() >= Duration::from_millis(100) {
-                    if let Some(spinner) = &mut self.state.spinner {
-                        spinner.tick();
-                        self.state.dirty = true; // Mark dirty to trigger redraw
-                    }
-                    self.state.last_spinner_update = std::time::Instant::now(); // Reset the update time
+            if self.state.mode == Mode::Generating
+                && self.state.last_spinner_update.elapsed() >= Duration::from_millis(100)
+            {
+                if let Some(spinner) = &mut self.state.spinner {
+                    spinner.tick();
+                    self.state.dirty = true; // Mark dirty to trigger redraw
                 }
+                self.state.last_spinner_update = std::time::Instant::now(); // Reset the update time
             }
         }
 

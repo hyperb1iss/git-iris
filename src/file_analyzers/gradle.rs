@@ -29,8 +29,10 @@ impl FileAnalyzer for GradleAnalyzer {
     }
 
     fn extract_metadata(&self, _file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("Groovy/Kotlin".to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some("Groovy/Kotlin".to_string()),
+            ..Default::default()
+        };
         metadata.build_system = Some("Gradle".to_string());
 
         if let Some(version) = extract_gradle_version(content) {

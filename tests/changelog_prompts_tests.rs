@@ -1,20 +1,21 @@
 use git_iris::changes::change_analyzer::{AnalyzedChange, FileChange};
+use git_iris::changes::models::ChangeMetrics;
+use git_iris::changes::models::ChangelogType;
 use git_iris::changes::prompt::{
     create_changelog_system_prompt, create_changelog_user_prompt,
     create_release_notes_system_prompt, create_release_notes_user_prompt,
 };
-use git_iris::changes::models::ChangelogType;
 use git_iris::common::DetailLevel;
 use git_iris::config::Config;
 use git_iris::context::ChangeType;
-use git_iris::changes::models::ChangeMetrics;
 
 /// Creates a mock configuration for testing
 fn create_mock_config() -> Config {
-    let mut config = Config::default();
-    config.use_gitmoji = true;
-    config.instructions = "Always mention performance impacts".to_string();
-    config
+    Config {
+        use_gitmoji: true,
+        instructions: "Always mention performance impacts".to_string(),
+        ..Default::default()
+    }
 }
 
 /// Creates a mock analyzed change for testing
@@ -53,7 +54,9 @@ fn test_create_changelog_system_prompt() {
     assert!(prompt.contains("You are an AI assistant specialized in generating clear, concise, and informative changelogs"));
     assert!(prompt.contains("include tasteful, appropriate, and intelligent use of emojis"));
     assert!(prompt.contains("Always mention performance impacts"));
-    assert!(prompt.contains("Ensure that your response is a valid JSON object matching this structure"));
+    assert!(
+        prompt.contains("Ensure that your response is a valid JSON object matching this structure")
+    );
     assert!(prompt.contains("ChangelogResponse"));
     assert!(prompt.contains("sections"));
     assert!(prompt.contains("breaking_changes"));
@@ -128,7 +131,9 @@ fn test_create_release_notes_system_prompt() {
     assert!(prompt.contains("You are an AI assistant specialized in generating comprehensive and user-friendly release notes"));
     assert!(prompt.contains("include tasteful, appropriate, and intelligent use of emojis"));
     assert!(prompt.contains("Always mention performance impacts"));
-    assert!(prompt.contains("Ensure that your response is a valid JSON object matching this structure"));
+    assert!(
+        prompt.contains("Ensure that your response is a valid JSON object matching this structure")
+    );
     assert!(prompt.contains("ReleaseNotesResponse"));
     assert!(prompt.contains("highlights"));
     assert!(prompt.contains("sections"));
@@ -182,7 +187,8 @@ fn test_create_release_notes_user_prompt() {
 #[test]
 fn test_changelog_user_prompt_without_readme() {
     let changes = vec![create_mock_analyzed_change()];
-    let prompt = create_changelog_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
+    let prompt =
+        create_changelog_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
 
     assert!(!prompt.contains("Project README Summary:"));
     assert!(prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));
@@ -192,7 +198,8 @@ fn test_changelog_user_prompt_without_readme() {
 #[test]
 fn test_release_notes_user_prompt_without_readme() {
     let changes = vec![create_mock_analyzed_change()];
-    let prompt = create_release_notes_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
+    let prompt =
+        create_release_notes_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
 
     assert!(!prompt.contains("Project README Summary:"));
     assert!(prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));
