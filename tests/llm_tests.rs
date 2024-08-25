@@ -66,7 +66,7 @@ fn test_get_available_providers() {
     let providers = get_available_provider_names();
     assert!(providers.contains(&"openai".to_string()));
     assert!(providers.contains(&"claude".to_string()));
-    assert!(providers.contains(&"test".to_string()));
+    assert!(!providers.contains(&"test".to_string()));
 }
 
 #[test]

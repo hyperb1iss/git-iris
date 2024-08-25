@@ -120,6 +120,7 @@ where
 pub fn get_available_provider_names() -> Vec<String> {
     get_available_providers()
         .into_iter()
+        .filter(|p| *p != LLMProviderType::Test)
         .map(|p| p.to_string())
         .collect()
 }
