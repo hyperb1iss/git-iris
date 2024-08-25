@@ -31,3 +31,9 @@ impl SpinnerState {
         )
     }
 }
+
+impl Default for SpinnerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}

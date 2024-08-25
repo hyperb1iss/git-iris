@@ -36,8 +36,17 @@ impl FileAnalyzer for JavaScriptAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some(if file.ends_with(".ts") { "TypeScript" } else { "JavaScript" }.to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some(
+                if file.ends_with(".ts") {
+                    "TypeScript"
+                } else {
+                    "JavaScript"
+                }
+                .to_string(),
+            ),
+            ..Default::default()
+        };
 
         if file == "package.json" {
             self.extract_package_json_metadata(content, &mut metadata);
@@ -80,7 +89,8 @@ impl JavaScriptAnalyzer {
             metadata.framework = Some("React".to_string());
         } else if content.contains("import Vue") || content.contains("from 'vue'") {
             metadata.framework = Some("Vue".to_string());
-        } else if content.contains("import { Component") || content.contains("from '@angular/core'") {
+        } else if content.contains("import { Component") || content.contains("from '@angular/core'")
+        {
             metadata.framework = Some("Angular".to_string());
         }
     }

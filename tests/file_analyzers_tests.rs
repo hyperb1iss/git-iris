@@ -94,7 +94,7 @@ fn test_python_analyzer() {
         "#
         .to_string(),
         analysis: Vec::new(),
-        content: None, 
+        content: None,
         content_excluded: false,
     };
 
@@ -323,7 +323,7 @@ fn test_kotlin_analyzer() {
     println!("Kotlin analysis results: {:?}", analysis);
 
     // Helper function to check if any string in the analysis contains all expected substrings
-    fn contains_all_substrings(analysis: &Vec<String>, substrings: &[&str]) -> bool {
+    fn contains_all_substrings(analysis: &[String], substrings: &[&str]) -> bool {
         analysis
             .iter()
             .any(|s| substrings.iter().all(|&sub| s.contains(sub)))

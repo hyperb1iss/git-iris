@@ -29,8 +29,10 @@ impl FileAnalyzer for KotlinAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("Kotlin".to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some("Kotlin".to_string()),
+            ..Default::default()
+        };
 
         if file == "build.gradle.kts" {
             self.extract_gradle_metadata(content, &mut metadata);
@@ -51,9 +53,12 @@ impl KotlinAnalyzer {
             metadata.version = Some(cap[1].to_string());
         }
 
-        let dependency_re = Regex::new(r#"implementation\s*\(\s*["'](.+?):(.+?):(.+?)["']\)"#).unwrap();
+        let dependency_re =
+            Regex::new(r#"implementation\s*\(\s*["'](.+?):(.+?):(.+?)["']\)"#).unwrap();
         for cap in dependency_re.captures_iter(content) {
-            metadata.dependencies.push(format!("{}:{}:{}", &cap[1], &cap[2], &cap[3]));
+            metadata
+                .dependencies
+                .push(format!("{}:{}:{}", &cap[1], &cap[2], &cap[3]));
         }
     }
 

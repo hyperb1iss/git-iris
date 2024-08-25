@@ -183,7 +183,7 @@ pub async fn main() -> anyhow::Result<()> {
         Some(command) => handle_command(command).await,
         None => {
             // If no subcommand is provided, print the help
-            let _ = Cli::parse_from(&["git-iris", "--help"]);
+            let _ = Cli::parse_from(["git-iris", "--help"]);
             Ok(())
         }
     }
@@ -197,7 +197,7 @@ pub async fn handle_command(command: Commands) -> anyhow::Result<()> {
             auto_commit,
             no_gitmoji,
             print,
-            no_verify
+            no_verify,
         } => {
             log_debug!(
                 "Handling 'gen' command with common: {:?}, auto_commit: {}, no_gitmoji: {}, print: {}, no_verify: {}",

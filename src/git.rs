@@ -152,11 +152,9 @@ fn should_exclude_file(path: &str) -> bool {
                     return true;
                 }
             }
-        } else {
-            if re.is_match(path.to_str().unwrap()) {
-                log_debug!("File excluded: {}", path.display());
-                return true;
-            }
+        } else if re.is_match(path.to_str().unwrap()) {
+            log_debug!("File excluded: {}", path.display());
+            return true;
         }
     }
     log_debug!("File not excluded: {}", path.display());
@@ -171,7 +169,7 @@ fn get_file_statuses(repo: &Repository) -> Result<Vec<StagedFile>> {
     opts.include_untracked(true);
     let statuses = repo.statuses(Some(&mut opts))?;
 
-    for (_index, entry) in statuses.iter().enumerate() {
+    for entry in statuses.iter() {
         let path = entry.path().unwrap();
         let status = entry.status();
 
@@ -302,12 +300,10 @@ pub async fn get_project_metadata(changed_files: &[String]) -> Result<ProjectMet
 
     let mut combined_metadata = ProjectMetadata::default();
     let mut any_file_analyzed = false;
-    for result in results {
-        if let Ok(Some(metadata)) = result {
-            log_debug!("Merging metadata: {:?}", metadata);
-            merge_metadata(&mut combined_metadata, metadata);
-            any_file_analyzed = true;
-        }
+    for metadata in results.into_iter().flatten().flatten() {
+        log_debug!("Merging metadata: {:?}", metadata);
+        merge_metadata(&mut combined_metadata, metadata);
+        any_file_analyzed = true;
     }
 
     log_debug!("Final combined metadata: {:?}", combined_metadata);
@@ -385,7 +381,7 @@ pub fn commit_and_verify(repo_path: &Path, message: &str) -> Result<CommitResult
         }
         Err(e) => {
             log_debug!("Commit failed: {}", e);
-            Err(e.into())
+            Err(e)
         }
     }
 }

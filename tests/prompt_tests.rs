@@ -1,6 +1,6 @@
+use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::config::Config;
 use git_iris::context::{ChangeType, CommitContext, ProjectMetadata, RecentCommit, StagedFile};
-use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 
 fn create_mock_commit_context() -> CommitContext {
     CommitContext {
@@ -59,8 +59,10 @@ fn test_create_user_prompt_with_staged_files() {
 
 #[test]
 fn test_create_system_prompt_with_gitmoji() {
-    let mut config = Config::default();
-    config.use_gitmoji = true;
+    let config = Config {
+        use_gitmoji: true,
+        ..Default::default()
+    };
 
     let prompt = create_system_prompt(&config);
 
@@ -75,8 +77,10 @@ fn test_create_system_prompt_with_gitmoji() {
 
 #[test]
 fn test_create_system_prompt_with_custom_instructions() {
-    let mut config = Config::default();
-    config.instructions = "Always mention the ticket number".to_string();
+    let config = Config {
+        instructions: "Always mention the ticket number".to_string(),
+        ..Default::default()
+    };
 
     let prompt = create_system_prompt(&config);
 
@@ -160,4 +164,3 @@ fn test_create_user_prompt_with_file_analysis() {
     assert!(prompt.contains("Modified function: main"));
     assert!(prompt.contains("Added new struct: User"));
 }
-

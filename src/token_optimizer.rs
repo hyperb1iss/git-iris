@@ -80,9 +80,8 @@ impl TokenOptimizer {
         let truncation_limit = max_tokens.saturating_sub(1); // Reserve space for the ellipsis
         let mut truncated_tokens = tokens[..truncation_limit].to_vec();
         truncated_tokens.push(self.encoder.encode_ordinary("…")[0]);
-        let truncated_string = self.encoder.decode(truncated_tokens).unwrap();
 
-        truncated_string
+        self.encoder.decode(truncated_tokens).unwrap()
     }
 
     // Clear all recent commits and full file contents

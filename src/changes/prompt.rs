@@ -228,13 +228,13 @@ pub fn create_changelog_user_prompt(
     to: &str,
     readme_summary: Option<&str>,
 ) -> String {
-    let mut prompt = String::from(format!(
+    let mut prompt = format!(
         "Based on the following changes from {} to {}, generate a changelog:\n\n",
         from, to
-    ));
+    );
 
     let total_metrics = calculate_total_metrics(changes);
-    prompt.push_str(&format!("Overall Changes:\n"));
+    prompt.push_str("Overall Changes:\n");
     prompt.push_str(&format!("Total commits: {}\n", changes.len()));
     prompt.push_str(&format!("Files changed: {}\n", total_metrics.files_changed));
     prompt.push_str(&format!(
@@ -289,7 +289,7 @@ pub fn create_changelog_user_prompt(
             }
         }
 
-        prompt.push_str("\n");
+        prompt.push('\n');
     }
 
     if let Some(summary) = readme_summary {
@@ -327,13 +327,13 @@ pub fn create_release_notes_user_prompt(
     to: &str,
     readme_summary: Option<&str>,
 ) -> String {
-    let mut prompt = String::from(format!(
+    let mut prompt = format!(
         "Based on the following changes from {} to {}, generate release notes:\n\n",
         from, to
-    ));
+    );
 
     let total_metrics = calculate_total_metrics(changes);
-    prompt.push_str(&format!("Overall Changes:\n"));
+    prompt.push_str("Overall Changes:\n");
     prompt.push_str(&format!("Total commits: {}\n", changes.len()));
     prompt.push_str(&format!("Files changed: {}\n", total_metrics.files_changed));
     prompt.push_str(&format!(
@@ -378,7 +378,7 @@ pub fn create_release_notes_user_prompt(
             }
         }
 
-        prompt.push_str("\n");
+        prompt.push('\n');
     }
 
     if let Some(summary) = readme_summary {

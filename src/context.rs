@@ -62,7 +62,7 @@ impl fmt::Display for ChangeType {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Default)]
 pub struct ProjectMetadata {
     pub language: Option<String>,
     pub framework: Option<String>,
@@ -71,20 +71,6 @@ pub struct ProjectMetadata {
     pub build_system: Option<String>,
     pub test_framework: Option<String>,
     pub plugins: Vec<String>,
-}
-
-impl Default for ProjectMetadata {
-    fn default() -> Self {
-        ProjectMetadata {
-            language: None,
-            framework: None,
-            dependencies: Vec::new(),
-            version: None,
-            build_system: None,
-            test_framework: None,
-            plugins: Vec::new(),
-        }
-    }
 }
 
 impl CommitContext {
@@ -124,7 +110,7 @@ pub fn format_commit_message(response: &GeneratedMessage) -> String {
     let wrapped_message = wrap(&response.message, 78);
     for line in wrapped_message {
         message.push_str(&line);
-        message.push_str("\n");
+        message.push('\n');
     }
 
     message

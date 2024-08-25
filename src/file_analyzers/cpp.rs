@@ -29,8 +29,10 @@ impl FileAnalyzer for CppAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("C++".to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some("C++".to_string()),
+            ..Default::default()
+        };
 
         if file == "CMakeLists.txt" {
             self.extract_cmake_metadata(content, &mut metadata);

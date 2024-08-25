@@ -37,8 +37,10 @@ impl FileAnalyzer for RustAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("Rust".to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some("Rust".to_string()),
+            ..Default::default()
+        };
 
         if file == "Cargo.toml" {
             self.extract_cargo_metadata(content, &mut metadata);

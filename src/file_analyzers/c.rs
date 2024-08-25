@@ -29,8 +29,10 @@ impl FileAnalyzer for CAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("C".to_string());
+        let mut metadata: ProjectMetadata = ProjectMetadata {
+            language: Some("C".to_string()),
+            ..Default::default()
+        };
 
         if file == "Makefile" {
             self.extract_makefile_metadata(content, &mut metadata);

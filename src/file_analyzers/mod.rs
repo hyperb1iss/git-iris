@@ -34,7 +34,11 @@ mod yaml;
 pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer + Send + Sync> {
     if file.ends_with(".c") || file == "Makefile" {
         Box::new(c::CAnalyzer)
-    } else if file.ends_with(".cpp") || file.ends_with(".cc") || file.ends_with(".cxx") ||  file == "CMakeLists.txt" {
+    } else if file.ends_with(".cpp")
+        || file.ends_with(".cc")
+        || file.ends_with(".cxx")
+        || file == "CMakeLists.txt"
+    {
         Box::new(cpp::CppAnalyzer)
     } else if file.ends_with(".rs") {
         Box::new(rust::RustAnalyzer)
@@ -72,8 +76,9 @@ impl FileAnalyzer for DefaultAnalyzer {
     }
 
     fn extract_metadata(&self, _file: &str, _content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("Unknown".to_string());
-        metadata
+        ProjectMetadata {
+            language: Some("Unknown".to_string()),
+            ..Default::default()
+        }
     }
 }

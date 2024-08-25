@@ -32,8 +32,10 @@ impl FileAnalyzer for PythonAnalyzer {
     }
 
     fn extract_metadata(&self, file: &str, content: &str) -> ProjectMetadata {
-        let mut metadata = ProjectMetadata::default();
-        metadata.language = Some("Python".to_string());
+        let mut metadata = ProjectMetadata {
+            language: Some("Python".to_string()),
+            ..Default::default()
+        };
 
         if file == "requirements.txt" {
             self.extract_requirements_metadata(content, &mut metadata);

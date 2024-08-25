@@ -1,8 +1,8 @@
 use colored::*;
 use console::Term;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::time::Duration;
 use ratatui::style::Color;
+use std::time::Duration;
 
 pub const STARLIGHT: Color = Color::Rgb(255, 255, 240);
 pub const NEBULA_PURPLE: Color = Color::Rgb(167, 132, 239);
@@ -109,4 +109,3 @@ pub fn write_colored_text(term: &mut Term, text: &str, color: (u8, u8, u8)) -> s
 pub fn write_bold_text(term: &mut Term, text: &str) -> std::io::Result<()> {
     term.write_line(&text.bold())
 }
-
