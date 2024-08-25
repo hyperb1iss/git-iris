@@ -179,7 +179,7 @@ def update_version(new_version: str) -> None:
     """Update the version in Cargo.toml."""
     with open("Cargo.toml", "r") as f:
         content = f.read()
-    updated_content = re.sub(r'(version\s*=\s*)"(\d+\.\d+\.\d+)"', f'\\1"{new_version}"', content)
+    updated_content = re.sub(r'^(version\s*=\s*)"(\d+\.\d+\.\d+)"', f'\\1"{new_version}"', content, flags=re.MULTILINE)
     with open("Cargo.toml", "w") as f:
         f.write(updated_content)
     print_success(f"Updated version in Cargo.toml to {new_version}")
@@ -203,7 +203,7 @@ def commit_and_push(version: str) -> None:
     """Commit and push changes to the repository."""
     print_step("Committing and pushing changes")
     try:
-        subprocess.run(["git", "add", "Cargo.toml"], check=True)
+        subprocess.run(["git", "add", "Cargo.*"], check=True)
         subprocess.run(["git", "commit", "-m", f":rocket: Release version {version}"], check=True)
         subprocess.run(["git", "push"], check=True)
         subprocess.run(["git", "tag", f"v{version}"], check=True)
