@@ -10,6 +10,7 @@ use std::str::FromStr;
 use tempfile::TempDir;
 
 /// Sets up a temporary Git repository for testing
+#[allow(dead_code)]
 fn setup_test_repo() -> Result<(TempDir, Repository)> {
     let temp_dir = TempDir::new()?;
     let repo = Repository::init(temp_dir.path())?;
