@@ -13,19 +13,19 @@ categories = ["command-line-utilities", "development-tools"]
 
 
 [dependencies]
-clap = { version = "4.5.11", features = ["derive", "cargo"] }
-tokio = { version = "1.39.2", features = ["full"] }
-reqwest = { version = "0.12.5", features = ["json"] }
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.121"
+clap = { version = "4.5.16", features = ["derive", "cargo"] }
+tokio = { version = "1.39.3", features = ["full"] }
+reqwest = { version = "0.12.7", features = ["json"] }
+serde = { version = "1.0.209", features = ["derive"] }
+serde_json = "1.0.127"
 anyhow = "1.0.86"
-toml = "0.8.16"
+toml = "0.8.19"
 dirs = "5.0.1"
-regex = "1.10.5"
+regex = "1.10.6"
 colored = "2.1.0"
 dialoguer = "0.11.0"
 console = "0.15.8"
-tempfile = "3.10.1"
+tempfile = "3.12.0"
 git2 = "0.19.0"
 indicatif = "0.17.8"
 async-trait = "0.1.81"
