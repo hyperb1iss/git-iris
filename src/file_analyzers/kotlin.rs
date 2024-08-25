@@ -35,9 +35,9 @@ impl FileAnalyzer for KotlinAnalyzer {
         };
 
         if file == "build.gradle.kts" {
-            self.extract_gradle_metadata(content, &mut metadata);
+            Self::extract_gradle_metadata(content, &mut metadata);
         } else {
-            self.extract_kotlin_file_metadata(content, &mut metadata);
+            Self::extract_kotlin_file_metadata(content, &mut metadata);
         }
 
         metadata
@@ -45,7 +45,7 @@ impl FileAnalyzer for KotlinAnalyzer {
 }
 
 impl KotlinAnalyzer {
-    fn extract_gradle_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_gradle_metadata(content: &str, metadata: &mut ProjectMetadata) {
         metadata.build_system = Some("Gradle".to_string());
 
         let version_re = Regex::new(r#"version\s*=\s*['"](.*?)['"]"#).unwrap();
@@ -62,7 +62,7 @@ impl KotlinAnalyzer {
         }
     }
 
-    fn extract_kotlin_file_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_kotlin_file_metadata(content: &str, metadata: &mut ProjectMetadata) {
         if content.contains("import org.springframework") {
             metadata.framework = Some("Spring".to_string());
         } else if content.contains("import javax.ws.rs") {

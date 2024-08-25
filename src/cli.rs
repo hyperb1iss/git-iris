@@ -160,7 +160,7 @@ pub fn parse_args() -> Cli {
 /// Generate dynamic help including available LLM providers
 fn get_dynamic_help() -> String {
     let providers = get_available_provider_names().join(", ");
-    format!("Available providers: {}", providers)
+    format!("Available providers: {providers}")
 }
 
 /// Main function to parse arguments and handle the command
@@ -179,13 +179,10 @@ pub async fn main() -> anyhow::Result<()> {
         crate::logger::disable_logging();
     }
 
-    match cli.command {
-        Some(command) => handle_command(command).await,
-        None => {
-            // If no subcommand is provided, print the help
-            let _ = Cli::parse_from(["git-iris", "--help"]);
-            Ok(())
-        }
+    if let Some(command) = cli.command { handle_command(command).await } else {
+        // If no subcommand is provided, print the help
+        let _ = Cli::parse_from(["git-iris", "--help"]);
+        Ok(())
     }
 }
 

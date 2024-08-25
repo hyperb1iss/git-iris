@@ -71,8 +71,7 @@ fn test_token_optimizer_prioritize_diffs_and_commits() {
     let total_tokens = count_total_tokens(&context, &optimizer);
     assert!(
         total_tokens <= 15,
-        "Total tokens ({}) exceeds limit of 15",
-        total_tokens
+        "Total tokens ({total_tokens}) exceeds limit of 15"
     );
 
     // File diffs should be fully represented or truncated last
@@ -123,8 +122,7 @@ fn test_token_optimizer_large_limit_with_full_content() {
     let total_tokens = count_total_tokens(&context, &optimizer);
     assert!(
         total_tokens <= 1000,
-        "Total tokens ({}) exceeds limit of 1000",
-        total_tokens
+        "Total tokens ({total_tokens}) exceeds limit of 1000"
     );
 
     // No truncation should occur, especially in file diffs and full content
@@ -169,8 +167,7 @@ fn print_debug_info(context: &CommitContext, optimizer: &TokenOptimizer) {
         if let Some(content) = &file.content {
             let content_tokens = optimizer.count_tokens(content);
             println!(
-                "Full content {}: '{}' ({} tokens)",
-                i, content, content_tokens
+                "Full content {i}: '{content}' ({content_tokens} tokens)"
             );
         }
     }
@@ -191,13 +188,12 @@ fn test_token_optimizer_realistic_limit() {
 
     // Debugging print to verify the final token count
     let total_tokens = count_total_tokens(&context, &optimizer);
-    println!("Total tokens after optimization: {}", total_tokens);
+    println!("Total tokens after optimization: {total_tokens}");
 
     // Assert that the total tokens do not exceed the limit
     assert!(
         total_tokens <= 2000,
-        "Total tokens ({}) exceeds limit of 2000",
-        total_tokens
+        "Total tokens ({total_tokens}) exceeds limit of 2000"
     );
 
     // Verify that the diffs are prioritized and potentially truncated last

@@ -11,6 +11,7 @@ use anyhow::Result;
 use std::str::FromStr;
 use std::sync::Arc;
 
+#[allow(clippy::fn_params_excessive_bools)] // its ok to use multiple bools here
 pub async fn handle_gen_command(
     common: CommonParams,
     auto_commit: bool,
@@ -34,7 +35,7 @@ pub async fn handle_gen_command(
 
     // Check environment prerequisites
     if let Err(e) = service.check_environment() {
-        ui::print_error(&format!("Error: {}", e));
+        ui::print_error(&format!("Error: {e}"));
         ui::print_info("\nPlease ensure the following:");
         ui::print_info("1. Git is installed and accessible from the command line.");
         ui::print_info("2. You are running this command from within a Git repository.");
@@ -54,7 +55,7 @@ pub async fn handle_gen_command(
 
     // Run pre-commit hook before we do anything else
     if let Err(e) = service.pre_commit() {
-        ui::print_error(&format!("Pre-commit failed: {}", e));
+        ui::print_error(&format!("Pre-commit failed: {e}"));
         return Err(e);
     }
 
@@ -86,10 +87,10 @@ pub async fn handle_gen_command(
             Ok(result) => {
                 let output =
                     format_commit_result(&result, &format_commit_message(&initial_message));
-                println!("{}", output);
+                println!("{output}");
             }
             Err(e) => {
-                eprintln!("Failed to commit: {}", e);
+                eprintln!("Failed to commit: {e}");
                 return Err(e);
             }
         }

@@ -21,6 +21,7 @@ impl Default for InstructionPresetLibrary {
 }
 
 impl InstructionPresetLibrary {
+    #[allow(clippy::too_many_lines)]
     pub fn new() -> Self {
         let mut presets = HashMap::new();
 
@@ -214,7 +215,7 @@ impl InstructionPresetLibrary {
             },
         );
 
-        InstructionPresetLibrary { presets }
+        Self { presets }
     }
 
     pub fn get_preset(&self, key: &str) -> Option<&InstructionPreset> {

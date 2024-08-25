@@ -31,6 +31,7 @@ mod rust;
 mod yaml;
 
 /// Get the appropriate file analyzer based on the file extension
+#[allow(clippy::case_sensitive_file_extension_comparisons)] // todo: check if we should compare case-insensitively
 pub fn get_analyzer(file: &str) -> Box<dyn FileAnalyzer + Send + Sync> {
     if file.ends_with(".c") || file == "Makefile" {
         Box::new(c::CAnalyzer)

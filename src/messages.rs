@@ -1,4 +1,7 @@
-use crate::ui::*;
+use crate::ui::{
+    AURORA_GREEN, CELESTIAL_BLUE, COMET_ORANGE, GALAXY_PINK, METEOR_RED, NEBULA_PURPLE,
+    PLASMA_CYAN, SOLAR_YELLOW, STARLIGHT,
+};
 use lazy_static::lazy_static;
 use rand::seq::SliceRandom;
 use ratatui::style::Color;
@@ -132,7 +135,6 @@ lazy_static! {
             color: PLASMA_CYAN
         },
     ];
-
     static ref USER_MESSAGES: Vec<ColoredMessage> = vec![
         ColoredMessage {
             text: "🚀 Launching commit rocket".to_string(),

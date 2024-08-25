@@ -35,9 +35,9 @@ impl FileAnalyzer for CppAnalyzer {
         };
 
         if file == "CMakeLists.txt" {
-            self.extract_cmake_metadata(content, &mut metadata);
+            Self::extract_cmake_metadata(content, &mut metadata);
         } else {
-            self.extract_cpp_file_metadata(content, &mut metadata);
+            Self::extract_cpp_file_metadata(content, &mut metadata);
         }
 
         metadata
@@ -45,7 +45,7 @@ impl FileAnalyzer for CppAnalyzer {
 }
 
 impl CppAnalyzer {
-    fn extract_cmake_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_cmake_metadata(content: &str, metadata: &mut ProjectMetadata) {
         metadata.build_system = Some("CMake".to_string());
 
         let version_re = Regex::new(r"project\([^)]+\s+VERSION\s+([^\s)]+)").unwrap();
@@ -60,7 +60,7 @@ impl CppAnalyzer {
         }
     }
 
-    fn extract_cpp_file_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_cpp_file_metadata(content: &str, metadata: &mut ProjectMetadata) {
         if content.contains("#include <iostream>") {
             metadata.framework = Some("Standard I/O".to_string());
         }

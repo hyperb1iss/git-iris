@@ -104,7 +104,7 @@ where
     revwalk.hide(from_commit.id())?;
 
     revwalk
-        .filter_map(|id| id.ok())
+        .filter_map(std::result::Result::ok)
         .map(|id| {
             let commit = repo.find_commit(id)?;
             let recent_commit = RecentCommit {
@@ -280,17 +280,15 @@ pub async fn get_project_metadata(changed_files: &[String]) -> Result<ProjectMet
 
             log_debug!("Analyzing file: {}", file_path);
 
-            if !should_exclude_file(&file_path) {
-                if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
-                    let metadata = analyzer.extract_metadata(file_name, &content);
-                    log_debug!("Extracted metadata for {}: {:?}", file_name, metadata);
-                    Some(metadata)
-                } else {
-                    log_debug!("Failed to read file: {}", file_path);
-                    None
-                }
-            } else {
+            if should_exclude_file(&file_path) {
                 log_debug!("File excluded: {}", file_path);
+                None
+            } else if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
+                let metadata = analyzer.extract_metadata(file_name, &content);
+                log_debug!("Extracted metadata for {}: {:?}", file_name, metadata);
+                Some(metadata)
+            } else {
+                log_debug!("Failed to read file: {}", file_path);
                 None
             }
         })
@@ -356,15 +354,12 @@ pub fn check_environment() -> Result<()> {
 
 pub fn is_inside_work_tree() -> Result<bool> {
     log_debug!("Checking if inside Git work tree");
-    match Repository::discover(".") {
-        Ok(_) => {
-            log_debug!("Inside Git work tree");
-            Ok(true)
-        }
-        Err(_) => {
-            log_debug!("Not inside Git work tree");
-            Ok(false)
-        }
+    if Repository::discover(".").is_ok() {
+        log_debug!("Inside Git work tree");
+        Ok(true)
+    } else {
+        log_debug!("Not inside Git work tree");
+        Ok(false)
     }
 }
 
@@ -470,7 +465,7 @@ fn find_readme_in_tree(repo: &Repository, tree: &Tree) -> Result<Option<String>>
         "readme.md",
     ];
 
-    for entry in tree.iter() {
+    for entry in tree {
         let name = entry.name().unwrap_or("");
         if readme_patterns
             .iter()

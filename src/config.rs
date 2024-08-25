@@ -46,7 +46,7 @@ pub struct ProviderConfig {
     pub token_limit: Option<usize>,
 }
 
-/// Default function for use_gitmoji
+/// Default function for `use_gitmoji`
 fn default_gitmoji() -> bool {
     true
 }
@@ -59,19 +59,19 @@ fn default_instruction_preset() -> String {
 impl Config {
     /// Load the configuration from the file
     pub fn load() -> Result<Self> {
-        let config_path = Config::get_config_path()?;
+        let config_path = Self::get_config_path()?;
         if !config_path.exists() {
-            return Ok(Config::default());
+            return Ok(Self::default());
         }
         let config_content = fs::read_to_string(config_path)?;
-        let config: Config = toml::from_str(&config_content)?;
+        let config: Self = toml::from_str(&config_content)?;
         log_debug!("Configuration loaded: {:?}", config);
         Ok(config)
     }
 
     /// Save the configuration to the file
     pub fn save(&self) -> Result<()> {
-        let config_path = Config::get_config_path()?;
+        let config_path = Self::get_config_path()?;
         let config_content = toml::to_string(self)?;
         fs::write(config_path, config_content)?;
         log_debug!("Configuration saved: {:?}", self);
@@ -125,7 +125,7 @@ impl Config {
             .as_ref()
             .unwrap_or(&self.instructions);
 
-        format!("{}\n\n{}", preset_instructions, custom_instructions)
+        format!("{preset_instructions}\n\n{custom_instructions}")
             .trim()
             .to_string()
     }
@@ -143,7 +143,7 @@ impl Config {
         token_limit: Option<usize>,
     ) {
         if let Some(provider) = provider {
-            self.default_provider = provider.clone();
+            self.default_provider.clone_from(&provider);
             if !self.providers.contains_key(&provider) {
                 // Only insert a new provider if it requires configuration
                 let provider_type =
@@ -205,7 +205,7 @@ impl Default for Config {
             );
         }
 
-        Config {
+        Self {
             default_provider: get_available_providers().first().unwrap().to_string(),
             providers,
             use_gitmoji: true,
@@ -240,7 +240,7 @@ impl ProviderConfig {
         })
     }
 
-    /// Convert to LLMProviderConfig
+    /// Convert to `LLMProviderConfig`
     pub fn to_llm_provider_config(&self) -> LLMProviderConfig {
         LLMProviderConfig {
             api_key: self.api_key.clone(),

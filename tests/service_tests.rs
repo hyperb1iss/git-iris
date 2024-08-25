@@ -41,7 +41,7 @@ fn test_perform_commit() -> Result<()> {
     let service = IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji, true);
 
     let result = service.perform_commit("Test commit message");
-    println!("Perform commit result: {:?}", result);
+    println!("Perform commit result: {result:?}");
     assert!(result.is_ok(), "Failed to perform commit: {:?}", result.err());
 
     // Verify the commit was made

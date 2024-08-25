@@ -11,12 +11,12 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
-    /// Creates a new instance of OllamaProvider with the given configuration
-    pub fn new(config: LLMProviderConfig) -> Result<Self> {
-        Ok(Self {
+    /// Creates a new instance of `OllamaProvider` with the given configuration
+    pub fn new(config: LLMProviderConfig) -> Self {
+        Self {
             config,
             client: Client::new(),
-        })
+        }
     }
 }
 
@@ -63,8 +63,7 @@ pub(super) fn get_metadata() -> ProviderMetadata {
     ProviderMetadata {
         name: "Ollama",
         default_model: "llama3",
-        default_token_limit: 100000,
+        default_token_limit: 100_000,
         requires_api_key: false,
     }
 }
-

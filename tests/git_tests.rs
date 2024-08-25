@@ -1,8 +1,8 @@
 use git2::Repository;
+use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::config::Config;
 use git_iris::context::ChangeType;
 use git_iris::git::{commit, get_git_info, get_project_metadata};
-use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::token_optimizer::TokenOptimizer;
 use std::fs;
 use std::path::Path;
@@ -91,7 +91,6 @@ async fn test_get_git_info() {
         updated_context.staged_files[0].change_type,
         ChangeType::Added
     ));
-
 }
 
 #[tokio::test]
@@ -126,13 +125,11 @@ async fn test_multiple_staged_files() {
 
     // Create and stage multiple files
     for i in 1..=3 {
-        let file_path = temp_dir.path().join(format!("file{}.txt", i));
-        fs::write(&file_path, format!("Content {}", i)).unwrap();
+        let file_path = temp_dir.path().join(format!("file{i}.txt"));
+        fs::write(&file_path, format!("Content {i}")).unwrap();
         let repo = Repository::open(temp_dir.path()).unwrap();
         let mut index = repo.index().unwrap();
-        index
-            .add_path(Path::new(&format!("file{}.txt", i)))
-            .unwrap();
+        index.add_path(Path::new(&format!("file{i}.txt"))).unwrap();
         index.write().unwrap();
     }
 
@@ -142,7 +139,7 @@ async fn test_multiple_staged_files() {
         assert!(context
             .staged_files
             .iter()
-            .any(|file| file.path == format!("file{}.txt", i)));
+            .any(|file| file.path == format!("file{i}.txt")));
     }
 }
 
@@ -278,7 +275,7 @@ async fn test_get_git_info_with_excluded_files() {
 
     assert!(!excluded_files.is_empty(), "Should have excluded files");
 
-    println!("{:?}", excluded_files);
+    println!("{excluded_files:?}");
     assert!(excluded_files
         .iter()
         .any(|file| file.path == "package-lock.json"));
@@ -325,8 +322,8 @@ async fn test_multiple_staged_files_with_exclusions() {
     // Create non-excluded files
     for i in 1..=3 {
         fs::write(
-            temp_dir.path().join(format!("file{}.txt", i)),
-            format!("Content {}", i),
+            temp_dir.path().join(format!("file{i}.txt")),
+            format!("Content {i}"),
         )
         .unwrap();
     }
@@ -362,7 +359,7 @@ async fn test_multiple_staged_files_with_exclusions() {
         assert_eq!(file.diff, "[Content excluded]");
         assert_eq!(file.analysis, vec!["[Analysis excluded]"]);
     }
-
+    #[allow(clippy::case_sensitive_file_extension_comparisons)] // todo: check if this is necessary
     for file in &included_files {
         assert!(file.path.starts_with("file") && file.path.ends_with(".txt"));
         assert_ne!(file.diff, "[Content excluded]");
@@ -383,7 +380,7 @@ async fn test_token_optimization_integration() {
 
     let system_prompt = create_system_prompt(&config);
     let user_prompt = create_user_prompt(&context);
-    let prompt = format!("{}\n{}", system_prompt, user_prompt);
+    let prompt = format!("{system_prompt}\n{user_prompt}");
 
     // Check that the prompt is within the token limit
     let optimizer = TokenOptimizer::new(small_token_limit);
@@ -391,15 +388,13 @@ async fn test_token_optimization_integration() {
 
     let token_count = optimizer.count_tokens(&prompt);
 
-    println!("Token count: {}", token_count);
-    println!("Token limit: {}", small_token_limit);
-    println!("Prompt:\n{}", prompt);
+    println!("Token count: {token_count}");
+    println!("Token limit: {small_token_limit}");
+    println!("Prompt:\n{prompt}");
 
     assert!(
         token_count <= small_token_limit,
-        "Prompt exceeds token limit. Token count: {}, Limit: {}",
-        token_count,
-        small_token_limit
+        "Prompt exceeds token limit. Token count: {token_count}, Limit: {small_token_limit}"
     );
 
     // Check that the prompt contains essential information
@@ -435,18 +430,16 @@ async fn test_token_optimization_integration() {
 
     let system_prompt = create_system_prompt(&config);
     let user_prompt = create_user_prompt(&context);
-    let large_prompt = format!("{}\n{}", system_prompt, user_prompt);
+    let large_prompt = format!("{system_prompt}\n{user_prompt}");
 
     let large_token_count = optimizer.count_tokens(&large_prompt);
 
-    println!("Large token count: {}", large_token_count);
-    println!("Large token limit: {}", large_token_limit);
+    println!("Large token count: {large_token_count}");
+    println!("Large token limit: {large_token_limit}");
 
     assert!(
         large_token_count <= large_token_limit,
-        "Large prompt exceeds token limit. Token count: {}, Limit: {}",
-        large_token_count,
-        large_token_limit
+        "Large prompt exceeds token limit. Token count: {large_token_count}, Limit: {large_token_limit}"
     );
 
     // The larger prompt should contain more information
@@ -490,11 +483,10 @@ async fn test_project_metadata_parallelism() {
             let file_path = temp_dir.path().join(filename);
             fs::write(&file_path, content).unwrap();
             let path_str = file_path.to_str().unwrap().to_string();
-            println!("Created file: {} with content: {}", path_str, content);
+            println!("Created file: {path_str} with content: {content}");
             assert!(
                 Path::new(&path_str).exists(),
-                "File does not exist: {}",
-                path_str
+                "File does not exist: {path_str}"
             );
             path_str
         })
@@ -506,11 +498,11 @@ async fn test_project_metadata_parallelism() {
     let duration = start.elapsed();
 
     // Detailed logging
-    println!("File paths: {:?}", file_paths);
-    println!("Metadata: {:?}", metadata);
+    println!("File paths: {file_paths:?}");
+    println!("Metadata: {metadata:?}");
     println!("Detected language: {:?}", metadata.language);
     println!("Detected dependencies: {:?}", metadata.dependencies);
-    println!("Processing time: {:?}", duration);
+    println!("Processing time: {duration:?}");
 
     // Assertions
     assert!(metadata.language.is_some(), "Language should be detected");
@@ -522,7 +514,7 @@ async fn test_project_metadata_parallelism() {
         languages.contains("JavaScript"),
         "JavaScript should be detected"
     );
-    assert!(languages.contains("C"), "C should be detected");
+    assert!(languages.contains('C'), "C should be detected");
     assert!(languages.contains("Kotlin"), "Kotlin should be detected");
 
     // We're not expecting any dependencies in this test
@@ -534,7 +526,6 @@ async fn test_project_metadata_parallelism() {
     // Check if the operation was faster than sequential execution would be
     assert!(
         duration < Duration::from_millis(500),
-        "Parallel execution took too long: {:?}",
-        duration
+        "Parallel execution took too long: {duration:?}"
     );
 }

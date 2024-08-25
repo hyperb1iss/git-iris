@@ -4,7 +4,7 @@ use crate::common::{CommonParams, DetailLevel};
 use crate::config::Config;
 use crate::ui;
 use anyhow::Result;
-use colored::*;
+use colored::Colorize;
 use std::env;
 use std::str::FromStr;
 

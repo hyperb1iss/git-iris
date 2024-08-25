@@ -6,9 +6,9 @@ use git_iris::cli;
 async fn main() -> Result<()> {
     git_iris::logger::init().expect("Failed to initialize logger");
     match cli::main().await {
-        Ok(_) => Ok(()),
+        Ok(()) => Ok(()),
         Err(e) => {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
             std::process::exit(1);
         }
     }

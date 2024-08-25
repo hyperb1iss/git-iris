@@ -7,6 +7,7 @@ use crate::{log_debug, LLMProvider};
 use anyhow::{anyhow, Result};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
@@ -165,7 +166,7 @@ pub fn get_combined_config(
         model: get_default_model_for_provider(provider_type)
             .unwrap()
             .to_string(),
-        additional_params: Default::default(),
+        additional_params: HashMap::default(),
     };
 
     let saved_config = config
@@ -207,7 +208,7 @@ fn clean_json_from_llm(json_str: &str) -> String {
     // If wrapped in code block, remove the markers
     let without_codeblock = if trimmed.starts_with("```") && trimmed.ends_with("```") {
         let start = trimmed.find('{').unwrap_or(0);
-        let end = trimmed.rfind('}').map(|i| i + 1).unwrap_or(trimmed.len());
+        let end = trimmed.rfind('}').map_or(trimmed.len(), |i| i + 1);
         &trimmed[start..end]
     } else {
         trimmed
@@ -217,8 +218,7 @@ fn clean_json_from_llm(json_str: &str) -> String {
     let start = without_codeblock.find('{').unwrap_or(0);
     let end = without_codeblock
         .rfind('}')
-        .map(|i| i + 1)
-        .unwrap_or(without_codeblock.len());
+        .map_or(without_codeblock.len(), |i| i + 1);
 
     without_codeblock[start..end].trim().to_string()
 }

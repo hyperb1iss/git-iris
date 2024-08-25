@@ -4,7 +4,7 @@ use super::prompt;
 use crate::common::DetailLevel;
 use crate::config::Config;
 use anyhow::Result;
-use colored::*;
+use colored::Colorize;
 use std::path::Path;
 
 /// Struct responsible for generating changelogs
@@ -46,7 +46,7 @@ impl ChangelogGenerator {
     }
 }
 
-/// Formats the ChangelogResponse into a human-readable changelog
+/// Formats the `ChangelogResponse` into a human-readable changelog
 fn format_changelog_response(response: &ChangelogResponse) -> String {
     let mut formatted = String::new();
 

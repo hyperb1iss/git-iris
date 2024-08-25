@@ -4,19 +4,19 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 
-/// Represents the OpenAI LLM provider
+/// Represents the `OpenAI` LLM provider
 pub struct OpenAIProvider {
     config: LLMProviderConfig,
     client: Client,
 }
 
 impl OpenAIProvider {
-    /// Creates a new instance of OpenAIProvider with the given configuration
-    pub fn new(config: LLMProviderConfig) -> Result<Self> {
-        Ok(Self {
+    /// Creates a new instance of `OpenAIProvider` with the given configuration
+    pub fn new(config: LLMProviderConfig) -> Self {
+        Self {
             config,
             client: Client::new(),
-        })
+        }
     }
 }
 
@@ -72,7 +72,7 @@ pub(super) fn get_metadata() -> ProviderMetadata {
     ProviderMetadata {
         name: "OpenAI",
         default_model: "gpt-4o",
-        default_token_limit: 100000,
+        default_token_limit: 100_000,
         requires_api_key: true,
     }
 }

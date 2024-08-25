@@ -43,7 +43,7 @@ impl FileAnalyzer for RustAnalyzer {
         };
 
         if file == "Cargo.toml" {
-            self.extract_cargo_metadata(content, &mut metadata);
+            Self::extract_cargo_metadata(content, &mut metadata);
         }
 
         metadata
@@ -51,13 +51,13 @@ impl FileAnalyzer for RustAnalyzer {
 }
 
 impl RustAnalyzer {
-    fn extract_cargo_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_cargo_metadata(content: &str, metadata: &mut ProjectMetadata) {
         let version_re = Regex::new(r#"version\s*=\s*"([^"]+)""#).unwrap();
         if let Some(cap) = version_re.captures(content) {
             metadata.version = Some(cap[1].to_string());
         }
 
-        let deps_re = Regex::new(r#"(?m)^\[dependencies\](?:\s*\n(?:.*\s*=\s*.*)*)"#).unwrap();
+        let deps_re = Regex::new(r"(?m)^\[dependencies\](?:\s*\n(?:.*\s*=\s*.*)*)").unwrap();
         if let Some(deps_section) = deps_re.find(content) {
             let deps_lines = deps_section.as_str().lines().skip(1);
             for line in deps_lines {

@@ -65,7 +65,7 @@ pub fn get_gitmoji_list() -> String {
 
     let emoji_list = entries
         .iter()
-        .map(|(key, (emoji, description))| format!("{} - :{}: - {}", emoji, key, description))
+        .map(|(key, (emoji, description))| format!("{emoji} - :{key}: - {description}"))
         .collect::<Vec<String>>();
 
     emoji_list.join("\n")

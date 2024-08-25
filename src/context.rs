@@ -45,7 +45,7 @@ impl From<String> for GeneratedMessage {
     }
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum ChangeType {
     Added,
     Modified,
@@ -55,9 +55,9 @@ pub enum ChangeType {
 impl fmt::Display for ChangeType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ChangeType::Added => write!(f, "Added"),
-            ChangeType::Modified => write!(f, "Modified"),
-            ChangeType::Deleted => write!(f, "Deleted"),
+            Self::Added => write!(f, "Added"),
+            Self::Modified => write!(f, "Modified"),
+            Self::Deleted => write!(f, "Deleted"),
         }
     }
 }
@@ -82,7 +82,7 @@ impl CommitContext {
         user_name: String,
         user_email: String,
     ) -> Self {
-        CommitContext {
+        Self {
             branch,
             recent_commits,
             staged_files,
@@ -101,7 +101,7 @@ pub fn format_commit_message(response: &GeneratedMessage) -> String {
     let mut message = String::new();
 
     if let Some(emoji) = &response.emoji {
-        message.push_str(&format!("{} ", emoji));
+        message.push_str(&format!("{emoji} "));
     }
 
     message.push_str(&response.title);

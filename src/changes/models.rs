@@ -116,14 +116,14 @@ pub struct SectionItem {
 }
 
 impl From<String> for ChangelogResponse {
-    /// Converts a JSON string to a ChangelogResponse
+    /// Converts a JSON string to a `ChangelogResponse`
     fn from(value: String) -> Self {
         serde_json::from_str(&value).unwrap()
     }
 }
 
 impl From<String> for ReleaseNotesResponse {
-    /// Converts a JSON string to a ReleaseNotesResponse
+    /// Converts a JSON string to a `ReleaseNotesResponse`
     fn from(value: String) -> Self {
         serde_json::from_str(&value).unwrap()
     }

@@ -1,5 +1,5 @@
 use super::state::{EmojiMode, Mode, TuiState, UserInfoFocus};
-use crate::ui::*;
+use crate::ui::{AURORA_GREEN, CELESTIAL_BLUE, COMET_ORANGE, GALAXY_PINK, METEOR_RED, NEBULA_PURPLE, PLASMA_CYAN, SOLAR_YELLOW, STARLIGHT};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -58,7 +58,7 @@ fn draw_title(f: &mut Frame, area: Rect) {
     ];
 
     // Define the title with emojis and text
-    let title_text = format!("Git-Iris v{} - Cosmic Commit", APP_VERSION);
+    let title_text = format!("Git-Iris v{APP_VERSION} - Cosmic Commit");
     let prefix_emoji = "✨🔮 ";
     let suffix_emoji = " 🔮✨";
 
@@ -128,7 +128,7 @@ fn draw_nav_bar(f: &mut Frame, area: Rect) {
                     key.to_string(),
                     Style::default().fg(color).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(format!(": {} ", desc), Style::default().fg(NEBULA_PURPLE)),
+                Span::styled(format!(": {desc} "), Style::default().fg(NEBULA_PURPLE)),
             ]
         })
         .collect();
@@ -175,29 +175,26 @@ fn draw_commit_message(f: &mut Frame, state: &mut TuiState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ));
 
-    match state.mode {
-        Mode::EditingMessage => {
-            state.message_textarea.set_block(message_block);
-            state
-                .message_textarea
-                .set_style(Style::default().fg(SOLAR_YELLOW));
-            f.render_widget(&state.message_textarea, area);
-        }
-        _ => {
-            let current_message = &state.messages[state.current_index];
-            let emoji_prefix = state
-                .get_current_emoji()
-                .map_or(String::new(), |e| format!("{} ", e));
-            let message_content = format!(
-                "{}{}\n\n{}",
-                emoji_prefix, current_message.title, current_message.message
-            );
-            let message = Paragraph::new(message_content)
-                .block(message_block)
-                .style(Style::default().fg(SOLAR_YELLOW))
-                .wrap(Wrap { trim: true });
-            f.render_widget(message, area);
-        }
+    if state.mode == Mode::EditingMessage {
+        state.message_textarea.set_block(message_block);
+        state
+            .message_textarea
+            .set_style(Style::default().fg(SOLAR_YELLOW));
+        f.render_widget(&state.message_textarea, area);
+    } else {
+        let current_message = &state.messages[state.current_index];
+        let emoji_prefix = state
+            .get_current_emoji()
+            .map_or(String::new(), |e| format!("{e} "));
+        let message_content = format!(
+            "{}{}\n\n{}",
+            emoji_prefix, current_message.title, current_message.message
+        );
+        let message = Paragraph::new(message_content)
+            .block(message_block)
+            .style(Style::default().fg(SOLAR_YELLOW))
+            .wrap(Wrap { trim: true });
+        f.render_widget(message, area);
     }
 }
 
@@ -212,21 +209,18 @@ fn draw_instructions(f: &mut Frame, state: &mut TuiState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ));
 
-    match state.mode {
-        Mode::EditingInstructions => {
-            state.instructions_textarea.set_block(instructions_block);
-            state
-                .instructions_textarea
-                .set_style(Style::default().fg(PLASMA_CYAN));
-            f.render_widget(&state.instructions_textarea, area);
-        }
-        _ => {
-            let instructions = Paragraph::new(state.custom_instructions.clone())
-                .block(instructions_block)
-                .style(Style::default().fg(PLASMA_CYAN))
-                .wrap(Wrap { trim: true });
-            f.render_widget(instructions, area);
-        }
+    if state.mode == Mode::EditingInstructions {
+        state.instructions_textarea.set_block(instructions_block);
+        state
+            .instructions_textarea
+            .set_style(Style::default().fg(PLASMA_CYAN));
+        f.render_widget(&state.instructions_textarea, area);
+    } else {
+        let instructions = Paragraph::new(state.custom_instructions.clone())
+            .block(instructions_block)
+            .style(Style::default().fg(PLASMA_CYAN))
+            .wrap(Wrap { trim: true });
+        f.render_widget(instructions, area);
     }
 }
 
@@ -323,7 +317,7 @@ fn draw_emoji_popup(f: &mut Frame, state: &mut TuiState) {
         .iter()
         .map(|(emoji, description)| {
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{} ", emoji), Style::default().fg(SOLAR_YELLOW)),
+                Span::styled(format!("{emoji} "), Style::default().fg(SOLAR_YELLOW)),
                 Span::styled(description, Style::default().fg(PLASMA_CYAN)),
             ]))
         })
@@ -365,7 +359,7 @@ fn draw_preset_popup(f: &mut Frame, state: &mut TuiState) {
         .map(|(_, emoji, name, description)| {
             ListItem::new(Line::from(vec![
                 Span::styled(
-                    format!("{} {} ", emoji, name),
+                    format!("{emoji} {name} "),
                     Style::default().fg(COMET_ORANGE),
                 ),
                 Span::styled(description, Style::default().fg(PLASMA_CYAN)),

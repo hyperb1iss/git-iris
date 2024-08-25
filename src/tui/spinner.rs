@@ -21,7 +21,7 @@ impl SpinnerState {
     pub fn tick(&mut self) -> (String, String, Color, usize) {
         let frame = self.frames[self.current_frame];
         self.current_frame = (self.current_frame + 1) % self.frames.len();
-        let spinner_with_space = format!("{} ", frame);
+        let spinner_with_space = format!("{frame} ");
         let width = spinner_with_space.width() + self.message.text.width();
         (
             spinner_with_space,

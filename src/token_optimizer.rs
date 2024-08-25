@@ -8,7 +8,7 @@ pub struct TokenOptimizer {
 
 impl TokenOptimizer {
     pub fn new(max_tokens: usize) -> Self {
-        TokenOptimizer {
+        Self {
             encoder: cl100k_base().unwrap(),
             max_tokens,
         }
@@ -29,7 +29,7 @@ impl TokenOptimizer {
 
             if remaining_tokens == 0 {
                 // If we exhaust the tokens in step 1, clear commits and contents
-                self.clear_commits_and_contents(context);
+                Self::clear_commits_and_contents(context);
                 return;
             }
         }
@@ -46,7 +46,7 @@ impl TokenOptimizer {
 
             if remaining_tokens == 0 {
                 // If we exhaust the tokens in step 2, clear contents
-                self.clear_contents(context);
+                Self::clear_contents(context);
                 return;
             }
         }
@@ -85,20 +85,20 @@ impl TokenOptimizer {
     }
 
     // Clear all recent commits and full file contents
-    fn clear_commits_and_contents(&self, context: &mut CommitContext) {
-        self.clear_commits(context);
-        self.clear_contents(context);
+    fn clear_commits_and_contents(context: &mut CommitContext) {
+        Self::clear_commits(context);
+        Self::clear_contents(context);
     }
 
     // Clear all recent commits
-    fn clear_commits(&self, context: &mut CommitContext) {
+    fn clear_commits(context: &mut CommitContext) {
         for commit in &mut context.recent_commits {
             commit.message.clear();
         }
     }
 
     // Clear all full file contents
-    fn clear_contents(&self, context: &mut CommitContext) {
+    fn clear_contents(context: &mut CommitContext) {
         for file in &mut context.staged_files {
             file.content = None;
         }

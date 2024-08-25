@@ -35,7 +35,7 @@ impl FileAnalyzer for MarkdownAnalyzer {
         let mut metadata = ProjectMetadata::default();
 
         if file.to_lowercase() == "readme.md" {
-            self.extract_readme_metadata(content, &mut metadata);
+            Self::extract_readme_metadata(content, &mut metadata);
         }
 
         metadata
@@ -43,7 +43,7 @@ impl FileAnalyzer for MarkdownAnalyzer {
 }
 
 impl MarkdownAnalyzer {
-    fn extract_readme_metadata(&self, content: &str, metadata: &mut ProjectMetadata) {
+    fn extract_readme_metadata(content: &str, metadata: &mut ProjectMetadata) {
         // Extract project name from the first header
         let title_re = Regex::new(r"(?m)^#\s+(.+)$").unwrap();
         if let Some(cap) = title_re.captures(content) {

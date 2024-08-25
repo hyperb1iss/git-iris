@@ -7,6 +7,7 @@ use git_iris::llm::{
 };
 use git_iris::llm_providers::test::TestLLMProvider;
 use git_iris::llm_providers::{LLMProviderConfig, LLMProviderType};
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[tokio::test]
@@ -14,11 +15,11 @@ async fn test_get_refined_message_validating() -> Result<()> {
     let provider_config = LLMProviderConfig {
         api_key: String::new(),
         model: "test-model".to_string(),
-        additional_params: Default::default(),
+        additional_params: HashMap::default(),
     };
 
     // Provide the provider response so we can test the validation logic
-    let mut test_provider = TestLLMProvider::new(provider_config.clone())?;
+    let mut test_provider = TestLLMProvider::new(provider_config.clone());
     test_provider.set_response(
         "{\"emoji\": \"🚀\", \"title\": \"Test Title\", \"message\": \"Test Message\"}".to_string(),
     );
@@ -89,11 +90,11 @@ fn test_get_default_model_for_provider() -> Result<()> {
 fn test_get_default_token_limit_for_provider() -> Result<()> {
     assert_eq!(
         get_default_token_limit_for_provider(&LLMProviderType::OpenAI)?,
-        100000
+        100_000
     );
     assert_eq!(
         get_default_token_limit_for_provider(&LLMProviderType::Claude)?,
-        150000
+        150_000
     );
     assert_eq!(
         get_default_token_limit_for_provider(&LLMProviderType::Test)?,
@@ -128,11 +129,11 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     let provider_config = LLMProviderConfig {
         api_key: String::new(),
         model: "test-model".to_string(),
-        additional_params: Default::default(),
+        additional_params: HashMap::default(),
     };
 
     // Test with 2 failures (should succeed on third try)
-    let test_provider = TestLLMProvider::new(provider_config.clone())?;
+    let test_provider = TestLLMProvider::new(provider_config.clone());
     test_provider.set_fail_count(2);
 
     let result = get_refined_message_with_provider(
@@ -142,9 +143,9 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     )
     .await;
 
-    println!("result 1: {:?}", result);
+    println!("result 1: {result:?}");
 
-    assert!(result.is_ok(), "Expected Ok result, got {:?}", result);
+    assert!(result.is_ok(), "Expected Ok result, got {result:?}");
     let message: String = result.unwrap();
     assert!(message.contains("Test response from model 'test-model'"));
     assert!(message.contains("System prompt:"));
@@ -154,7 +155,7 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     assert_eq!(test_provider.get_total_calls(), 3);
 
     // Test immediate success
-    let test_provider = TestLLMProvider::new(provider_config.clone())?;
+    let test_provider = TestLLMProvider::new(provider_config.clone());
     let result = get_refined_message_with_provider::<String>(
         Box::new(test_provider.clone()),
         "System prompt",
@@ -162,13 +163,13 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     )
     .await;
 
-    println!("result 2: {:?}", result);
+    println!("result 2: {result:?}");
 
     assert!(result.is_ok());
     assert_eq!(test_provider.get_total_calls(), 1);
 
     // Test with 3 failures (should fail after all retries)
-    let test_provider = TestLLMProvider::new(provider_config.clone())?;
+    let test_provider = TestLLMProvider::new(provider_config.clone());
     test_provider.set_fail_count(3); // Set to 3 to ensure it always fails
 
     println!("start 3");
@@ -178,9 +179,9 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
         "User prompt",
     )
     .await;
-    println!("result 3: {:?}", result);
+    println!("result 3: {result:?}");
 
-    assert!(result.is_err(), "Expected Err result, got {:?}", result);
+    assert!(result.is_err(), "Expected Err result, got {result:?}");
     // We expect 3 total calls: 3 failures
     assert_eq!(test_provider.get_total_calls(), 3);
 
@@ -192,11 +193,11 @@ async fn test_get_refined_message_json_validation_failures() -> Result<()> {
     let provider_config = LLMProviderConfig {
         api_key: String::new(),
         model: "test-model".to_string(),
-        additional_params: Default::default(),
+        additional_params: HashMap::default(),
     };
 
     // Provide the provider response so we can test the validation logic
-    let mut test_provider = TestLLMProvider::new(provider_config.clone())?;
+    let mut test_provider = TestLLMProvider::new(provider_config.clone());
     test_provider.set_response(
         "{\"emoji\": \"🚀\", \"title\": \"Test Title\", \"message\": \"Test Message\"}".to_string(),
     );
