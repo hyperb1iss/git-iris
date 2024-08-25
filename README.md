@@ -127,6 +127,7 @@ Options:
 - `--no-gitmoji`: Disable Gitmoji for this commit
 - `-l`, `--log`: Enable logging to file
 - `-p`, `--print`: Print the generated message to stdout and exit
+- `--no-verify`: Skip verification steps (pre/post commit hooks)
 
 Example:
 ```bash
@@ -146,6 +147,9 @@ The interactive CLI allows you to refine and perfect your commit messages:
 - Use arrow keys to navigate through suggestions
 - Press 'e' to edit the current message
 - Press 'i' to modify AI instructions
+- Press 'g' to change the emoji
+- Press 'p' to change the preset
+- Press 'u' to edit user info
 - Press 'r' to regenerate the message
 - Press Enter to commit
 - Press Esc to cancel
@@ -212,14 +216,6 @@ git-iris list-presets
 
 This will display a list of all available presets with a brief description of each.
 
-To view details of a specific preset:
-
-```bash
-git-iris show-preset conventional
-```
-
-This will show you the full instructions associated with the 'conventional' preset.
-
 Some key presets include:
 
 - `default`: Standard commit message style
@@ -227,7 +223,7 @@ Some key presets include:
 - `detailed`: Provides more context and explanation in commit messages
 - `concise`: Short and to-the-point commit messages
 - `cosmic`: Mystical, space-themed commit messages
-- ..and lots more styles f
+- ..and lots more styles
 
 To use a preset for a single commit:
 
@@ -331,7 +327,7 @@ Distributed under the Apache 2.0 License. See `LICENSE` for more information.
 
 Created by [Stefanie Jane 🌠](https://github.com/hyperb1iss)
 
-If you find Git-Iris useful, consider [buying me a Monster Ultra Violet](https://ko-fi.com/hyperb1iss)! ⚡️
+If you find Git-Iris useful, [buy me a Monster Ultra Violet](https://ko-fi.com/hyperb1iss)! ⚡️
 
 </div>
 

@@ -1,16 +1,26 @@
+// tests/changelog_integration_tests.rs
+
+#![cfg(feature = "integration")]
+
 use anyhow::Result;
+use dotenv::dotenv;
 use git2::Repository;
 use git_iris::changes::{ChangelogGenerator, ReleaseNotesGenerator};
 use git_iris::changes::models::{ChangelogResponse, ReleaseNotesResponse};
 use git_iris::common::DetailLevel;
 use git_iris::config::Config;
 use git_iris::llm_providers::LLMProviderType;
+use git_iris::logger;
 use std::env;
 use tempfile::TempDir;
 use std::path::Path;
 
-// Reuse the setup_test_repo function from changelog_tests.rs
 fn setup_test_repo() -> Result<(TempDir, Repository)> {
+
+    let _ = logger::init(); // Initialize the logger
+    logger::enable_logging(); // Enable logging
+    logger::set_log_to_stdout(true);
+
     let temp_dir = TempDir::new()?;
     let repo = Repository::init(temp_dir.path())?;
 
@@ -76,13 +86,19 @@ fn setup_test_repo() -> Result<(TempDir, Repository)> {
     Ok((temp_dir, repo))
 }
 
+fn setup_config() -> Result<Config> {
+    dotenv().ok();
+    let mut config = Config::default();
+    config.default_provider = LLMProviderType::OpenAI.to_string();
+    let api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+    config.providers.get_mut(&config.default_provider).unwrap().api_key = api_key;
+    Ok(config)
+}
+
 #[tokio::test]
-#[ignore] // This test requires API keys and will be ignored by default
 async fn test_changelog_generation() -> Result<()> {
     let (temp_dir, _repo) = setup_test_repo()?;
-    let mut config = Config::default();
-    config.default_provider = LLMProviderType::OpenAI.to_string(); // Or whichever provider you want to test
-    config.providers.get_mut(&config.default_provider).unwrap().api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+    let config = setup_config()?;
 
     let changelog = ChangelogGenerator::generate(
         temp_dir.path(),
@@ -95,22 +111,19 @@ async fn test_changelog_generation() -> Result<()> {
 
     let changelog_response: ChangelogResponse = serde_json::from_str(&changelog)?;
 
-    assert!(changelog_response.version.is_some());
-    assert!(changelog_response.release_date.is_some());
-    assert!(!changelog_response.sections.is_empty());
-    assert!(changelog_response.metrics.total_commits > 0);
-    assert!(changelog_response.metrics.files_changed > 0);
+    assert!(changelog_response.version.is_some(), "Changelog should have a version");
+    assert!(changelog_response.release_date.is_some(), "Changelog should have a release date");
+    assert!(!changelog_response.sections.is_empty(), "Changelog should have sections");
+    assert!(changelog_response.metrics.total_commits > 0, "Changelog should have commits");
+    assert!(changelog_response.metrics.files_changed > 0, "Changelog should have file changes");
 
     Ok(())
 }
 
 #[tokio::test]
-#[ignore] // This test requires API keys and will be ignored by default
 async fn test_release_notes_generation() -> Result<()> {
     let (temp_dir, _repo) = setup_test_repo()?;
-    let mut config = Config::default();
-    config.default_provider = LLMProviderType::OpenAI.to_string(); // Or whichever provider you want to test
-    config.providers.get_mut(&config.default_provider).unwrap().api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+    let config = setup_config()?;
 
     let release_notes = ReleaseNotesGenerator::generate(
         temp_dir.path(),
@@ -123,11 +136,11 @@ async fn test_release_notes_generation() -> Result<()> {
 
     let release_notes_response: ReleaseNotesResponse = serde_json::from_str(&release_notes)?;
 
-    assert!(release_notes_response.version.is_some());
-    assert!(release_notes_response.release_date.is_some());
-    assert!(!release_notes_response.summary.is_empty());
-    assert!(release_notes_response.metrics.total_commits > 0);
-    assert!(release_notes_response.metrics.files_changed > 0);
+    assert!(release_notes_response.version.is_some(), "Release notes should have a version");
+    assert!(release_notes_response.release_date.is_some(), "Release notes should have a release date");
+    assert!(!release_notes_response.summary.is_empty(), "Release notes should have a summary");
+    assert!(release_notes_response.metrics.total_commits > 0, "Release notes should have commits");
+    assert!(release_notes_response.metrics.files_changed > 0, "Release notes should have file changes");
 
     Ok(())
 }

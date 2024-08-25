@@ -49,6 +49,9 @@ log = "0.4.22"
 futures = "0.3.30"
 schemars = "0.8.21"
 
+[dev-dependencies]
+dotenv = "0.15.0"
+
 [package.metadata.deb]
 maintainer = "Stefanie Jane <stef@hyperbliss.tech>"
 copyright = "2024, Git-Iris Contributors <https://github.com/hyperb1iss/git-iris>"
@@ -84,4 +87,6 @@ path = "src/lib.rs"
 name = "git-iris"
 path = "src/main.rs"
 
+[features]
+integration = []
 
