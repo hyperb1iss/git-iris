@@ -179,7 +179,9 @@ pub async fn main() -> anyhow::Result<()> {
         crate::logger::disable_logging();
     }
 
-    if let Some(command) = cli.command { handle_command(command).await } else {
+    if let Some(command) = cli.command {
+        handle_command(command).await
+    } else {
         // If no subcommand is provided, print the help
         let _ = Cli::parse_from(["git-iris", "--help"]);
         Ok(())

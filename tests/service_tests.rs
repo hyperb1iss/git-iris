@@ -1,7 +1,7 @@
 use anyhow::Result;
+use git_iris::commit::IrisCommitService;
 use git_iris::config::Config;
 use git_iris::llm_providers::LLMProviderType;
-use git_iris::commit::IrisCommitService;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -38,11 +38,16 @@ fn test_perform_commit() -> Result<()> {
     let provider_type = LLMProviderType::Test;
     let use_gitmoji = true;
 
-    let service = IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji, true);
+    let service =
+        IrisCommitService::new(config, repo_path.clone(), provider_type, use_gitmoji, true);
 
     let result = service.perform_commit("Test commit message");
     println!("Perform commit result: {result:?}");
-    assert!(result.is_ok(), "Failed to perform commit: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Failed to perform commit: {:?}",
+        result.err()
+    );
 
     // Verify the commit was made
     let repo = git2::Repository::open(&repo_path)?;

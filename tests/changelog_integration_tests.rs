@@ -5,18 +5,17 @@
 use anyhow::Result;
 use dotenv::dotenv;
 use git2::Repository;
-use git_iris::changes::{ChangelogGenerator, ReleaseNotesGenerator};
 use git_iris::changes::models::{ChangelogResponse, ReleaseNotesResponse};
+use git_iris::changes::{ChangelogGenerator, ReleaseNotesGenerator};
 use git_iris::common::DetailLevel;
 use git_iris::config::Config;
 use git_iris::llm_providers::LLMProviderType;
 use git_iris::logger;
 use std::env;
-use tempfile::TempDir;
 use std::path::Path;
+use tempfile::TempDir;
 
 fn setup_test_repo() -> Result<(TempDir, Repository)> {
-
     let _ = logger::init(); // Initialize the logger
     logger::enable_logging(); // Enable logging
     logger::set_log_to_stdout(true);
@@ -91,7 +90,11 @@ fn setup_config() -> Result<Config> {
     let mut config = Config::default();
     config.default_provider = LLMProviderType::OpenAI.to_string();
     let api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
-    config.providers.get_mut(&config.default_provider).unwrap().api_key = api_key;
+    config
+        .providers
+        .get_mut(&config.default_provider)
+        .unwrap()
+        .api_key = api_key;
     Ok(config)
 }
 
@@ -111,11 +114,26 @@ async fn test_changelog_generation() -> Result<()> {
 
     let changelog_response: ChangelogResponse = serde_json::from_str(&changelog)?;
 
-    assert!(changelog_response.version.is_some(), "Changelog should have a version");
-    assert!(changelog_response.release_date.is_some(), "Changelog should have a release date");
-    assert!(!changelog_response.sections.is_empty(), "Changelog should have sections");
-    assert!(changelog_response.metrics.total_commits > 0, "Changelog should have commits");
-    assert!(changelog_response.metrics.files_changed > 0, "Changelog should have file changes");
+    assert!(
+        changelog_response.version.is_some(),
+        "Changelog should have a version"
+    );
+    assert!(
+        changelog_response.release_date.is_some(),
+        "Changelog should have a release date"
+    );
+    assert!(
+        !changelog_response.sections.is_empty(),
+        "Changelog should have sections"
+    );
+    assert!(
+        changelog_response.metrics.total_commits > 0,
+        "Changelog should have commits"
+    );
+    assert!(
+        changelog_response.metrics.files_changed > 0,
+        "Changelog should have file changes"
+    );
 
     Ok(())
 }
@@ -136,11 +154,26 @@ async fn test_release_notes_generation() -> Result<()> {
 
     let release_notes_response: ReleaseNotesResponse = serde_json::from_str(&release_notes)?;
 
-    assert!(release_notes_response.version.is_some(), "Release notes should have a version");
-    assert!(release_notes_response.release_date.is_some(), "Release notes should have a release date");
-    assert!(!release_notes_response.summary.is_empty(), "Release notes should have a summary");
-    assert!(release_notes_response.metrics.total_commits > 0, "Release notes should have commits");
-    assert!(release_notes_response.metrics.files_changed > 0, "Release notes should have file changes");
+    assert!(
+        release_notes_response.version.is_some(),
+        "Release notes should have a version"
+    );
+    assert!(
+        release_notes_response.release_date.is_some(),
+        "Release notes should have a release date"
+    );
+    assert!(
+        !release_notes_response.summary.is_empty(),
+        "Release notes should have a summary"
+    );
+    assert!(
+        release_notes_response.metrics.total_commits > 0,
+        "Release notes should have commits"
+    );
+    assert!(
+        release_notes_response.metrics.files_changed > 0,
+        "Release notes should have file changes"
+    );
 
     Ok(())
 }

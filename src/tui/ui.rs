@@ -1,5 +1,8 @@
 use super::state::{EmojiMode, Mode, TuiState, UserInfoFocus};
-use crate::ui::{AURORA_GREEN, CELESTIAL_BLUE, COMET_ORANGE, GALAXY_PINK, METEOR_RED, NEBULA_PURPLE, PLASMA_CYAN, SOLAR_YELLOW, STARLIGHT};
+use crate::ui::{
+    AURORA_GREEN, CELESTIAL_BLUE, COMET_ORANGE, GALAXY_PINK, METEOR_RED, NEBULA_PURPLE,
+    PLASMA_CYAN, SOLAR_YELLOW, STARLIGHT,
+};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},

@@ -166,9 +166,7 @@ fn print_debug_info(context: &CommitContext, optimizer: &TokenOptimizer) {
         );
         if let Some(content) = &file.content {
             let content_tokens = optimizer.count_tokens(content);
-            println!(
-                "Full content {i}: '{content}' ({content_tokens} tokens)"
-            );
+            println!("Full content {i}: '{content}' ({content_tokens} tokens)");
         }
     }
 }
