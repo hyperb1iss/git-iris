@@ -10,25 +10,31 @@ use std::path::Path;
 use tempfile::TempDir;
 
 fn setup_git_repo() -> (TempDir, GitRepo) {
-    let temp_dir = TempDir::new().unwrap();
-    let repo = Repository::init(temp_dir.path()).unwrap();
+    let temp_dir = TempDir::new().expect("Failed to create TempDir");
+    let repo = Repository::init(temp_dir.path()).expect("Failed to initialize repository");
 
     // Configure git user
-    let mut config = repo.config().unwrap();
-    config.set_str("user.name", "Test User").unwrap();
-    config.set_str("user.email", "test@example.com").unwrap();
+    let mut config = repo.config().expect("Failed to get repository config");
+    config
+        .set_str("user.name", "Test User")
+        .expect("Failed to set user.name");
+    config
+        .set_str("user.email", "test@example.com")
+        .expect("Failed to set user.email");
 
     // Create and commit an initial file
     let initial_file_path = temp_dir.path().join("initial.txt");
-    fs::write(&initial_file_path, "Initial content").unwrap();
+    fs::write(&initial_file_path, "Initial content").expect("Failed to write initial content");
 
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("initial.txt")).unwrap();
-    index.write().unwrap();
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("initial.txt"))
+        .expect("Failed to add path to index");
+    index.write().expect("Failed to write index");
 
-    let tree_id = index.write_tree().unwrap();
-    let tree = repo.find_tree(tree_id).unwrap();
-    let signature = repo.signature().unwrap();
+    let tree_id = index.write_tree().expect("Failed to write tree");
+    let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+    let signature = repo.signature().expect("Failed to get signature");
     repo.commit(
         Some("HEAD"),
         &signature,
@@ -37,9 +43,9 @@ fn setup_git_repo() -> (TempDir, GitRepo) {
         &tree,
         &[],
     )
-    .unwrap();
+    .expect("Failed to commit");
 
-    let git_repo = GitRepo::new(temp_dir.path()).unwrap();
+    let git_repo = GitRepo::new(temp_dir.path()).expect("Failed to create GitRepo");
     (temp_dir, git_repo)
 }
 
@@ -88,11 +94,13 @@ fn test_verify_and_commit_success() -> Result<()> {
 
     // Create and stage a new file
     let new_file_path = repo_path.join("test_file.txt");
-    fs::write(&new_file_path, "Test content")?;
-    let repo = Repository::open(repo_path)?;
-    let mut index = repo.index()?;
-    index.add_path(Path::new("test_file.txt"))?;
-    index.write()?;
+    fs::write(&new_file_path, "Test content").expect("Failed to write test content");
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("test_file.txt"))
+        .expect("Failed to add path to index");
+    index.write().expect("Failed to write index");
 
     let precommit = git_repo.execute_hook("pre-commit");
     assert!(precommit.is_ok(), "Pre-commit hook should succeed");
@@ -101,7 +109,7 @@ fn test_verify_and_commit_success() -> Result<()> {
     let result = git_repo.commit_and_verify("Test commit message");
 
     assert!(result.is_ok(), "verify_and_commit should succeed");
-    let commit_result = result.unwrap();
+    let commit_result = result.expect("Commit failed");
     assert_eq!(commit_result.files_changed, 1);
     assert!(!commit_result.commit_hash.is_empty());
 
@@ -123,11 +131,13 @@ fn test_verify_and_commit_pre_commit_failure() -> Result<()> {
 
     // Create and stage a new file
     let new_file_path = repo_path.join("test_file.txt");
-    fs::write(&new_file_path, "Test content")?;
-    let repo = Repository::open(repo_path)?;
-    let mut index = repo.index()?;
-    index.add_path(Path::new("test_file.txt"))?;
-    index.write()?;
+    fs::write(&new_file_path, "Test content").expect("Failed to write test content");
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("test_file.txt"))
+        .expect("Failed to add path to index");
+    index.write().expect("Failed to write index");
 
     let precommit = git_repo.execute_hook("pre-commit");
     assert!(
@@ -136,9 +146,12 @@ fn test_verify_and_commit_pre_commit_failure() -> Result<()> {
     );
 
     // Verify that no commit was made
-    let repo = Repository::open(repo_path)?;
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
     let head_commit = repo.head()?.peel_to_commit()?;
-    assert_eq!(head_commit.message().unwrap(), "Initial commit");
+    assert_eq!(
+        head_commit.message().expect("Failed to get commit message"),
+        "Initial commit"
+    );
 
     Ok(())
 }
@@ -164,11 +177,13 @@ fn test_verify_and_commit_post_commit_failure() -> Result<()> {
 
     // Create and stage a new file
     let new_file_path = repo_path.join("test_file.txt");
-    fs::write(&new_file_path, "Test content")?;
-    let repo = Repository::open(repo_path)?;
-    let mut index = repo.index()?;
-    index.add_path(Path::new("test_file.txt"))?;
-    index.write()?;
+    fs::write(&new_file_path, "Test content").expect("Failed to write test content");
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("test_file.txt"))
+        .expect("Failed to add path to index");
+    index.write().expect("Failed to write index");
 
     let precommit = git_repo.execute_hook("pre-commit");
     assert!(precommit.is_ok(), "Pre-commit hook should succeed");
@@ -181,14 +196,17 @@ fn test_verify_and_commit_post_commit_failure() -> Result<()> {
         result.is_ok(),
         "verify_and_commit should succeed despite post-commit hook failure"
     );
-    let commit_result = result.unwrap();
+    let commit_result = result.expect("Commit failed");
     assert_eq!(commit_result.files_changed, 1);
     assert!(!commit_result.commit_hash.is_empty());
 
     // Verify that the commit was made
-    let repo = Repository::open(repo_path)?;
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
     let head_commit = repo.head()?.peel_to_commit()?;
-    assert_eq!(head_commit.message().unwrap(), "Test commit message");
+    assert_eq!(
+        head_commit.message().expect("Failed to get commit message"),
+        "Test commit message"
+    );
 
     Ok(())
 }
@@ -200,11 +218,13 @@ fn test_verify_and_commit_no_hooks() -> Result<()> {
 
     // Create and stage a new file
     let new_file_path = repo_path.join("test_file.txt");
-    fs::write(&new_file_path, "Test content")?;
-    let repo = Repository::open(repo_path)?;
-    let mut index = repo.index()?;
-    index.add_path(Path::new("test_file.txt"))?;
-    index.write()?;
+    fs::write(&new_file_path, "Test content").expect("Failed to write test content");
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("test_file.txt"))
+        .expect("Failed to add path to index");
+    index.write().expect("Failed to write index");
 
     let precommit = git_repo.execute_hook("pre-commit");
     assert!(precommit.is_ok(), "Pre-commit hook should succeed");
@@ -216,14 +236,17 @@ fn test_verify_and_commit_no_hooks() -> Result<()> {
         result.is_ok(),
         "verify_and_commit should succeed without hooks"
     );
-    let commit_result = result.unwrap();
+    let commit_result = result.expect("Commit failed");
     assert_eq!(commit_result.files_changed, 1);
     assert!(!commit_result.commit_hash.is_empty());
 
     // Verify that the commit was made
-    let repo = Repository::open(repo_path)?;
+    let repo = Repository::open(repo_path).expect("Failed to open repository");
     let head_commit = repo.head()?.peel_to_commit()?;
-    assert_eq!(head_commit.message().unwrap(), "Test commit message");
+    assert_eq!(
+        head_commit.message().expect("Failed to get commit message"),
+        "Test commit message"
+    );
 
     Ok(())
 }

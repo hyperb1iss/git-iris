@@ -143,7 +143,7 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
     println!("result 1: {result:?}");
 
     assert!(result.is_ok(), "Expected Ok result, got {result:?}");
-    let message: String = result.unwrap();
+    let message: String = result.expect("Failed to unwrap result");
     assert!(message.contains("Test response from model 'test-model'"));
     assert!(message.contains("System prompt:"));
     assert!(message.contains("User prompt:"));
@@ -162,7 +162,7 @@ async fn test_get_refined_message_with_provider() -> Result<()> {
 
     println!("result 2: {result:?}");
 
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Expected Ok result, got {result:?}");
     assert_eq!(test_provider.get_total_calls(), 1);
 
     // Test with 3 failures (should fail after all retries)

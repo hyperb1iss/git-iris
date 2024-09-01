@@ -68,7 +68,7 @@ fn test_javascript_analyzer() {
     let react_components = analysis
         .iter()
         .find(|&s| s.starts_with("Modified React components:"))
-        .unwrap();
+        .expect("No React components analysis found");
     assert!(react_components.contains("NewClass"));
     assert!(react_components.contains("FunctionalComponent"));
 }
@@ -177,7 +177,8 @@ fn test_json_analyzer() {
     let top_level_keys_analysis = analysis
         .iter()
         .find(|&s| s.starts_with("Modified top-level keys:"))
-        .unwrap();
+        .expect("No top-level keys analysis found");
+
     assert!(top_level_keys_analysis.contains("new_key"));
     assert!(top_level_keys_analysis.contains("old_key"));
     assert!(!top_level_keys_analysis.contains("inner_key"));

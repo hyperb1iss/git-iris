@@ -144,17 +144,17 @@ fn test_release_notes_response_structure() {
 #[test]
 fn test_detail_level_from_str() {
     assert_eq!(
-        DetailLevel::from_str("minimal").unwrap(),
+        DetailLevel::from_str("minimal").expect("Failed to parse 'minimal'"),
         DetailLevel::Minimal,
         "Should parse 'minimal' correctly"
     );
     assert_eq!(
-        DetailLevel::from_str("standard").unwrap(),
+        DetailLevel::from_str("standard").expect("Failed to parse 'standard'"),
         DetailLevel::Standard,
         "Should parse 'standard' correctly"
     );
     assert_eq!(
-        DetailLevel::from_str("detailed").unwrap(),
+        DetailLevel::from_str("detailed").expect("Failed to parse 'detailed'"),
         DetailLevel::Detailed,
         "Should parse 'detailed' correctly"
     );

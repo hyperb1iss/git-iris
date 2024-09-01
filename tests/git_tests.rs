@@ -10,25 +10,31 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 fn setup_git_repo() -> (TempDir, GitRepo) {
-    let temp_dir = TempDir::new().unwrap();
-    let repo = Repository::init(temp_dir.path()).unwrap();
+    let temp_dir = TempDir::new().expect("Failed to create temporary directory");
+    let repo = Repository::init(temp_dir.path()).expect("Failed to initialize repository");
 
     // Configure git user
-    let mut config = repo.config().unwrap();
-    config.set_str("user.name", "Test User").unwrap();
-    config.set_str("user.email", "test@example.com").unwrap();
+    let mut config = repo.config().expect("Failed to get repository config");
+    config
+        .set_str("user.name", "Test User")
+        .expect("Failed to set user name");
+    config
+        .set_str("user.email", "test@example.com")
+        .expect("Failed to set user email");
 
     // Create and commit an initial file
     let initial_file_path = temp_dir.path().join("initial.txt");
-    fs::write(&initial_file_path, "Initial content").unwrap();
+    fs::write(&initial_file_path, "Initial content").expect("Failed to write initial file");
 
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("initial.txt")).unwrap();
-    index.write().unwrap();
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("initial.txt"))
+        .expect("Failed to add file to index");
+    index.write().expect("Failed to write index");
 
-    let tree_id = index.write_tree().unwrap();
-    let tree = repo.find_tree(tree_id).unwrap();
-    let signature = repo.signature().unwrap();
+    let tree_id = index.write_tree().expect("Failed to write tree");
+    let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+    let signature = repo.signature().expect("Failed to create signature");
     repo.commit(
         Some("HEAD"),
         &signature,
@@ -37,9 +43,9 @@ fn setup_git_repo() -> (TempDir, GitRepo) {
         &tree,
         &[],
     )
-    .unwrap();
+    .expect("Failed to commit");
 
-    let git_repo = GitRepo::new(temp_dir.path()).unwrap();
+    let git_repo = GitRepo::new(temp_dir.path()).expect("Failed to create GitRepo");
     (temp_dir, git_repo)
 }
 
@@ -48,7 +54,10 @@ async fn test_get_git_info() {
     let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
 
     // Test branch name
     assert!(
@@ -72,18 +81,23 @@ async fn test_get_git_info() {
 
     // Create and stage a new file
     let new_file_path = temp_dir.path().join("new_file.txt");
-    fs::write(&new_file_path, "New content").unwrap();
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("new_file.txt")).unwrap();
-    index.write().unwrap();
+    fs::write(&new_file_path, "New content").expect("Failed to write new file");
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("new_file.txt"))
+        .expect("Failed to add new file to index");
+    index.write().expect("Failed to write index");
 
     // Create an unstaged file
     let unstaged_file_path = temp_dir.path().join("unstaged.txt");
-    fs::write(&unstaged_file_path, "Unstaged content").unwrap();
+    fs::write(&unstaged_file_path, "Unstaged content").expect("Failed to write unstaged file");
 
     // Get updated git info
-    let updated_context = git_repo.get_git_info(&config).await.unwrap();
+    let updated_context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get updated git info");
 
     // Test staged files
     assert_eq!(updated_context.staged_files.len(), 1);
@@ -101,18 +115,23 @@ async fn test_commit() {
 
     // Create and stage a new file
     let new_file_path = temp_dir.path().join("commit_test.txt");
-    fs::write(&new_file_path, "Commit test content").unwrap();
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("commit_test.txt")).unwrap();
-    index.write().unwrap();
+    fs::write(&new_file_path, "Commit test content").expect("Failed to write commit test file");
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("commit_test.txt"))
+        .expect("Failed to add commit test file to index");
+    index.write().expect("Failed to write index");
 
     // Perform commit
     let result = git_repo.commit("Test commit message");
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Failed to perform commit");
 
     // Verify commit
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info after commit");
     assert_eq!(context.recent_commits.len(), 2);
     assert!(context.recent_commits[0]
         .message
@@ -127,14 +146,20 @@ async fn test_multiple_staged_files() {
     // Create and stage multiple files
     for i in 1..=3 {
         let file_path = temp_dir.path().join(format!("file{i}.txt"));
-        fs::write(&file_path, format!("Content {i}")).unwrap();
-        let repo = Repository::open(temp_dir.path()).unwrap();
-        let mut index = repo.index().unwrap();
-        index.add_path(Path::new(&format!("file{i}.txt"))).unwrap();
-        index.write().unwrap();
+        fs::write(&file_path, format!("Content {i}"))
+            .expect("Failed to write multiple staged file");
+        let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+        let mut index = repo.index().expect("Failed to get repository index");
+        index
+            .add_path(Path::new(&format!("file{i}.txt")))
+            .expect("Failed to add multiple staged file to index");
+        index.write().expect("Failed to write index");
     }
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
     assert_eq!(context.staged_files.len(), 3);
     for i in 1..=3 {
         assert!(context
@@ -151,13 +176,18 @@ async fn test_modified_file() {
 
     // Modify the initial file
     let initial_file_path = temp_dir.path().join("initial.txt");
-    fs::write(&initial_file_path, "Modified content").unwrap();
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("initial.txt")).unwrap();
-    index.write().unwrap();
+    fs::write(&initial_file_path, "Modified content").expect("Failed to modify file content");
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("initial.txt"))
+        .expect("Failed to add modified file to index");
+    index.write().expect("Failed to write index");
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
     assert_eq!(context.staged_files.len(), 1);
     assert!(
         context
@@ -175,13 +205,18 @@ async fn test_deleted_file() {
 
     // Delete the initial file
     let initial_file_path = temp_dir.path().join("initial.txt");
-    fs::remove_file(&initial_file_path).unwrap();
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
-    index.remove_path(Path::new("initial.txt")).unwrap();
-    index.write().unwrap();
+    fs::remove_file(&initial_file_path).expect("Failed to remove initial file");
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .remove_path(Path::new("initial.txt"))
+        .expect("Failed to remove file from index");
+    index.write().expect("Failed to write index");
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
     assert_eq!(context.staged_files.len(), 1);
     assert!(context
         .staged_files
@@ -203,15 +238,20 @@ async fn test_binary_file() {
         0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
         0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
     ];
-    fs::write(&binary_file_path, binary_content).unwrap();
+    fs::write(&binary_file_path, binary_content).expect("Failed to write binary file");
 
     // Stage the binary file
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
-    index.add_path(Path::new("image.png")).unwrap();
-    index.write().unwrap();
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
+    index
+        .add_path(Path::new("image.png"))
+        .expect("Failed to add binary file to index");
+    index.write().expect("Failed to write index");
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
 
     // Check if the binary file is in staged files
     assert!(context
@@ -224,7 +264,7 @@ async fn test_binary_file() {
         .staged_files
         .iter()
         .find(|file| file.path == "image.png")
-        .unwrap();
+        .expect("Failed to find binary file in staged files");
     assert_eq!(binary_file.diff, "[Binary file changed]");
 
     // Check if the status is correct
@@ -237,35 +277,40 @@ async fn test_get_git_info_with_excluded_files() {
     let config = Config::default();
 
     // Create files that should be excluded
-    fs::create_dir_all(temp_dir.path().join("node_modules")).unwrap();
+    fs::create_dir_all(temp_dir.path().join("node_modules"))
+        .expect("Failed to create node_modules directory");
     fs::write(
         temp_dir.path().join("node_modules/excluded.js"),
         "console.log('excluded');",
     )
-    .unwrap();
-    fs::write(temp_dir.path().join(".gitignore"), "node_modules/").unwrap();
+    .expect("Failed to write excluded file");
+    fs::write(temp_dir.path().join(".gitignore"), "node_modules/")
+        .expect("Failed to write .gitignore");
     fs::write(
         temp_dir.path().join("package-lock.json"),
         r#"{"name": "test-package"}"#,
     )
-    .unwrap();
+    .expect("Failed to write package-lock.json");
 
     // Create a non-excluded file
     fs::write(
         temp_dir.path().join("included.js"),
         "console.log('included');",
     )
-    .unwrap();
+    .expect("Failed to write included file");
 
     // Stage all files
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
     index
         .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
-        .unwrap();
-    index.write().unwrap();
+        .expect("Failed to add all files to index");
+    index.write().expect("Failed to write index");
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
 
     // Check excluded files
     let excluded_files: Vec<_> = context
@@ -308,17 +353,18 @@ async fn test_multiple_staged_files_with_exclusions() {
     let config = Config::default();
 
     // Create files that should be excluded
-    fs::create_dir_all(temp_dir.path().join(".vscode")).unwrap();
+    fs::create_dir_all(temp_dir.path().join(".vscode"))
+        .expect("Failed to create .vscode directory");
     fs::write(
         temp_dir.path().join(".vscode/settings.json"),
         r#"{"editor.formatOnSave": true}"#,
     )
-    .unwrap();
+    .expect("Failed to write .vscode/settings.json");
     fs::write(
         temp_dir.path().join("large.min.js"),
         "console.log('minified')",
     )
-    .unwrap();
+    .expect("Failed to write large.min.js");
 
     // Create non-excluded files
     for i in 1..=3 {
@@ -326,18 +372,21 @@ async fn test_multiple_staged_files_with_exclusions() {
             temp_dir.path().join(format!("file{i}.txt")),
             format!("Content {i}"),
         )
-        .unwrap();
+        .expect("Failed to write non-excluded file");
     }
 
     // Stage all files
-    let repo = Repository::open(temp_dir.path()).unwrap();
-    let mut index = repo.index().unwrap();
+    let repo = Repository::open(temp_dir.path()).expect("Failed to open repository");
+    let mut index = repo.index().expect("Failed to get repository index");
     index
         .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
-        .unwrap();
-    index.write().unwrap();
+        .expect("Failed to add all files to index");
+    index.write().expect("Failed to write index");
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
 
     assert_eq!(context.staged_files.len(), 5);
 
@@ -376,7 +425,10 @@ async fn test_token_optimization_integration() {
     // Set a small token limit for the OpenAI provider to force truncation
     let small_token_limit = 200;
 
-    let context = git_repo.get_git_info(&config).await.unwrap();
+    let context = git_repo
+        .get_git_info(&config)
+        .await
+        .expect("Failed to get git info");
 
     let system_prompt = create_system_prompt(&config).expect("Failed to create system prompt");
     let user_prompt = create_user_prompt(&context);
@@ -466,8 +518,8 @@ async fn test_token_optimization_integration() {
 #[tokio::test]
 async fn test_project_metadata_parallelism() {
     // Create a temporary directory for our test files
-    let temp_dir = TempDir::new().unwrap();
-    let git_repo = GitRepo::new(temp_dir.path()).unwrap();
+    let temp_dir = TempDir::new().expect("Failed to create temporary directory");
+    let git_repo = GitRepo::new(temp_dir.path()).expect("Failed to create GitRepo");
 
     // Create multiple files with different "languages"
     let files = vec![
@@ -483,8 +535,11 @@ async fn test_project_metadata_parallelism() {
         .into_iter()
         .map(|(filename, content)| {
             let file_path = temp_dir.path().join(filename);
-            fs::write(&file_path, content).unwrap();
-            let path_str = file_path.to_str().unwrap().to_string();
+            fs::write(&file_path, content).expect("Failed to write test file");
+            let path_str = file_path
+                .to_str()
+                .expect("Failed to convert path to string")
+                .to_string();
             println!("Created file: {path_str} with content: {content}");
             assert!(
                 Path::new(&path_str).exists(),
@@ -496,7 +551,10 @@ async fn test_project_metadata_parallelism() {
 
     // Measure the time taken to process metadata
     let start = Instant::now();
-    let metadata = git_repo.get_project_metadata(&file_paths).await.unwrap();
+    let metadata = git_repo
+        .get_project_metadata(&file_paths)
+        .await
+        .expect("Failed to get project metadata");
     let duration = start.elapsed();
 
     // Detailed logging
@@ -509,7 +567,7 @@ async fn test_project_metadata_parallelism() {
     // Assertions
     assert!(metadata.language.is_some(), "Language should be detected");
 
-    let languages = metadata.language.unwrap();
+    let languages = metadata.language.expect("Failed to detect languages");
     assert!(languages.contains("Rust"), "Rust should be detected");
     assert!(languages.contains("Python"), "Python should be detected");
     assert!(
