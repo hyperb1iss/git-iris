@@ -22,3 +22,5 @@ Cargo.lock
 
 todo
 .aider*
+
+*.log
