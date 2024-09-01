@@ -378,9 +378,9 @@ async fn test_token_optimization_integration() {
 
     let context = get_git_info(repo_path, &config).await.unwrap();
 
-    let system_prompt = create_system_prompt(&config);
+    let system_prompt = create_system_prompt(&config).expect("Failed to create system prompt");
     let user_prompt = create_user_prompt(&context);
-    let prompt = format!("{system_prompt}\n{user_prompt}");
+    let prompt = format!("{}\n{}", system_prompt, user_prompt);
 
     // Check that the prompt is within the token limit
     let optimizer = TokenOptimizer::new(small_token_limit);
@@ -428,9 +428,9 @@ async fn test_token_optimization_integration() {
     // Test with a larger token limit
     let large_token_limit = 5000;
 
-    let system_prompt = create_system_prompt(&config);
+    let system_prompt = create_system_prompt(&config).expect("Failed to create system prompt");
     let user_prompt = create_user_prompt(&context);
-    let large_prompt = format!("{system_prompt}\n{user_prompt}");
+    let large_prompt = format!("{}\n{}", system_prompt, user_prompt);
 
     let large_token_count = optimizer.count_tokens(&large_prompt);
 
@@ -472,6 +472,7 @@ async fn test_project_metadata_parallelism() {
     let files = vec![
         ("file1.rs", "fn main() {}"),
         ("file2.py", "def main(): pass"),
+        ("file3.js", "function main() {}"),
         ("file3.js", "function main() {}"),
         ("file4.c", "int main() { return 0; }"),
         ("file5.kt", "fun main() {}"),

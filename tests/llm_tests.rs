@@ -72,15 +72,15 @@ fn test_get_available_providers() {
 #[test]
 fn test_get_default_model_for_provider() -> Result<()> {
     assert_eq!(
-        get_default_model_for_provider(&LLMProviderType::OpenAI)?,
+        get_default_model_for_provider(&LLMProviderType::OpenAI),
         "gpt-4o"
     );
     assert_eq!(
-        get_default_model_for_provider(&LLMProviderType::Claude)?,
+        get_default_model_for_provider(&LLMProviderType::Claude),
         "claude-3-5-sonnet-20240620"
     );
     assert_eq!(
-        get_default_model_for_provider(&LLMProviderType::Test)?,
+        get_default_model_for_provider(&LLMProviderType::Test),
         "test-model"
     );
     Ok(())

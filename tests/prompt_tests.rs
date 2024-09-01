@@ -64,7 +64,7 @@ fn test_create_system_prompt_with_gitmoji() {
         ..Default::default()
     };
 
-    let prompt = create_system_prompt(&config);
+    let prompt = create_system_prompt(&config).expect("Failed to create system prompt");
 
     assert!(prompt.contains("✨ - :feat: - Introduce new features"));
     assert!(prompt.contains("🐛 - :fix: - Fix a bug"));
@@ -82,7 +82,7 @@ fn test_create_system_prompt_with_custom_instructions() {
         ..Default::default()
     };
 
-    let prompt = create_system_prompt(&config);
+    let prompt = create_system_prompt(&config).expect("Failed to create system prompt");
 
     assert!(prompt.contains("Always mention the ticket number"));
 }
