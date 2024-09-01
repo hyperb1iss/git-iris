@@ -1,17 +1,18 @@
 use crate::config::Config;
-use crate::git;
+use crate::git::GitRepo;
 use crate::llm;
 use crate::llm_providers::LLMProviderType;
 use anyhow::{Context, Result};
-use std::path::Path;
+use std::sync::Arc;
 
 pub async fn get_readme_summary(
-    repo_path: &Path,
+    git_repo: Arc<GitRepo>,
     commit_ish: &str,
     config: &Config,
     provider_type: &LLMProviderType,
 ) -> Result<Option<String>> {
-    if let Some(readme_content) = git::get_readme_at_commit(repo_path, commit_ish)
+    if let Some(readme_content) = git_repo
+        .get_readme_at_commit(commit_ish)
         .context("Failed to get README at specified commit")?
     {
         let summary = summarize_readme(config, provider_type, &readme_content).await?;

@@ -1,6 +1,6 @@
 use super::{
-    change_analyzer::{calculate_total_metrics, AnalyzedChange},
-    models::{ChangelogResponse, ReleaseNotesResponse},
+    change_analyzer::AnalyzedChange,
+    models::{ChangeMetrics, ChangelogResponse, ReleaseNotesResponse},
 };
 use crate::common::{get_combined_instructions, DetailLevel};
 use crate::config::Config;
@@ -225,6 +225,7 @@ pub fn create_release_notes_system_prompt(config: &Config) -> String {
 
 pub fn create_changelog_user_prompt(
     changes: &[AnalyzedChange],
+    total_metrics: &ChangeMetrics,
     detail_level: DetailLevel,
     from: &str,
     to: &str,
@@ -233,9 +234,8 @@ pub fn create_changelog_user_prompt(
     let mut prompt =
         format!("Based on the following changes from {from} to {to}, generate a changelog:\n\n");
 
-    let total_metrics = calculate_total_metrics(changes);
     prompt.push_str("Overall Changes:\n");
-    prompt.push_str(&format!("Total commits: {}\n", changes.len()));
+    prompt.push_str(&format!("Total commits: {}\n", total_metrics.total_commits));
     prompt.push_str(&format!("Files changed: {}\n", total_metrics.files_changed));
     prompt.push_str(&format!(
         "Total lines changed: {}\n",
@@ -322,6 +322,7 @@ pub fn create_changelog_user_prompt(
 
 pub fn create_release_notes_user_prompt(
     changes: &[AnalyzedChange],
+    total_metrics: &ChangeMetrics,
     detail_level: DetailLevel,
     from: &str,
     to: &str,
@@ -330,7 +331,6 @@ pub fn create_release_notes_user_prompt(
     let mut prompt =
         format!("Based on the following changes from {from} to {to}, generate release notes:\n\n");
 
-    let total_metrics = calculate_total_metrics(changes);
     prompt.push_str("Overall Changes:\n");
     prompt.push_str(&format!("Total commits: {}\n", changes.len()));
     prompt.push_str(&format!("Files changed: {}\n", total_metrics.files_changed));

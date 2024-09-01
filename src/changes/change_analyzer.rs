@@ -1,11 +1,10 @@
-use crate::context::{ChangeType, RecentCommit};
-use crate::git::get_commits_between_with_callback;
-use anyhow::{Context, Result};
-use git2::{Diff, Repository};
-use regex::Regex;
-use std::path::Path;
-
 use super::models::{ChangeMetrics, ChangelogType};
+use crate::context::{ChangeType, RecentCommit};
+use crate::git::GitRepo;
+use anyhow::Result;
+use git2::{Diff, Oid};
+use regex::Regex;
+use std::sync::Arc;
 
 /// Represents the analyzed changes for a single commit
 #[derive(Debug, Clone)]
@@ -32,21 +31,37 @@ pub struct FileChange {
 }
 
 /// Analyzer for processing Git commits and generating detailed change information
-pub struct ChangeAnalyzer;
+pub struct ChangeAnalyzer {
+    git_repo: Arc<GitRepo>,
+}
 
 impl ChangeAnalyzer {
-    /// Analyze commits between two Git references
-    pub fn analyze_commits(repo_path: &Path, from: &str, to: &str) -> Result<Vec<AnalyzedChange>> {
-        let repo = Repository::open(repo_path).context("Failed to open repository")?;
+    /// Create a new `ChangeAnalyzer` instance
+    pub fn new(git_repo: Arc<GitRepo>) -> Result<Self> {
+        Ok(Self { git_repo })
+    }
 
-        get_commits_between_with_callback(repo_path, from, to, |commit| {
-            Self::analyze_commit(&repo, commit)
-        })
+    /// Analyze commits between two Git references
+    pub fn analyze_commits(&self, from: &str, to: &str) -> Result<Vec<AnalyzedChange>> {
+        self.git_repo
+            .get_commits_between_with_callback(from, to, |commit| self.analyze_commit(commit))
+    }
+
+    /// Analyze changes between two Git references and return the analyzed changes along with total metrics
+    pub fn analyze_changes(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> Result<(Vec<AnalyzedChange>, ChangeMetrics)> {
+        let analyzed_changes = self.analyze_commits(from, to)?;
+        let total_metrics = self.calculate_total_metrics(&analyzed_changes);
+        Ok((analyzed_changes, total_metrics))
     }
 
     /// Analyze a single commit
-    fn analyze_commit(repo: &Repository, commit: &RecentCommit) -> Result<AnalyzedChange> {
-        let commit_obj = repo.find_commit(commit.hash.parse()?)?;
+    fn analyze_commit(&self, commit: &RecentCommit) -> Result<AnalyzedChange> {
+        let repo = self.git_repo.open_repo()?;
+        let commit_obj = repo.find_commit(Oid::from_str(&commit.hash)?)?;
         let parent = commit_obj.parent(0).ok();
         let diff = repo.diff_tree_to_tree(
             parent.as_ref().and_then(|c| c.tree().ok()).as_ref(),
@@ -207,24 +222,24 @@ impl ChangeAnalyzer {
 
         base_score + file_score + breaking_change_score
     }
-}
 
-/// Calculate total metrics for a set of analyzed changes
-pub fn calculate_total_metrics(changes: &[AnalyzedChange]) -> ChangeMetrics {
-    changes.iter().fold(
-        ChangeMetrics {
-            total_commits: changes.len(),
-            files_changed: 0,
-            insertions: 0,
-            deletions: 0,
-            total_lines_changed: 0,
-        },
-        |mut acc, change| {
-            acc.files_changed += change.metrics.files_changed;
-            acc.insertions += change.metrics.insertions;
-            acc.deletions += change.metrics.deletions;
-            acc.total_lines_changed += change.metrics.total_lines_changed;
-            acc
-        },
-    )
+    /// Calculate total metrics for a set of analyzed changes
+    pub fn calculate_total_metrics(&self, changes: &[AnalyzedChange]) -> ChangeMetrics {
+        changes.iter().fold(
+            ChangeMetrics {
+                total_commits: changes.len(),
+                files_changed: 0,
+                insertions: 0,
+                deletions: 0,
+                total_lines_changed: 0,
+            },
+            |mut acc, change| {
+                acc.files_changed += change.metrics.files_changed;
+                acc.insertions += change.metrics.insertions;
+                acc.deletions += change.metrics.deletions;
+                acc.total_lines_changed += change.metrics.total_lines_changed;
+                acc
+            },
+        )
+    }
 }

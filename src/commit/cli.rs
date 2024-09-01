@@ -7,7 +7,7 @@ use crate::llm_providers::LLMProviderType;
 use crate::messages;
 use crate::tui::run_tui_commit;
 use crate::ui;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -25,13 +25,16 @@ pub async fn handle_gen_command(
 
     let provider_type = LLMProviderType::from_str(&config.default_provider)?;
 
-    let service = Arc::new(IrisCommitService::new(
-        config.clone(),
-        current_dir.clone(),
-        provider_type,
-        use_gitmoji && config.use_gitmoji,
-        verify,
-    ));
+    let service = Arc::new(
+        IrisCommitService::new(
+            config.clone(),
+            &current_dir.clone(),
+            provider_type,
+            use_gitmoji && config.use_gitmoji,
+            verify,
+        )
+        .context("Failed to create IrisCommitService")?,
+    );
 
     // Check environment prerequisites
     if let Err(e) = service.check_environment() {

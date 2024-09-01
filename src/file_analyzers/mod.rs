@@ -1,4 +1,10 @@
-use crate::context::{ProjectMetadata, StagedFile};
+use regex::Regex;
+use std::path::Path;
+
+use crate::{
+    context::{ProjectMetadata, StagedFile},
+    log_debug,
+};
 
 /// Trait for analyzing files and extracting relevant information
 pub trait FileAnalyzer: Send + Sync {
@@ -82,4 +88,57 @@ impl FileAnalyzer for DefaultAnalyzer {
             ..Default::default()
         }
     }
+}
+
+/// Checks if a file should be excluded from analysis.
+///
+/// # Arguments
+///
+/// * `path` - The path of the file to check.
+///
+/// # Returns
+///
+/// A boolean indicating whether the file should be excluded.
+#[allow(clippy::unwrap_used)]
+pub fn should_exclude_file(path: &str) -> bool {
+    log_debug!("Checking if file should be excluded: {}", path);
+    let exclude_patterns = vec![
+        (String::from(r"\.git"), false),
+        (String::from(r"\.svn"), false),
+        (String::from(r"\.hg"), false),
+        (String::from(r"\.DS_Store"), false),
+        (String::from(r"node_modules"), false),
+        (String::from(r"target"), false),
+        (String::from(r"build"), false),
+        (String::from(r"dist"), false),
+        (String::from(r"\.vscode"), false),
+        (String::from(r"\.idea"), false),
+        (String::from(r"\.vs"), false),
+        (String::from(r"package-lock\.json$"), true),
+        (String::from(r"\.lock$"), true),
+        (String::from(r"\.log$"), true),
+        (String::from(r"\.tmp$"), true),
+        (String::from(r"\.temp$"), true),
+        (String::from(r"\.swp$"), true),
+        (String::from(r"\.min\.js$"), true),
+    ];
+
+    let path = Path::new(path);
+
+    for (pattern, is_extension) in exclude_patterns {
+        let re = Regex::new(&pattern).expect("Could not compile regex");
+        if is_extension {
+            if let Some(file_name) = path.file_name() {
+                if re.is_match(file_name.to_str().unwrap()) {
+                    log_debug!("File excluded: {}", path.display());
+                    return true;
+                }
+            }
+        } else if re.is_match(path.to_str().unwrap()) {
+            log_debug!("File excluded: {}", path.display());
+            return true;
+        }
+    }
+    log_debug!("File not excluded: {}", path.display());
+    false
 }

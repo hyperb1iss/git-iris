@@ -74,6 +74,29 @@ pub struct ProjectMetadata {
     pub plugins: Vec<String>,
 }
 
+impl ProjectMetadata {
+    pub fn merge(&mut self, new: ProjectMetadata) {
+        if let Some(new_lang) = new.language {
+            match &mut self.language {
+                Some(lang) if !lang.contains(&new_lang) => {
+                    lang.push_str(", ");
+                    lang.push_str(&new_lang);
+                }
+                None => self.language = Some(new_lang),
+                _ => {}
+            }
+        }
+        self.dependencies.extend(new.dependencies.clone());
+        self.framework = self.framework.take().or(new.framework);
+        self.version = self.version.take().or(new.version);
+        self.build_system = self.build_system.take().or(new.build_system);
+        self.test_framework = self.test_framework.take().or(new.test_framework);
+        self.plugins.extend(new.plugins);
+        self.dependencies.sort();
+        self.dependencies.dedup();
+    }
+}
+
 impl CommitContext {
     pub fn new(
         branch: String,

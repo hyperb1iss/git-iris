@@ -1,8 +1,10 @@
+use crate::git::GitRepo;
 use crate::instruction_presets::get_instruction_preset_library;
 use crate::llm_providers::{
     get_available_providers, get_provider_metadata, LLMProviderConfig, LLMProviderType,
 };
 use crate::log_debug;
+
 use anyhow::{anyhow, Context, Result};
 use dirs::config_dir;
 use serde::{Deserialize, Serialize};
@@ -89,11 +91,9 @@ impl Config {
     }
 
     /// Check the environment for necessary prerequisites
-    pub fn check_environment() -> Result<()> {
-        crate::git::check_environment()?;
-
+    pub fn check_environment(&self) -> Result<()> {
         // Check if we're in a git repository
-        if !crate::git::is_inside_work_tree()? {
+        if !GitRepo::is_inside_work_tree()? {
             return Err(anyhow!(
                 "Not in a Git repository. Please run this command from within a Git repository."
             ));

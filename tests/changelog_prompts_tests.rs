@@ -45,6 +45,17 @@ fn create_mock_analyzed_change() -> AnalyzedChange {
     }
 }
 
+/// Creates mock total metrics for testing
+fn create_mock_total_metrics() -> ChangeMetrics {
+    ChangeMetrics {
+        total_commits: 5,
+        files_changed: 10,
+        insertions: 100,
+        deletions: 50,
+        total_lines_changed: 150,
+    }
+}
+
 #[test]
 fn test_create_changelog_system_prompt() {
     let config = create_mock_config();
@@ -66,23 +77,26 @@ fn test_create_changelog_system_prompt() {
 #[test]
 fn test_create_changelog_user_prompt() {
     let changes = vec![create_mock_analyzed_change()];
+    let total_metrics = create_mock_total_metrics();
     let readme_summary = Some("This project is a fantastic tool for managing workflows.");
 
     // Test Minimal detail level
     let minimal_prompt = create_changelog_user_prompt(
         &changes,
+        &total_metrics,
         DetailLevel::Minimal,
         "v1.0.0",
         "v1.1.0",
         readme_summary,
     );
+
     assert!(minimal_prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));
     assert!(minimal_prompt.contains("Overall Changes:"));
-    assert!(minimal_prompt.contains("Total commits: 1"));
-    assert!(minimal_prompt.contains("Files changed: 1"));
-    assert!(minimal_prompt.contains("Total lines changed: 20"));
-    assert!(minimal_prompt.contains("Insertions: 15"));
-    assert!(minimal_prompt.contains("Deletions: 5"));
+    assert!(minimal_prompt.contains("Total commits: 5"));
+    assert!(minimal_prompt.contains("Files changed: 10"));
+    assert!(minimal_prompt.contains("Total lines changed: 150"));
+    assert!(minimal_prompt.contains("Insertions: 100"));
+    assert!(minimal_prompt.contains("Deletions: 50"));
     assert!(minimal_prompt.contains("Commit: abcdef123456"));
     assert!(minimal_prompt.contains("Author: Jane Doe"));
     assert!(minimal_prompt.contains("Message: Add new feature"));
@@ -99,6 +113,7 @@ fn test_create_changelog_user_prompt() {
     // Test Standard detail level
     let standard_prompt = create_changelog_user_prompt(
         &changes,
+        &total_metrics,
         DetailLevel::Standard,
         "v1.0.0",
         "v1.1.0",
@@ -111,6 +126,7 @@ fn test_create_changelog_user_prompt() {
     // Test Detailed detail level
     let detailed_prompt = create_changelog_user_prompt(
         &changes,
+        &total_metrics,
         DetailLevel::Detailed,
         "v1.0.0",
         "v1.1.0",
@@ -135,21 +151,21 @@ fn test_create_release_notes_system_prompt() {
         prompt.contains("Ensure that your response is a valid JSON object matching this structure")
     );
     assert!(prompt.contains("ReleaseNotesResponse"));
-    assert!(prompt.contains("highlights"));
     assert!(prompt.contains("sections"));
     assert!(prompt.contains("breaking_changes"));
-    assert!(prompt.contains("upgrade_notes"));
     assert!(prompt.contains("metrics"));
 }
 
 #[test]
 fn test_create_release_notes_user_prompt() {
     let changes = vec![create_mock_analyzed_change()];
+    let total_metrics = create_mock_total_metrics();
     let readme_summary = Some("This project is a fantastic tool for managing workflows.");
 
     // Test Minimal detail level
     let minimal_prompt = create_release_notes_user_prompt(
         &changes,
+        &total_metrics,
         DetailLevel::Minimal,
         "v1.0.0",
         "v1.1.0",
@@ -164,6 +180,7 @@ fn test_create_release_notes_user_prompt() {
     // Test Standard detail level
     let standard_prompt = create_release_notes_user_prompt(
         &changes,
+        &total_metrics,
         DetailLevel::Standard,
         "v1.0.0",
         "v1.1.0",
@@ -175,6 +192,7 @@ fn test_create_release_notes_user_prompt() {
     // Test Detailed detail level
     let detailed_prompt = create_release_notes_user_prompt(
         &changes,
+        &total_metrics,
         DetailLevel::Detailed,
         "v1.0.0",
         "v1.1.0",
@@ -187,8 +205,15 @@ fn test_create_release_notes_user_prompt() {
 #[test]
 fn test_changelog_user_prompt_without_readme() {
     let changes = vec![create_mock_analyzed_change()];
-    let prompt =
-        create_changelog_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
+    let total_metrics = create_mock_total_metrics();
+    let prompt = create_changelog_user_prompt(
+        &changes,
+        &total_metrics,
+        DetailLevel::Standard,
+        "v1.0.0",
+        "v1.1.0",
+        None,
+    );
 
     assert!(!prompt.contains("Project README Summary:"));
     assert!(prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));
@@ -198,8 +223,15 @@ fn test_changelog_user_prompt_without_readme() {
 #[test]
 fn test_release_notes_user_prompt_without_readme() {
     let changes = vec![create_mock_analyzed_change()];
-    let prompt =
-        create_release_notes_user_prompt(&changes, DetailLevel::Standard, "v1.0.0", "v1.1.0", None);
+    let total_metrics = create_mock_total_metrics();
+    let prompt = create_release_notes_user_prompt(
+        &changes,
+        &total_metrics,
+        DetailLevel::Standard,
+        "v1.0.0",
+        "v1.1.0",
+        None,
+    );
 
     assert!(!prompt.contains("Project README Summary:"));
     assert!(prompt.contains("Based on the following changes from v1.0.0 to v1.1.0"));

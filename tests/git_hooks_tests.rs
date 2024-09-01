@@ -2,14 +2,14 @@
 #![cfg(target_os = "linux")]
 use anyhow::Result;
 use git2::Repository;
-use git_iris::git::{commit_and_verify, execute_hook};
+use git_iris::git::GitRepo;
 use std::fs::{self, File};
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tempfile::TempDir;
 
-fn setup_git_repo() -> TempDir {
+fn setup_git_repo() -> (TempDir, GitRepo) {
     let temp_dir = TempDir::new().unwrap();
     let repo = Repository::init(temp_dir.path()).unwrap();
 
@@ -39,7 +39,8 @@ fn setup_git_repo() -> TempDir {
     )
     .unwrap();
 
-    temp_dir
+    let git_repo = GitRepo::new(temp_dir.path()).unwrap();
+    (temp_dir, git_repo)
 }
 
 // Helper function to create a hook script
@@ -49,8 +50,8 @@ fn create_hook(repo_path: &Path, hook_name: &str, content: &str, should_fail: bo
     let hook_path = hooks_dir.join(hook_name);
     let mut file = File::create(&hook_path)?;
     writeln!(file, "#!/bin/sh")?;
-    writeln!(file, "echo \"Running {} hook\"", hook_name)?;
-    writeln!(file, "{}", content)?;
+    writeln!(file, "echo \"Running {hook_name} hook\"")?;
+    writeln!(file, "{content}")?;
     if should_fail {
         writeln!(file, "exit 1")?;
     } else {
@@ -68,7 +69,7 @@ fn create_hook(repo_path: &Path, hook_name: &str, content: &str, should_fail: bo
 
 #[test]
 fn test_verify_and_commit_success() -> Result<()> {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let repo_path = temp_dir.path();
 
     // Create successful pre-commit and post-commit hooks
@@ -93,11 +94,11 @@ fn test_verify_and_commit_success() -> Result<()> {
     index.add_path(Path::new("test_file.txt"))?;
     index.write()?;
 
-    let precommit = execute_hook(repo_path, "pre-commit");
+    let precommit = git_repo.execute_hook("pre-commit");
     assert!(precommit.is_ok(), "Pre-commit hook should succeed");
 
     // Perform commit_and_verify
-    let result = commit_and_verify(repo_path, "Test commit message");
+    let result = git_repo.commit_and_verify("Test commit message");
 
     assert!(result.is_ok(), "verify_and_commit should succeed");
     let commit_result = result.unwrap();
@@ -109,7 +110,7 @@ fn test_verify_and_commit_success() -> Result<()> {
 
 #[test]
 fn test_verify_and_commit_pre_commit_failure() -> Result<()> {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let repo_path = temp_dir.path();
 
     // Create a failing pre-commit hook
@@ -128,7 +129,7 @@ fn test_verify_and_commit_pre_commit_failure() -> Result<()> {
     index.add_path(Path::new("test_file.txt"))?;
     index.write()?;
 
-    let precommit = execute_hook(repo_path, "pre-commit");
+    let precommit = git_repo.execute_hook("pre-commit");
     assert!(
         precommit.is_err(),
         "Commit should fail due to pre-commit hook"
@@ -144,7 +145,7 @@ fn test_verify_and_commit_pre_commit_failure() -> Result<()> {
 
 #[test]
 fn test_verify_and_commit_post_commit_failure() -> Result<()> {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let repo_path = temp_dir.path();
 
     // Create successful pre-commit and failing post-commit hooks
@@ -169,11 +170,11 @@ fn test_verify_and_commit_post_commit_failure() -> Result<()> {
     index.add_path(Path::new("test_file.txt"))?;
     index.write()?;
 
-    let precommit = execute_hook(repo_path, "pre-commit");
+    let precommit = git_repo.execute_hook("pre-commit");
     assert!(precommit.is_ok(), "Pre-commit hook should succeed");
 
     // Perform commit_and_verify
-    let result = commit_and_verify(repo_path, "Test commit message");
+    let result = git_repo.commit_and_verify("Test commit message");
 
     // The commit should succeed even if the post-commit hook fails
     assert!(
@@ -194,7 +195,7 @@ fn test_verify_and_commit_post_commit_failure() -> Result<()> {
 
 #[test]
 fn test_verify_and_commit_no_hooks() -> Result<()> {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let repo_path = temp_dir.path();
 
     // Create and stage a new file
@@ -205,11 +206,11 @@ fn test_verify_and_commit_no_hooks() -> Result<()> {
     index.add_path(Path::new("test_file.txt"))?;
     index.write()?;
 
-    let precommit = execute_hook(repo_path, "pre-commit");
+    let precommit = git_repo.execute_hook("pre-commit");
     assert!(precommit.is_ok(), "Pre-commit hook should succeed");
 
     // Perform commit_and_verify
-    let result = commit_and_verify(repo_path, "Test commit message");
+    let result = git_repo.commit_and_verify("Test commit message");
 
     assert!(
         result.is_ok(),

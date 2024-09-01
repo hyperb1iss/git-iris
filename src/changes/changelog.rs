@@ -3,9 +3,10 @@ use super::models::{BreakingChange, ChangeEntry, ChangeMetrics, ChangelogRespons
 use super::prompt;
 use crate::common::DetailLevel;
 use crate::config::Config;
+use crate::git::GitRepo;
 use anyhow::Result;
 use colored::Colorize;
-use std::path::Path;
+use std::sync::Arc;
 
 /// Struct responsible for generating changelogs
 pub struct ChangelogGenerator;
@@ -15,7 +16,7 @@ impl ChangelogGenerator {
     ///
     /// # Arguments
     ///
-    /// * `repo_path` - Path to the Git repository
+    /// * `git_repo` - `GitRepo` instance
     /// * `from` - Starting point for the changelog (e.g., a commit hash or tag)
     /// * `to` - Ending point for the changelog (e.g., a commit hash, tag, or "HEAD")
     /// * `config` - Configuration object containing LLM settings
@@ -25,14 +26,14 @@ impl ChangelogGenerator {
     ///
     /// A Result containing the generated changelog as a String, or an error
     pub async fn generate(
-        repo_path: &Path,
+        git_repo: Arc<GitRepo>,
         from: &str,
         to: &str,
         config: &Config,
         detail_level: DetailLevel,
     ) -> Result<String> {
         let changelog: ChangelogResponse = generate_changes_content::<ChangelogResponse>(
-            repo_path,
+            git_repo,
             from,
             to,
             config,

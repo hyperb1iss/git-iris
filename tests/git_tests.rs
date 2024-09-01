@@ -2,14 +2,14 @@ use git2::Repository;
 use git_iris::commit::prompt::{create_system_prompt, create_user_prompt};
 use git_iris::config::Config;
 use git_iris::context::ChangeType;
-use git_iris::git::{commit, get_git_info, get_project_metadata};
+use git_iris::git::GitRepo;
 use git_iris::token_optimizer::TokenOptimizer;
 use std::fs;
 use std::path::Path;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
-fn setup_git_repo() -> TempDir {
+fn setup_git_repo() -> (TempDir, GitRepo) {
     let temp_dir = TempDir::new().unwrap();
     let repo = Repository::init(temp_dir.path()).unwrap();
 
@@ -39,15 +39,16 @@ fn setup_git_repo() -> TempDir {
     )
     .unwrap();
 
-    temp_dir
+    let git_repo = GitRepo::new(temp_dir.path()).unwrap();
+    (temp_dir, git_repo)
 }
 
 #[tokio::test]
 async fn test_get_git_info() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
 
     // Test branch name
     assert!(
@@ -82,7 +83,7 @@ async fn test_get_git_info() {
     fs::write(&unstaged_file_path, "Unstaged content").unwrap();
 
     // Get updated git info
-    let updated_context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let updated_context = git_repo.get_git_info(&config).await.unwrap();
 
     // Test staged files
     assert_eq!(updated_context.staged_files.len(), 1);
@@ -95,7 +96,7 @@ async fn test_get_git_info() {
 
 #[tokio::test]
 async fn test_commit() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Create and stage a new file
@@ -107,11 +108,11 @@ async fn test_commit() {
     index.write().unwrap();
 
     // Perform commit
-    let result = commit(temp_dir.path(), "Test commit message");
+    let result = git_repo.commit("Test commit message");
     assert!(result.is_ok());
 
     // Verify commit
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
     assert_eq!(context.recent_commits.len(), 2);
     assert!(context.recent_commits[0]
         .message
@@ -120,7 +121,7 @@ async fn test_commit() {
 
 #[tokio::test]
 async fn test_multiple_staged_files() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Create and stage multiple files
@@ -133,7 +134,7 @@ async fn test_multiple_staged_files() {
         index.write().unwrap();
     }
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
     assert_eq!(context.staged_files.len(), 3);
     for i in 1..=3 {
         assert!(context
@@ -145,7 +146,7 @@ async fn test_multiple_staged_files() {
 
 #[tokio::test]
 async fn test_modified_file() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Modify the initial file
@@ -156,7 +157,7 @@ async fn test_modified_file() {
     index.add_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(
         context
@@ -169,7 +170,7 @@ async fn test_modified_file() {
 
 #[tokio::test]
 async fn test_deleted_file() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Delete the initial file
@@ -180,7 +181,7 @@ async fn test_deleted_file() {
     index.remove_path(Path::new("initial.txt")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
     assert_eq!(context.staged_files.len(), 1);
     assert!(context
         .staged_files
@@ -190,7 +191,7 @@ async fn test_deleted_file() {
 
 #[tokio::test]
 async fn test_binary_file() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Create a binary file (a simple PNG file)
@@ -210,7 +211,7 @@ async fn test_binary_file() {
     index.add_path(Path::new("image.png")).unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
 
     // Check if the binary file is in staged files
     assert!(context
@@ -232,7 +233,7 @@ async fn test_binary_file() {
 
 #[tokio::test]
 async fn test_get_git_info_with_excluded_files() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Create files that should be excluded
@@ -264,7 +265,7 @@ async fn test_get_git_info_with_excluded_files() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
 
     // Check excluded files
     let excluded_files: Vec<_> = context
@@ -303,7 +304,7 @@ async fn test_get_git_info_with_excluded_files() {
 
 #[tokio::test]
 async fn test_multiple_staged_files_with_exclusions() {
-    let temp_dir = setup_git_repo();
+    let (temp_dir, git_repo) = setup_git_repo();
     let config = Config::default();
 
     // Create files that should be excluded
@@ -336,7 +337,7 @@ async fn test_multiple_staged_files_with_exclusions() {
         .unwrap();
     index.write().unwrap();
 
-    let context = get_git_info(temp_dir.path(), &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
 
     assert_eq!(context.staged_files.len(), 5);
 
@@ -369,18 +370,17 @@ async fn test_multiple_staged_files_with_exclusions() {
 
 #[tokio::test]
 async fn test_token_optimization_integration() {
-    let temp_dir = setup_git_repo();
-    let repo_path = temp_dir.path();
+    let (_temp_dir, git_repo) = setup_git_repo();
+    let config = Config::default();
 
     // Set a small token limit for the OpenAI provider to force truncation
     let small_token_limit = 200;
-    let config = Config::default();
 
-    let context = get_git_info(repo_path, &config).await.unwrap();
+    let context = git_repo.get_git_info(&config).await.unwrap();
 
     let system_prompt = create_system_prompt(&config).expect("Failed to create system prompt");
     let user_prompt = create_user_prompt(&context);
-    let prompt = format!("{}\n{}", system_prompt, user_prompt);
+    let prompt = format!("{system_prompt}\n{user_prompt}");
 
     // Check that the prompt is within the token limit
     let optimizer = TokenOptimizer::new(small_token_limit);
@@ -430,7 +430,7 @@ async fn test_token_optimization_integration() {
 
     let system_prompt = create_system_prompt(&config).expect("Failed to create system prompt");
     let user_prompt = create_user_prompt(&context);
-    let large_prompt = format!("{}\n{}", system_prompt, user_prompt);
+    let large_prompt = format!("{system_prompt}\n{user_prompt}");
 
     let large_token_count = optimizer.count_tokens(&large_prompt);
 
@@ -467,6 +467,7 @@ async fn test_token_optimization_integration() {
 async fn test_project_metadata_parallelism() {
     // Create a temporary directory for our test files
     let temp_dir = TempDir::new().unwrap();
+    let git_repo = GitRepo::new(temp_dir.path()).unwrap();
 
     // Create multiple files with different "languages"
     let files = vec![
@@ -495,7 +496,7 @@ async fn test_project_metadata_parallelism() {
 
     // Measure the time taken to process metadata
     let start = Instant::now();
-    let metadata = get_project_metadata(&file_paths).await.unwrap();
+    let metadata = git_repo.get_project_metadata(&file_paths).await.unwrap();
     let duration = start.elapsed();
 
     // Detailed logging

@@ -70,7 +70,7 @@ fn test_get_available_providers() {
 }
 
 #[test]
-fn test_get_default_model_for_provider() -> Result<()> {
+fn test_get_default_model_for_provider() {
     assert_eq!(
         get_default_model_for_provider(&LLMProviderType::OpenAI),
         "gpt-4o"
@@ -83,7 +83,6 @@ fn test_get_default_model_for_provider() -> Result<()> {
         get_default_model_for_provider(&LLMProviderType::Test),
         "test-model"
     );
-    Ok(())
 }
 
 #[test]
@@ -104,20 +103,18 @@ fn test_get_default_token_limit_for_provider() -> Result<()> {
 }
 
 #[test]
-fn test_llm_provider_type_from_str() {
+fn test_llm_provider_type_from_str() -> Result<()> {
     assert_eq!(
-        LLMProviderType::from_str("openai").unwrap(),
+        LLMProviderType::from_str("openai")?,
         LLMProviderType::OpenAI
     );
     assert_eq!(
-        LLMProviderType::from_str("claude").unwrap(),
+        LLMProviderType::from_str("claude")?,
         LLMProviderType::Claude
     );
-    assert_eq!(
-        LLMProviderType::from_str("test").unwrap(),
-        LLMProviderType::Test
-    );
+    assert_eq!(LLMProviderType::from_str("test")?, LLMProviderType::Test);
     assert!(LLMProviderType::from_str("invalid").is_err());
+    Ok(())
 }
 
 #[tokio::test]

@@ -1,18 +1,19 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 
 use super::prompt::{create_system_prompt, create_user_prompt, process_commit_message};
 use crate::config::Config;
 use crate::context::{CommitContext, GeneratedMessage};
-use crate::git;
+use crate::git::{CommitResult, GitRepo};
 use crate::llm;
 use crate::llm_providers::LLMProviderType;
 
+/// Service for handling Git commit operations with AI assistance
 pub struct IrisCommitService {
     config: Config,
-    repo_path: PathBuf,
+    repo: Arc<GitRepo>,
     provider_type: LLMProviderType,
     use_gitmoji: bool,
     verify: bool,
@@ -20,43 +21,69 @@ pub struct IrisCommitService {
 }
 
 impl IrisCommitService {
+    /// Create a new `IrisCommitService` instance
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The configuration for the service
+    /// * `repo_path` - The path to the Git repository
+    /// * `provider_type` - The type of LLM provider to use
+    /// * `use_gitmoji` - Whether to use Gitmoji in commit messages
+    /// * `verify` - Whether to verify commits
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the new `IrisCommitService` instance or an error
     pub fn new(
         config: Config,
-        repo_path: PathBuf,
+        repo_path: &Path,
         provider_type: LLMProviderType,
         use_gitmoji: bool,
         verify: bool,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             config,
-            repo_path,
+            repo: Arc::new(GitRepo::new(repo_path)?),
             provider_type,
             use_gitmoji,
             verify,
             cached_context: Arc::new(RwLock::new(None)),
-        }
+        })
     }
 
+    /// Check the environment for necessary prerequisites
     pub fn check_environment(&self) -> Result<()> {
-        Config::check_environment()
+        self.config.check_environment()
     }
 
+    /// Get Git information for the current repository
     pub async fn get_git_info(&self) -> Result<CommitContext> {
         {
-            let cached_context = self.cached_context.read().await; // Await the read lock
+            let cached_context = self.cached_context.read().await;
             if let Some(context) = &*cached_context {
                 return Ok(context.clone());
             }
         }
 
-        let context = git::get_git_info(&self.repo_path, &self.config).await?;
+        let context = self.repo.get_git_info(&self.config).await?;
+
         {
-            let mut cached_context = self.cached_context.write().await; // Await the write lock
+            let mut cached_context = self.cached_context.write().await;
             *cached_context = Some(context.clone());
         }
         Ok(context)
     }
 
+    /// Generate a commit message using AI
+    ///
+    /// # Arguments
+    ///
+    /// * `preset` - The instruction preset to use
+    /// * `instructions` - Custom instructions for the AI
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the generated commit message or an error
     pub async fn generate_message(
         &self,
         preset: &str,
@@ -87,21 +114,34 @@ impl IrisCommitService {
         Ok(generated_message)
     }
 
-    pub fn perform_commit(&self, message: &str) -> Result<git::CommitResult> {
+    /// Perform a commit with the given message
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The commit message to use
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the `CommitResult` or an error
+    pub fn perform_commit(&self, message: &str) -> Result<CommitResult> {
         let processed_message = process_commit_message(message.to_string(), self.use_gitmoji);
         if self.verify {
-            return git::commit_and_verify(&self.repo_path, &processed_message);
+            self.repo.commit_and_verify(&processed_message)
+        } else {
+            self.repo.commit(&processed_message)
         }
-        git::commit(&self.repo_path, &processed_message)
     }
 
+    /// Execute the pre-commit hook if verification is enabled
     pub fn pre_commit(&self) -> Result<()> {
         if self.verify {
-            return git::execute_hook(&self.repo_path, "pre-commit");
+            self.repo.execute_hook("pre-commit")
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
+    /// Create a channel for message generation
     pub fn create_message_channel(
         &self,
     ) -> (
