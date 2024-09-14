@@ -62,12 +62,14 @@ impl ChangeAnalyzer {
     fn analyze_commit(&self, commit: &RecentCommit) -> Result<AnalyzedChange> {
         let repo = self.git_repo.open_repo()?;
         let commit_obj = repo.find_commit(Oid::from_str(&commit.hash)?)?;
-        let parent = commit_obj.parent(0).ok();
-        let diff = repo.diff_tree_to_tree(
-            parent.as_ref().and_then(|c| c.tree().ok()).as_ref(),
-            Some(&commit_obj.tree()?),
-            None,
-        )?;
+
+        let parent_tree = if commit_obj.parent_count() > 0 {
+            Some(commit_obj.parent(0)?.tree()?)
+        } else {
+            None
+        };
+
+        let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&commit_obj.tree()?), None)?;
 
         let file_changes = Self::analyze_file_changes(&diff)?;
         let metrics = Self::calculate_metrics(&diff)?;
