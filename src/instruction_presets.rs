@@ -215,6 +215,21 @@ impl InstructionPresetLibrary {
             },
         );
 
+        presets.insert(
+            "conventional".to_string(),
+            InstructionPreset {
+                name: "Conventional Commits".to_string(),
+                description: "Follow the Conventional Commits specification".to_string(),
+                instructions: "Use the Conventional Commits format: <type>[optional scope]: <description>\n\
+                               Valid types are: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert\n\
+                               Use the imperative mood in the subject line\n\
+                               Limit the subject line to 50 characters if possible, never exceed 72\n\
+                               Separate subject from body with a blank line\n\
+                               Use the body to explain what and why, wrapping at 72 characters".to_string(),
+                emoji: "📏".to_string(),
+            },
+        );
+
         Self { presets }
     }
 
