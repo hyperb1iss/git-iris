@@ -200,16 +200,17 @@ impl ChangeAnalyzer {
 
     /// Extract associated issue numbers from the commit message
     fn extract_associated_issues(commit_message: &str) -> Vec<String> {
-        let re = Regex::new(r"#(\d+)").expect("Could not compile regex");
+        let re = Regex::new(r"(?:#|GH-)(\d+)").unwrap();
         re.captures_iter(commit_message)
-            .map(|cap| cap[1].to_string())
+            .map(|cap| format!("#{}", &cap[1]))
             .collect()
     }
 
     /// Extract pull request number from the commit message
     fn extract_pull_request(commit_message: &str) -> Option<String> {
-        let re = Regex::new(r"(?i)pull request #?(\d+)").expect("Could not compile regex");
-        re.captures(commit_message).map(|cap| cap[1].to_string())
+        let re = Regex::new(r"(?i)(?:pull request|PR)\s*#?(\d+)").unwrap();
+        re.captures(commit_message)
+            .map(|cap| format!("PR #{}", &cap[1]))
     }
 
     /// Calculate the impact score of the change
