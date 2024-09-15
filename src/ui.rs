@@ -80,12 +80,21 @@ pub fn create_secondary_gradient_text(text: &str) -> String {
 
 fn apply_gradient(text: &str, gradient: &[(u8, u8, u8)]) -> String {
     let chars: Vec<char> = text.chars().collect();
-    let step = (gradient.len() - 1) as f32 / (chars.len() - 1) as f32;
+    let chars_len = chars.len();
+    let gradient_len = gradient.len();
 
     let mut result = String::new();
 
+    if chars_len == 0 || gradient_len == 0 {
+        return result;
+    }
+
     chars.iter().enumerate().fold(&mut result, |acc, (i, &c)| {
-        let index = (i as f32 * step) as usize;
+        let index = if chars_len == 1 {
+            0
+        } else {
+            i * (gradient_len - 1) / (chars_len - 1)
+        };
         let (r, g, b) = gradient[index];
         write!(acc, "{}", c.to_string().truecolor(r, g, b)).unwrap();
         acc
