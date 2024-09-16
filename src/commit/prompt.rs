@@ -43,7 +43,19 @@ pub fn create_system_prompt(config: &Config) -> anyhow::Result<String> {
 
         The message should be based entirely on the information provided in the context,
         without any speculation or assumptions.
+      ");
 
+    prompt.push_str(get_combined_instructions(config).as_str());
+
+    if config.use_gitmoji {
+        prompt.push_str(
+            "\n\nUse a single gitmoji at the start of the commit message. \
+          Choose the most relevant emoji from the following list:\n\n",
+        );
+        prompt.push_str(&get_gitmoji_list());
+    }
+
+    prompt.push_str("
         Your response must be a valid JSON object with the following structure:
 
         {
@@ -59,7 +71,7 @@ pub fn create_system_prompt(config: &Config) -> anyhow::Result<String> {
         3. Create a concise and descriptive title (subject line) for the commit.
         4. If using emojis (false unless stated below), select the most appropriate one for the commit type.
         5. Write a detailed message body explaining the changes, their impact, and any other relevant information.
-        6. Ensure the message adheres to the guidelines above.
+        6. Ensure the message adheres to the guidelines above, and follows all of the additional instructions provided.
         7. Construct the final JSON object with the emoji (if applicable), title, and message.
 
          Here's a minimal example of the expected output format:
@@ -76,15 +88,6 @@ pub fn create_system_prompt(config: &Config) -> anyhow::Result<String> {
 
     prompt.push_str(&commit_schema_str);
 
-    prompt.push_str(get_combined_instructions(config).as_str());
-
-    if config.use_gitmoji {
-        prompt.push_str(
-            "\n\nUse a single gitmoji at the start of the commit message. \
-            Choose the most relevant emoji from the following list:\n\n",
-        );
-        prompt.push_str(&get_gitmoji_list());
-    }
     Ok(prompt)
 }
 
