@@ -6,12 +6,10 @@ all aspects of code management simpler and more effective.
 ## 🛠️ Core Functionality
 
 - [ ] Implement amend support for existing commits
-- [ ] Add confirmation dialogs before commit and on exit
+- [ ] Add optional confirmation dialogs before commit and on exit
 - [ ] Create a general release manager
-- [ ] Ensure the test provider is not visible to end-users
 - [ ] Implement per-project `.irisrc` configuration
 - [ ] Improve preset and custom instructions prompting (ensure LLM considers them)
-- [ ] Add support for conventional commits
 - [ ] Implement interactive rebase with Git-Iris
 - [ ] Create a commit message template system
 
@@ -24,14 +22,13 @@ all aspects of code management simpler and more effective.
 - [ ] Implement a commit message linter with customizable rules
 - [ ] Add support for integrating with issue tracking systems
 - [ ] Create a feature for generating code documentation based on changes
+- [ ] Pull request generator
 
 ## 🔧 Improvements and Optimizations
 
 - [ ] Conduct thorough code review
-- [ ] Perform harsh code review for optimization
 - [ ] Implement support for more Git hosting platforms (e.g., GitLab, Bitbucket)
 - [ ] Create command-line completion scripts for various shells
-- [ ] Improve error handling and provide more informative error messages
 - [ ] Implement a diff viewer within the TUI
 - [ ] Add support for signing commits with GPG
 
