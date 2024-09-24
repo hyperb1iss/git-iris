@@ -69,7 +69,7 @@ jobs:
       - name: Output Release URL File
         run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
       - name: Save Release URL File for publish
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: release_url
           path: release_url.txt
@@ -111,14 +111,15 @@ jobs:
         run: ${{ matrix.cmd }} build --verbose --locked --release --target ${{ matrix.target }}
 
       - name: Get Release URL
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: release_url
+          path: ./
 
       - name: Get Release File Name & Upload URL
         id: get_release_info
         run: |
-          value=`cat release_url/release_url.txt`
+          value=`cat release_url.txt`
           echo ::set-output name=upload_url::$value
         shell: bash
 
@@ -148,7 +149,7 @@ jobs:
       - name: Build .deb package
         run: cargo deb
       - name: Get Release URL
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: release_url
       - name: Get version
@@ -157,7 +158,7 @@ jobs:
       - name: Get Release File Name & Upload URL
         id: get_release_info
         run: |
-          value=`cat release_url/release_url.txt`
+          value=`cat release_url.txt`
           echo ::set-output name=upload_url::$value
       - name: Upload .deb package
         uses: actions/upload-release-asset@v1
@@ -187,7 +188,7 @@ jobs:
       - name: Build .rpm package
         run: cargo generate-rpm
       - name: Get Release URL
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: release_url
       - name: Get version
@@ -196,7 +197,7 @@ jobs:
       - name: Get Release File Name & Upload URL
         id: get_release_info
         run: |
-          value=`cat release_url/release_url.txt`
+          value=`cat release_url.txt`
           echo ::set-output name=upload_url::$value
       - name: Upload .rpm package
         uses: actions/upload-release-asset@v1
@@ -215,13 +216,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Get Release URL
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: release_url
       - name: Get Release File Name & Upload URL
         id: get_release_info
         run: |
-          value=`cat release_url/release_url.txt`
+          value=`cat release_url.txt`
           echo ::set-output name=upload_url::$value
       - name: Upload Man Page
         uses: actions/upload-release-asset@v1
