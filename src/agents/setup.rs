@@ -483,4 +483,12 @@ impl IrisAgentService {
     pub fn fast_model(&self) -> &str {
         &self.fast_model
     }
+
+    /// Get the API key for the current provider from config
+    pub fn api_key(&self) -> Option<String> {
+        self.config
+            .get_provider_config(&self.provider)
+            .filter(|pc| !pc.api_key.is_empty())
+            .map(|pc| pc.api_key.clone())
+    }
 }

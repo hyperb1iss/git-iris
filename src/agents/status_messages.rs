@@ -108,6 +108,8 @@ fn capitalize_first(s: &str) -> String {
 pub struct StatusMessageGenerator {
     provider: String,
     fast_model: String,
+    /// API key for the provider (from config)
+    api_key: Option<String>,
     /// Hard timeout for status message generation (ms)
     timeout_ms: u64,
 }
@@ -118,11 +120,16 @@ impl StatusMessageGenerator {
     /// # Arguments
     /// * `provider` - LLM provider name (e.g., "anthropic", "openai")
     /// * `fast_model` - Model to use for quick generations
-    /// * `timeout_ms` - Hard timeout in milliseconds (default: 500)
-    pub fn new(provider: impl Into<String>, fast_model: impl Into<String>) -> Self {
+    /// * `api_key` - Optional API key (falls back to env var if not provided)
+    pub fn new(
+        provider: impl Into<String>,
+        fast_model: impl Into<String>,
+        api_key: Option<String>,
+    ) -> Self {
         Self {
             provider: provider.into(),
             fast_model: fast_model.into(),
+            api_key,
             timeout_ms: 1500, // 1.5 seconds - fast model should respond quickly
         }
     }
@@ -160,12 +167,14 @@ impl StatusMessageGenerator {
     ) {
         let provider = self.provider.clone();
         let fast_model = self.fast_model.clone();
+        let api_key = self.api_key.clone();
         let timeout_ms = self.timeout_ms;
 
         tokio::spawn(async move {
             let generator = StatusMessageGenerator {
                 provider,
                 fast_model,
+                api_key,
                 timeout_ms,
             };
 
@@ -189,7 +198,11 @@ impl StatusMessageGenerator {
     }
 
     /// Build the agent for status message generation
-    fn build_status_agent(provider: &str, fast_model: &str) -> Result<DynAgent> {
+    fn build_status_agent(
+        provider: &str,
+        fast_model: &str,
+        api_key: Option<&str>,
+    ) -> Result<DynAgent> {
         let preamble = "You write fun waiting messages for a Git AI named Iris. \
                         Concise, yet fun and encouraging, add vibes, be clever, not cheesy. \
                         Capitalize first letter, end with ellipsis. Under 35 chars. No emojis. \
@@ -197,21 +210,21 @@ impl StatusMessageGenerator {
 
         match provider {
             "openai" => {
-                let agent = provider::openai_builder(fast_model)
+                let agent = provider::openai_builder(fast_model, api_key)
                     .preamble(preamble)
                     .max_tokens(50)
                     .build();
                 Ok(DynAgent::OpenAI(agent))
             }
             "anthropic" => {
-                let agent = provider::anthropic_builder(fast_model)
+                let agent = provider::anthropic_builder(fast_model, api_key)
                     .preamble(preamble)
                     .max_tokens(50)
                     .build();
                 Ok(DynAgent::Anthropic(agent))
             }
             "google" | "gemini" => {
-                let agent = provider::gemini_builder(fast_model)
+                let agent = provider::gemini_builder(fast_model, api_key)
                     .preamble(preamble)
                     .max_tokens(50)
                     .build();
@@ -232,7 +245,11 @@ impl StatusMessageGenerator {
 
         // Build agent synchronously (DynClientBuilder is not Send)
         // The returned agent IS Send, so we can await after this
-        let agent = match Self::build_status_agent(&self.provider, &self.fast_model) {
+        let agent = match Self::build_status_agent(
+            &self.provider,
+            &self.fast_model,
+            self.api_key.as_deref(),
+        ) {
             Ok(a) => a,
             Err(e) => {
                 tracing::warn!("Failed to build status agent: {}", e);
@@ -331,7 +348,11 @@ impl StatusMessageGenerator {
     async fn generate_completion_internal(&self, context: &StatusContext) -> Result<StatusMessage> {
         let prompt = Self::build_completion_prompt(context);
 
-        let agent = Self::build_status_agent(&self.provider, &self.fast_model)?;
+        let agent = Self::build_status_agent(
+            &self.provider,
+            &self.fast_model,
+            self.api_key.as_deref(),
+        )?;
         let response = agent.prompt(&prompt).await?;
         let message = capitalize_first(response.trim());
 
@@ -522,7 +543,7 @@ mod tests {
             );
             println!("{}\n", "=".repeat(60));
 
-            let generator = StatusMessageGenerator::new(&provider, &model);
+            let generator = StatusMessageGenerator::new(&provider, &model, None);
 
             // Test scenarios
             let scenarios = vec![

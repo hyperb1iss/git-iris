@@ -19,6 +19,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use crate::agents::debug as agent_debug;
+use crate::providers::Provider;
 
 /// Default timeout for individual subagent tasks (2 minutes)
 const DEFAULT_SUBAGENT_TIMEOUT_SECS: u64 = 120;
@@ -72,17 +73,17 @@ enum SubagentRunner {
 }
 
 impl SubagentRunner {
-    fn new(provider: &str, model: &str) -> Result<Self> {
+    fn new(provider: &str, model: &str, api_key: Option<&str>) -> Result<Self> {
         match provider {
             "openai" => {
-                let client = openai::Client::from_env();
+                let client = Self::resolve_openai_client(api_key)?;
                 Ok(Self::OpenAI {
                     client,
                     model: model.to_string(),
                 })
             }
             "anthropic" => {
-                let client = anthropic::Client::from_env();
+                let client = Self::resolve_anthropic_client(api_key)?;
                 Ok(Self::Anthropic {
                     client,
                     model: model.to_string(),
@@ -92,6 +93,28 @@ impl SubagentRunner {
                 "Unsupported provider for parallel analysis: {}",
                 provider
             )),
+        }
+    }
+
+    /// Create OpenAI client from API key or environment variable
+    fn resolve_openai_client(api_key: Option<&str>) -> Result<openai::Client> {
+        if let Some(key) = api_key.filter(|k| !k.is_empty()) {
+            openai::Client::new(key).map_err(|e| anyhow::anyhow!("Failed to create OpenAI client: {}", e))
+        } else if let Ok(key) = std::env::var(Provider::OpenAI.api_key_env()) {
+            openai::Client::new(&key).map_err(|e| anyhow::anyhow!("Failed to create OpenAI client: {}", e))
+        } else {
+            Ok(openai::Client::from_env())
+        }
+    }
+
+    /// Create Anthropic client from API key or environment variable
+    fn resolve_anthropic_client(api_key: Option<&str>) -> Result<anthropic::Client> {
+        if let Some(key) = api_key.filter(|k| !k.is_empty()) {
+            anthropic::Client::new(key).map_err(|e| anyhow::anyhow!("Failed to create Anthropic client: {}", e))
+        } else if let Ok(key) = std::env::var(Provider::Anthropic.api_key_env()) {
+            anthropic::Client::new(&key).map_err(|e| anyhow::anyhow!("Failed to create Anthropic client: {}", e))
+        } else {
+            Ok(anthropic::Client::from_env())
         }
     }
 
@@ -146,20 +169,25 @@ pub struct ParallelAnalyze {
 
 impl ParallelAnalyze {
     /// Create a new parallel analyzer with default timeout
-    pub fn new(provider: &str, model: &str) -> Result<Self> {
-        Self::with_timeout(provider, model, DEFAULT_SUBAGENT_TIMEOUT_SECS)
+    pub fn new(provider: &str, model: &str, api_key: Option<&str>) -> Result<Self> {
+        Self::with_timeout(provider, model, DEFAULT_SUBAGENT_TIMEOUT_SECS, api_key)
     }
 
     /// Create a new parallel analyzer with custom timeout
-    pub fn with_timeout(provider: &str, model: &str, timeout_secs: u64) -> Result<Self> {
+    pub fn with_timeout(
+        provider: &str,
+        model: &str,
+        timeout_secs: u64,
+        api_key: Option<&str>,
+    ) -> Result<Self> {
         // Try the requested provider first, then fall back to openai
-        let runner = SubagentRunner::new(provider, model).or_else(|e| {
+        let runner = SubagentRunner::new(provider, model, api_key).or_else(|e| {
             tracing::warn!(
                 "Failed to create {} runner: {}, falling back to openai",
                 provider,
                 e
             );
-            SubagentRunner::new("openai", "gpt-4o")
+            SubagentRunner::new("openai", "gpt-4o", api_key)
         })?;
 
         Ok(Self {

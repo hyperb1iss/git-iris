@@ -1422,7 +1422,8 @@ impl StudioApp {
 
         // Fire-and-forget: spawn ONE generation attempt
         let tx = self.iris_result_tx.clone();
-        let status_gen = StatusMessageGenerator::new(agent.provider(), agent.fast_model());
+        let status_gen =
+            StatusMessageGenerator::new(agent.provider(), agent.fast_model(), agent.api_key());
 
         tokio::spawn(async move {
             tracing::info!("Status message starting for task: {}", context.task_type);
@@ -1479,7 +1480,8 @@ impl StudioApp {
         }
 
         let tx = self.iris_result_tx.clone();
-        let status_gen = StatusMessageGenerator::new(agent.provider(), agent.fast_model());
+        let status_gen =
+            StatusMessageGenerator::new(agent.provider(), agent.fast_model(), agent.api_key());
 
         tokio::spawn(async move {
             match tokio::time::timeout(

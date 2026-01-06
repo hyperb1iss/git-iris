@@ -411,6 +411,15 @@ impl IrisAgent {
         self.fast_model.as_deref().unwrap_or(&self.model)
     }
 
+    /// Get the API key for the current provider from config
+    fn get_api_key(&self) -> Option<&str> {
+        self.config
+            .as_ref()
+            .and_then(|c| c.get_provider_config(&self.provider))
+            .map(|pc| pc.api_key.as_str())
+            .filter(|k| !k.is_empty())
+    }
+
     /// Build the actual agent for execution
     ///
     /// Uses provider-specific builders (rig-core 0.27+) with enum dispatch for runtime
@@ -421,6 +430,7 @@ impl IrisAgent {
 
         let preamble = self.preamble.as_deref().unwrap_or(DEFAULT_PREAMBLE);
         let fast_model = self.effective_fast_model();
+        let api_key = self.get_api_key();
         let subagent_timeout = self
             .config
             .as_ref()
@@ -456,6 +466,7 @@ Guidelines:
                         &self.provider,
                         fast_model,
                         subagent_timeout,
+                        api_key,
                     )?))
             }};
         }
@@ -479,10 +490,10 @@ Guidelines:
         match self.provider.as_str() {
             "openai" => {
                 // Build subagent
-                let sub_agent = build_subagent!(provider::openai_builder(fast_model));
+                let sub_agent = build_subagent!(provider::openai_builder(fast_model, api_key));
 
                 // Build main agent
-                let builder = provider::openai_builder(&self.model)
+                let builder = provider::openai_builder(&self.model, api_key)
                     .preamble(preamble)
                     .max_tokens(16384);
                 let builder = self.apply_reasoning_defaults(builder);
@@ -492,10 +503,10 @@ Guidelines:
             }
             "anthropic" => {
                 // Build subagent
-                let sub_agent = build_subagent!(provider::anthropic_builder(fast_model));
+                let sub_agent = build_subagent!(provider::anthropic_builder(fast_model, api_key));
 
                 // Build main agent
-                let builder = provider::anthropic_builder(&self.model)
+                let builder = provider::anthropic_builder(&self.model, api_key)
                     .preamble(preamble)
                     .max_tokens(16384);
                 let builder = self.apply_reasoning_defaults(builder);
@@ -505,10 +516,10 @@ Guidelines:
             }
             "google" | "gemini" => {
                 // Build subagent
-                let sub_agent = build_subagent!(provider::gemini_builder(fast_model));
+                let sub_agent = build_subagent!(provider::gemini_builder(fast_model, api_key));
 
                 // Build main agent
-                let builder = provider::gemini_builder(&self.model)
+                let builder = provider::gemini_builder(&self.model, api_key)
                     .preamble(preamble)
                     .max_tokens(16384);
                 let builder = self.apply_reasoning_defaults(builder);
@@ -1039,6 +1050,7 @@ Guidelines:
         use crate::agents::debug_tool::DebugTool;
 
         let fast_model = self.effective_fast_model();
+        let api_key = self.get_api_key();
         let subagent_timeout = self
             .config
             .as_ref()
@@ -1046,7 +1058,7 @@ Guidelines:
 
         // Build subagent
         let sub_agent = crate::attach_core_tools!(
-            provider::openai_builder(fast_model)
+            provider::openai_builder(fast_model, api_key)
                 .name("analyze_subagent")
                 .preamble("You are a specialized analysis sub-agent.")
                 .max_tokens(4096)
@@ -1054,7 +1066,7 @@ Guidelines:
         .build();
 
         // Build main agent with tools
-        let builder = provider::openai_builder(&self.model)
+        let builder = provider::openai_builder(&self.model, api_key)
             .preamble(self.preamble.as_deref().unwrap_or("You are Iris."))
             .max_tokens(16384);
 
@@ -1065,6 +1077,7 @@ Guidelines:
                 &self.provider,
                 fast_model,
                 subagent_timeout,
+                api_key,
             )?))
             .tool(sub_agent);
 
@@ -1089,6 +1102,7 @@ Guidelines:
         use crate::agents::debug_tool::DebugTool;
 
         let fast_model = self.effective_fast_model();
+        let api_key = self.get_api_key();
         let subagent_timeout = self
             .config
             .as_ref()
@@ -1096,7 +1110,7 @@ Guidelines:
 
         // Build subagent
         let sub_agent = crate::attach_core_tools!(
-            provider::anthropic_builder(fast_model)
+            provider::anthropic_builder(fast_model, api_key)
                 .name("analyze_subagent")
                 .preamble("You are a specialized analysis sub-agent.")
                 .max_tokens(4096)
@@ -1104,7 +1118,7 @@ Guidelines:
         .build();
 
         // Build main agent with tools
-        let builder = provider::anthropic_builder(&self.model)
+        let builder = provider::anthropic_builder(&self.model, api_key)
             .preamble(self.preamble.as_deref().unwrap_or("You are Iris."))
             .max_tokens(16384);
 
@@ -1115,6 +1129,7 @@ Guidelines:
                 &self.provider,
                 fast_model,
                 subagent_timeout,
+                api_key,
             )?))
             .tool(sub_agent);
 
@@ -1139,6 +1154,7 @@ Guidelines:
         use crate::agents::debug_tool::DebugTool;
 
         let fast_model = self.effective_fast_model();
+        let api_key = self.get_api_key();
         let subagent_timeout = self
             .config
             .as_ref()
@@ -1146,7 +1162,7 @@ Guidelines:
 
         // Build subagent
         let sub_agent = crate::attach_core_tools!(
-            provider::gemini_builder(fast_model)
+            provider::gemini_builder(fast_model, api_key)
                 .name("analyze_subagent")
                 .preamble("You are a specialized analysis sub-agent.")
                 .max_tokens(4096)
@@ -1154,7 +1170,7 @@ Guidelines:
         .build();
 
         // Build main agent with tools
-        let builder = provider::gemini_builder(&self.model)
+        let builder = provider::gemini_builder(&self.model, api_key)
             .preamble(self.preamble.as_deref().unwrap_or("You are Iris."))
             .max_tokens(16384);
 
@@ -1165,6 +1181,7 @@ Guidelines:
                 &self.provider,
                 fast_model,
                 subagent_timeout,
+                api_key,
             )?))
             .tool(sub_agent);
 

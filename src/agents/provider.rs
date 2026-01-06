@@ -10,6 +10,8 @@ use rig::{
     providers::{anthropic, gemini, openai},
 };
 
+use crate::providers::Provider;
+
 /// Completion model types for each provider
 pub type OpenAIModel = openai::completion::CompletionModel;
 pub type AnthropicModel = anthropic::completion::CompletionModel;
@@ -60,20 +62,66 @@ impl DynAgent {
     }
 }
 
+/// Resolve API key from config or environment variable.
+///
+/// Tries config first, then falls back to the provider's environment variable.
+/// Returns `None` if neither source has a key (will cause `from_env()` to be used,
+/// which may panic - caller should validate beforehand).
+fn resolve_api_key(api_key: Option<&str>, provider: Provider) -> Option<String> {
+    // If explicit key provided and non-empty, use it
+    if let Some(key) = api_key {
+        if !key.is_empty() {
+            return Some(key.to_string());
+        }
+    }
+    // Fall back to environment variable
+    std::env::var(provider.api_key_env()).ok()
+}
+
 /// Create an `OpenAI` agent builder
-pub fn openai_builder(model: &str) -> OpenAIBuilder {
-    let client = openai::Client::from_env();
+///
+/// # Arguments
+/// * `model` - The model name to use
+/// * `api_key` - Optional API key. If not provided, falls back to `OPENAI_API_KEY` env var.
+///
+/// # Panics
+/// Panics if no API key is available (neither in config nor env var).
+pub fn openai_builder(model: &str, api_key: Option<&str>) -> OpenAIBuilder {
+    let client = match resolve_api_key(api_key, Provider::OpenAI) {
+        Some(key) => openai::Client::new(&key).expect("Failed to create OpenAI client"),
+        None => openai::Client::from_env(),
+    };
     client.completions_api().agent(model)
 }
 
 /// Create an Anthropic agent builder
-pub fn anthropic_builder(model: &str) -> AnthropicBuilder {
-    let client = anthropic::Client::from_env();
+///
+/// # Arguments
+/// * `model` - The model name to use
+/// * `api_key` - Optional API key. If not provided, falls back to `ANTHROPIC_API_KEY` env var.
+///
+/// # Panics
+/// Panics if no API key is available (neither in config nor env var).
+pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> AnthropicBuilder {
+    let client = match resolve_api_key(api_key, Provider::Anthropic) {
+        Some(key) => anthropic::Client::new(&key).expect("Failed to create Anthropic client"),
+        None => anthropic::Client::from_env(),
+    };
     client.agent(model)
 }
 
 /// Create a Gemini agent builder
-pub fn gemini_builder(model: &str) -> GeminiBuilder {
-    let client = gemini::Client::from_env();
+///
+/// # Arguments
+/// * `model` - The model name to use
+/// * `api_key` - Optional API key. If not provided, falls back to `GOOGLE_API_KEY` env var.
+///
+/// # Panics
+/// Panics if no API key is available (neither in config nor env var).
+pub fn gemini_builder(model: &str, api_key: Option<&str>) -> GeminiBuilder {
+    let client = match resolve_api_key(api_key, Provider::Google) {
+        Some(key) => gemini::Client::new(&key).expect("Failed to create Gemini client"),
+        None => gemini::Client::from_env(),
+    };
     client.agent(model)
 }
