@@ -180,14 +180,14 @@ impl ParallelAnalyze {
         timeout_secs: u64,
         api_key: Option<&str>,
     ) -> Result<Self> {
-        // Try the requested provider first, then fall back to openai
-        let runner = SubagentRunner::new(provider, model, api_key).or_else(|e| {
-            tracing::warn!(
-                "Failed to create {} runner: {}, falling back to openai",
+        // Create runner for the requested provider - no silent fallback
+        // If the user configures Anthropic, they should get Anthropic or a clear error
+        let runner = SubagentRunner::new(provider, model, api_key).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to create {} runner: {}. Check API key and network connectivity.",
                 provider,
                 e
-            );
-            SubagentRunner::new("openai", "gpt-4o", api_key)
+            )
         })?;
 
         Ok(Self {
