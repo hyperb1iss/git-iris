@@ -66,6 +66,52 @@ impl Provider {
         }
     }
 
+    /// Expected API key prefix for basic format validation
+    ///
+    /// Returns the expected prefix for the provider's API keys, if known.
+    /// This helps catch typos and misconfigurations early.
+    pub const fn api_key_prefix(&self) -> Option<&'static str> {
+        match self {
+            Self::OpenAI => Some("sk-"),
+            Self::Anthropic => Some("sk-ant-"),
+            Self::Google => None, // Google API keys don't have a consistent prefix
+        }
+    }
+
+    /// Validate API key format
+    ///
+    /// Performs basic validation to catch obvious misconfigurations:
+    /// - Checks for expected prefix (OpenAI: `sk-`, Anthropic: `sk-ant-`)
+    /// - Ensures key is not suspiciously short
+    ///
+    /// Returns `Ok(())` if valid, or a warning message if potentially invalid.
+    /// Note: A valid format doesn't guarantee the key works - it may still be
+    /// expired or revoked. This just catches typos.
+    pub fn validate_api_key_format(&self, key: &str) -> Result<(), String> {
+        // Check minimum length (API keys are typically 30+ chars)
+        if key.len() < 20 {
+            return Err(format!(
+                "{} API key appears too short (got {} chars, expected 20+)",
+                self.name(),
+                key.len()
+            ));
+        }
+
+        // Check expected prefix
+        if let Some(prefix) = self.api_key_prefix() {
+            if !key.starts_with(prefix) {
+                return Err(format!(
+                    "{} API key should start with '{}', got '{}'",
+                    self.name(),
+                    prefix,
+                    &key[..key.len().min(6)] // Show first 6 chars safely
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Get all provider names as strings
     pub fn all_names() -> Vec<&'static str> {
         Self::ALL.iter().map(Self::name).collect()
@@ -197,5 +243,57 @@ mod tests {
             config.fast_model.as_deref(),
             Some("claude-haiku-4-5-20251001")
         );
+    }
+
+    #[test]
+    fn test_api_key_prefix() {
+        assert_eq!(Provider::OpenAI.api_key_prefix(), Some("sk-"));
+        assert_eq!(Provider::Anthropic.api_key_prefix(), Some("sk-ant-"));
+        assert_eq!(Provider::Google.api_key_prefix(), None);
+    }
+
+    #[test]
+    fn test_api_key_validation_valid_openai() {
+        // Valid OpenAI key format (starts with sk-, long enough)
+        let result = Provider::OpenAI.validate_api_key_format("sk-1234567890abcdefghijklmnop");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_api_key_validation_valid_anthropic() {
+        // Valid Anthropic key format (starts with sk-ant-, long enough)
+        let result =
+            Provider::Anthropic.validate_api_key_format("sk-ant-1234567890abcdefghijklmnop");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_api_key_validation_valid_google() {
+        // Google keys don't have a prefix requirement, just length
+        let result = Provider::Google.validate_api_key_format("AIzaSyA1234567890abcdefgh");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_api_key_validation_too_short() {
+        let result = Provider::OpenAI.validate_api_key_format("sk-short");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("too short"));
+    }
+
+    #[test]
+    fn test_api_key_validation_wrong_prefix_openai() {
+        // Long enough but wrong prefix
+        let result = Provider::OpenAI.validate_api_key_format("wrong-prefix-1234567890abcdef");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("should start with"));
+    }
+
+    #[test]
+    fn test_api_key_validation_wrong_prefix_anthropic() {
+        // Has sk- but not sk-ant- (might be OpenAI key used for Anthropic)
+        let result = Provider::Anthropic.validate_api_key_format("sk-1234567890abcdefghijklmnop");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("sk-ant-"));
     }
 }

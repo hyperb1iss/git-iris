@@ -62,33 +62,88 @@ impl DynAgent {
     }
 }
 
+/// Source of the resolved API key (for logging/debugging)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ApiKeySource {
+    Config,
+    Environment,
+    ClientDefault,
+}
+
+/// Validate API key format and log warnings for suspicious keys
+fn validate_and_warn(key: &str, provider: Provider, source: &str) {
+    if let Err(warning) = provider.validate_api_key_format(key) {
+        tracing::warn!(
+            provider = %provider,
+            source = source,
+            "API key format warning: {}",
+            warning
+        );
+    }
+}
+
 /// Resolve API key from config or environment variable.
 ///
-/// Tries config first, then falls back to the provider's environment variable.
-/// Returns `None` if neither source has a key (will cause `from_env()` to be used,
-/// which may panic - caller should validate beforehand).
-fn resolve_api_key(api_key: Option<&str>, provider: Provider) -> Option<String> {
+/// Resolution order:
+/// 1. If `api_key` is `Some` and non-empty, use it (from config)
+/// 2. Otherwise, check the provider's environment variable
+/// 3. If neither has a key, returns `None` (caller will use `from_env()`)
+///
+/// Note: An empty string in config is treated as "not configured" and falls
+/// back to the environment variable. This allows users to override env vars
+/// in config while still supporting env-only setups.
+fn resolve_api_key(api_key: Option<&str>, provider: Provider) -> (Option<String>, ApiKeySource) {
     // If explicit key provided and non-empty, use it
     if let Some(key) = api_key {
         if !key.is_empty() {
-            return Some(key.to_string());
+            tracing::trace!(
+                provider = %provider,
+                source = "config",
+                "Using API key from configuration"
+            );
+            validate_and_warn(key, provider, "config");
+            return (Some(key.to_string()), ApiKeySource::Config);
         }
     }
+
     // Fall back to environment variable
-    std::env::var(provider.api_key_env()).ok()
+    if let Ok(key) = std::env::var(provider.api_key_env()) {
+        tracing::trace!(
+            provider = %provider,
+            env_var = %provider.api_key_env(),
+            source = "environment",
+            "Using API key from environment variable"
+        );
+        validate_and_warn(&key, provider, "environment");
+        return (Some(key), ApiKeySource::Environment);
+    }
+
+    tracing::trace!(
+        provider = %provider,
+        source = "client_default",
+        "No API key found, will use client's from_env()"
+    );
+    (None, ApiKeySource::ClientDefault)
 }
 
 /// Create an `OpenAI` agent builder
 ///
 /// # Arguments
 /// * `model` - The model name to use
-/// * `api_key` - Optional API key. If not provided, falls back to `OPENAI_API_KEY` env var.
+/// * `api_key` - Optional API key from config. Resolution order:
+///   1. Non-empty `api_key` parameter (from config)
+///   2. `OPENAI_API_KEY` environment variable
+///   3. Client's `from_env()` (may panic if env var not set)
 ///
 /// # Panics
-/// Panics if no API key is available (neither in config nor env var).
+/// Panics if no API key is found in either:
+/// - The provided `api_key` parameter (if non-empty)
+/// - The `OPENAI_API_KEY` environment variable
 pub fn openai_builder(model: &str, api_key: Option<&str>) -> OpenAIBuilder {
-    let client = match resolve_api_key(api_key, Provider::OpenAI) {
-        Some(key) => openai::Client::new(&key).expect("Failed to create OpenAI client"),
+    let (resolved_key, _source) = resolve_api_key(api_key, Provider::OpenAI);
+    let client = match resolved_key {
+        Some(key) => openai::Client::new(&key)
+            .expect("Failed to create OpenAI client with provided credentials"),
         None => openai::Client::from_env(),
     };
     client.completions_api().agent(model)
@@ -98,13 +153,20 @@ pub fn openai_builder(model: &str, api_key: Option<&str>) -> OpenAIBuilder {
 ///
 /// # Arguments
 /// * `model` - The model name to use
-/// * `api_key` - Optional API key. If not provided, falls back to `ANTHROPIC_API_KEY` env var.
+/// * `api_key` - Optional API key from config. Resolution order:
+///   1. Non-empty `api_key` parameter (from config)
+///   2. `ANTHROPIC_API_KEY` environment variable
+///   3. Client's `from_env()` (may panic if env var not set)
 ///
 /// # Panics
-/// Panics if no API key is available (neither in config nor env var).
+/// Panics if no API key is found in either:
+/// - The provided `api_key` parameter (if non-empty)
+/// - The `ANTHROPIC_API_KEY` environment variable
 pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> AnthropicBuilder {
-    let client = match resolve_api_key(api_key, Provider::Anthropic) {
-        Some(key) => anthropic::Client::new(&key).expect("Failed to create Anthropic client"),
+    let (resolved_key, _source) = resolve_api_key(api_key, Provider::Anthropic);
+    let client = match resolved_key {
+        Some(key) => anthropic::Client::new(&key)
+            .expect("Failed to create Anthropic client with provided credentials"),
         None => anthropic::Client::from_env(),
     };
     client.agent(model)
@@ -114,14 +176,75 @@ pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> AnthropicBuilder
 ///
 /// # Arguments
 /// * `model` - The model name to use
-/// * `api_key` - Optional API key. If not provided, falls back to `GOOGLE_API_KEY` env var.
+/// * `api_key` - Optional API key from config. Resolution order:
+///   1. Non-empty `api_key` parameter (from config)
+///   2. `GOOGLE_API_KEY` environment variable
+///   3. Client's `from_env()` (may panic if env var not set)
 ///
 /// # Panics
-/// Panics if no API key is available (neither in config nor env var).
+/// Panics if no API key is found in either:
+/// - The provided `api_key` parameter (if non-empty)
+/// - The `GOOGLE_API_KEY` environment variable
 pub fn gemini_builder(model: &str, api_key: Option<&str>) -> GeminiBuilder {
-    let client = match resolve_api_key(api_key, Provider::Google) {
-        Some(key) => gemini::Client::new(&key).expect("Failed to create Gemini client"),
+    let (resolved_key, _source) = resolve_api_key(api_key, Provider::Google);
+    let client = match resolved_key {
+        Some(key) => gemini::Client::new(&key)
+            .expect("Failed to create Gemini client with provided credentials"),
         None => gemini::Client::from_env(),
     };
     client.agent(model)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_api_key_uses_config_when_provided() {
+        // Config key takes precedence
+        let (key, source) =
+            resolve_api_key(Some("sk-config-key-1234567890"), Provider::OpenAI);
+        assert_eq!(key, Some("sk-config-key-1234567890".to_string()));
+        assert_eq!(source, ApiKeySource::Config);
+    }
+
+    #[test]
+    fn test_resolve_api_key_empty_config_not_used() {
+        // Empty config should NOT be treated as a valid key
+        // It should fall through to env var or client default
+        let empty_config: Option<&str> = Some("");
+        let (_key, source) = resolve_api_key(empty_config, Provider::OpenAI);
+
+        // Empty config should NOT return Config source
+        // This test verifies the empty string is treated as "not configured"
+        assert_ne!(source, ApiKeySource::Config);
+    }
+
+    #[test]
+    fn test_resolve_api_key_none_config_checks_env() {
+        // When config is None, should check env var
+        let (key, source) = resolve_api_key(None, Provider::OpenAI);
+
+        // Result depends on whether OPENAI_API_KEY is set in the environment
+        // We just verify the function doesn't panic and returns appropriate source
+        match source {
+            ApiKeySource::Environment => {
+                assert!(key.is_some());
+            }
+            ApiKeySource::ClientDefault => {
+                assert!(key.is_none());
+            }
+            ApiKeySource::Config => {
+                panic!("Should not return Config source when config is None");
+            }
+        }
+    }
+
+    #[test]
+    fn test_api_key_source_enum_equality() {
+        assert_eq!(ApiKeySource::Config, ApiKeySource::Config);
+        assert_eq!(ApiKeySource::Environment, ApiKeySource::Environment);
+        assert_eq!(ApiKeySource::ClientDefault, ApiKeySource::ClientDefault);
+        assert_ne!(ApiKeySource::Config, ApiKeySource::Environment);
+    }
 }
