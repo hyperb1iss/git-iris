@@ -64,7 +64,7 @@ impl DynAgent {
 
 /// Source of the resolved API key (for logging/debugging)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ApiKeySource {
+pub enum ApiKeySource {
     Config,
     Environment,
     ClientDefault,
@@ -92,7 +92,7 @@ fn validate_and_warn(key: &str, provider: Provider, source: &str) {
 /// Note: An empty string in config is treated as "not configured" and falls
 /// back to the environment variable. This allows users to override env vars
 /// in config while still supporting env-only setups.
-fn resolve_api_key(api_key: Option<&str>, provider: Provider) -> (Option<String>, ApiKeySource) {
+pub fn resolve_api_key(api_key: Option<&str>, provider: Provider) -> (Option<String>, ApiKeySource) {
     // If explicit key provided and non-empty, use it
     if let Some(key) = api_key {
         if !key.is_empty() {

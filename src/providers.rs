@@ -101,10 +101,9 @@ impl Provider {
         if let Some(prefix) = self.api_key_prefix() {
             if !key.starts_with(prefix) {
                 return Err(format!(
-                    "{} API key should start with '{}', got '{}'",
+                    "{} API key should start with '{}' (key has unexpected prefix)",
                     self.name(),
-                    prefix,
-                    &key[..key.len().min(6)] // Show first 6 chars safely
+                    prefix
                 ));
             }
         }
@@ -286,7 +285,10 @@ mod tests {
         // Long enough but wrong prefix
         let result = Provider::OpenAI.validate_api_key_format("wrong-prefix-1234567890abcdef");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("should start with"));
+        let err = result.unwrap_err();
+        assert!(err.contains("should start with"));
+        // Verify we don't expose the actual key prefix in error messages
+        assert!(!err.contains("wrong-"));
     }
 
     #[test]
@@ -294,6 +296,9 @@ mod tests {
         // Has sk- but not sk-ant- (might be OpenAI key used for Anthropic)
         let result = Provider::Anthropic.validate_api_key_format("sk-1234567890abcdefghijklmnop");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("sk-ant-"));
+        let err = result.unwrap_err();
+        assert!(err.contains("sk-ant-"));
+        // Verify we don't expose the actual key content
+        assert!(err.contains("unexpected prefix"));
     }
 }

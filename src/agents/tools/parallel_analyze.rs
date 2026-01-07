@@ -19,6 +19,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use crate::agents::debug as agent_debug;
+use crate::agents::provider::resolve_api_key;
 use crate::providers::Provider;
 
 /// Default timeout for individual subagent tasks (2 minutes)
@@ -96,25 +97,31 @@ impl SubagentRunner {
         }
     }
 
-    /// Create OpenAI client from API key or environment variable
+    /// Create OpenAI client using shared resolution logic
+    ///
+    /// Uses `resolve_api_key` from provider module to maintain consistent
+    /// resolution order: config → env var → client default
     fn resolve_openai_client(api_key: Option<&str>) -> Result<openai::Client> {
-        if let Some(key) = api_key.filter(|k| !k.is_empty()) {
-            openai::Client::new(key).map_err(|e| anyhow::anyhow!("Failed to create OpenAI client: {}", e))
-        } else if let Ok(key) = std::env::var(Provider::OpenAI.api_key_env()) {
-            openai::Client::new(&key).map_err(|e| anyhow::anyhow!("Failed to create OpenAI client: {}", e))
-        } else {
-            Ok(openai::Client::from_env())
+        let (resolved_key, _source) = resolve_api_key(api_key, Provider::OpenAI);
+        match resolved_key {
+            Some(key) => openai::Client::new(&key)
+                // Sanitize error to avoid exposing key material
+                .map_err(|_| anyhow::anyhow!("Failed to create OpenAI client: authentication or configuration error")),
+            None => Ok(openai::Client::from_env()),
         }
     }
 
-    /// Create Anthropic client from API key or environment variable
+    /// Create Anthropic client using shared resolution logic
+    ///
+    /// Uses `resolve_api_key` from provider module to maintain consistent
+    /// resolution order: config → env var → client default
     fn resolve_anthropic_client(api_key: Option<&str>) -> Result<anthropic::Client> {
-        if let Some(key) = api_key.filter(|k| !k.is_empty()) {
-            anthropic::Client::new(key).map_err(|e| anyhow::anyhow!("Failed to create Anthropic client: {}", e))
-        } else if let Ok(key) = std::env::var(Provider::Anthropic.api_key_env()) {
-            anthropic::Client::new(&key).map_err(|e| anyhow::anyhow!("Failed to create Anthropic client: {}", e))
-        } else {
-            Ok(anthropic::Client::from_env())
+        let (resolved_key, _source) = resolve_api_key(api_key, Provider::Anthropic);
+        match resolved_key {
+            Some(key) => anthropic::Client::new(&key)
+                // Sanitize error to avoid exposing key material
+                .map_err(|_| anyhow::anyhow!("Failed to create Anthropic client: authentication or configuration error")),
+            None => Ok(anthropic::Client::from_env()),
         }
     }
 
