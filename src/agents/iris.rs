@@ -490,10 +490,10 @@ Guidelines:
         match self.provider.as_str() {
             "openai" => {
                 // Build subagent
-                let sub_agent = build_subagent!(provider::openai_builder(fast_model, api_key));
+                let sub_agent = build_subagent!(provider::openai_builder(fast_model, api_key)?);
 
                 // Build main agent
-                let builder = provider::openai_builder(&self.model, api_key)
+                let builder = provider::openai_builder(&self.model, api_key)?
                     .preamble(preamble)
                     .max_tokens(16384);
                 let builder = self.apply_reasoning_defaults(builder);
@@ -503,10 +503,10 @@ Guidelines:
             }
             "anthropic" => {
                 // Build subagent
-                let sub_agent = build_subagent!(provider::anthropic_builder(fast_model, api_key));
+                let sub_agent = build_subagent!(provider::anthropic_builder(fast_model, api_key)?);
 
                 // Build main agent
-                let builder = provider::anthropic_builder(&self.model, api_key)
+                let builder = provider::anthropic_builder(&self.model, api_key)?
                     .preamble(preamble)
                     .max_tokens(16384);
                 let builder = self.apply_reasoning_defaults(builder);
@@ -516,10 +516,10 @@ Guidelines:
             }
             "google" | "gemini" => {
                 // Build subagent
-                let sub_agent = build_subagent!(provider::gemini_builder(fast_model, api_key));
+                let sub_agent = build_subagent!(provider::gemini_builder(fast_model, api_key)?);
 
                 // Build main agent
-                let builder = provider::gemini_builder(&self.model, api_key)
+                let builder = provider::gemini_builder(&self.model, api_key)?
                     .preamble(preamble)
                     .max_tokens(16384);
                 let builder = self.apply_reasoning_defaults(builder);
@@ -1058,7 +1058,7 @@ Guidelines:
 
         // Build subagent
         let sub_agent = crate::attach_core_tools!(
-            provider::openai_builder(fast_model, api_key)
+            provider::openai_builder(fast_model, api_key)?
                 .name("analyze_subagent")
                 .preamble("You are a specialized analysis sub-agent.")
                 .max_tokens(4096)
@@ -1066,7 +1066,7 @@ Guidelines:
         .build();
 
         // Build main agent with tools
-        let builder = provider::openai_builder(&self.model, api_key)
+        let builder = provider::openai_builder(&self.model, api_key)?
             .preamble(self.preamble.as_deref().unwrap_or("You are Iris."))
             .max_tokens(16384);
 
@@ -1110,7 +1110,7 @@ Guidelines:
 
         // Build subagent
         let sub_agent = crate::attach_core_tools!(
-            provider::anthropic_builder(fast_model, api_key)
+            provider::anthropic_builder(fast_model, api_key)?
                 .name("analyze_subagent")
                 .preamble("You are a specialized analysis sub-agent.")
                 .max_tokens(4096)
@@ -1118,7 +1118,7 @@ Guidelines:
         .build();
 
         // Build main agent with tools
-        let builder = provider::anthropic_builder(&self.model, api_key)
+        let builder = provider::anthropic_builder(&self.model, api_key)?
             .preamble(self.preamble.as_deref().unwrap_or("You are Iris."))
             .max_tokens(16384);
 
@@ -1162,7 +1162,7 @@ Guidelines:
 
         // Build subagent
         let sub_agent = crate::attach_core_tools!(
-            provider::gemini_builder(fast_model, api_key)
+            provider::gemini_builder(fast_model, api_key)?
                 .name("analyze_subagent")
                 .preamble("You are a specialized analysis sub-agent.")
                 .max_tokens(4096)
@@ -1170,7 +1170,7 @@ Guidelines:
         .build();
 
         // Build main agent with tools
-        let builder = provider::gemini_builder(&self.model, api_key)
+        let builder = provider::gemini_builder(&self.model, api_key)?
             .preamble(self.preamble.as_deref().unwrap_or("You are Iris."))
             .max_tokens(16384);
 

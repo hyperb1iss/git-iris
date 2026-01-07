@@ -210,21 +210,21 @@ impl StatusMessageGenerator {
 
         match provider {
             "openai" => {
-                let agent = provider::openai_builder(fast_model, api_key)
+                let agent = provider::openai_builder(fast_model, api_key)?
                     .preamble(preamble)
                     .max_tokens(50)
                     .build();
                 Ok(DynAgent::OpenAI(agent))
             }
             "anthropic" => {
-                let agent = provider::anthropic_builder(fast_model, api_key)
+                let agent = provider::anthropic_builder(fast_model, api_key)?
                     .preamble(preamble)
                     .max_tokens(50)
                     .build();
                 Ok(DynAgent::Anthropic(agent))
             }
             "google" | "gemini" => {
-                let agent = provider::gemini_builder(fast_model, api_key)
+                let agent = provider::gemini_builder(fast_model, api_key)?
                     .preamble(preamble)
                     .max_tokens(50)
                     .build();

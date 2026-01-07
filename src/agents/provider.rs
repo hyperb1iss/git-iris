@@ -3,6 +3,7 @@
 //! This module provides runtime provider selection using enum dispatch,
 //! allowing git-iris to work with any supported provider based on config.
 
+use anyhow::{Context, Result};
 use rig::{
     agent::{Agent, AgentBuilder, PromptResponse},
     client::{CompletionClient, ProviderClient},
@@ -133,20 +134,18 @@ pub fn resolve_api_key(api_key: Option<&str>, provider: Provider) -> (Option<Str
 /// * `api_key` - Optional API key from config. Resolution order:
 ///   1. Non-empty `api_key` parameter (from config)
 ///   2. `OPENAI_API_KEY` environment variable
-///   3. Client's `from_env()` (may panic if env var not set)
+///   3. Client's `from_env()` (requires env var to be set)
 ///
-/// # Panics
-/// Panics if no API key is found in either:
-/// - The provided `api_key` parameter (if non-empty)
-/// - The `OPENAI_API_KEY` environment variable
-pub fn openai_builder(model: &str, api_key: Option<&str>) -> OpenAIBuilder {
+/// # Errors
+/// Returns an error if client creation fails (invalid credentials or missing env var).
+pub fn openai_builder(model: &str, api_key: Option<&str>) -> Result<OpenAIBuilder> {
     let (resolved_key, _source) = resolve_api_key(api_key, Provider::OpenAI);
     let client = match resolved_key {
         Some(key) => openai::Client::new(&key)
-            .expect("Failed to create OpenAI client with provided credentials"),
+            .context("Failed to create OpenAI client with provided credentials")?,
         None => openai::Client::from_env(),
     };
-    client.completions_api().agent(model)
+    Ok(client.completions_api().agent(model))
 }
 
 /// Create an Anthropic agent builder
@@ -156,20 +155,18 @@ pub fn openai_builder(model: &str, api_key: Option<&str>) -> OpenAIBuilder {
 /// * `api_key` - Optional API key from config. Resolution order:
 ///   1. Non-empty `api_key` parameter (from config)
 ///   2. `ANTHROPIC_API_KEY` environment variable
-///   3. Client's `from_env()` (may panic if env var not set)
+///   3. Client's `from_env()` (requires env var to be set)
 ///
-/// # Panics
-/// Panics if no API key is found in either:
-/// - The provided `api_key` parameter (if non-empty)
-/// - The `ANTHROPIC_API_KEY` environment variable
-pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> AnthropicBuilder {
+/// # Errors
+/// Returns an error if client creation fails (invalid credentials or missing env var).
+pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> Result<AnthropicBuilder> {
     let (resolved_key, _source) = resolve_api_key(api_key, Provider::Anthropic);
     let client = match resolved_key {
         Some(key) => anthropic::Client::new(&key)
-            .expect("Failed to create Anthropic client with provided credentials"),
+            .context("Failed to create Anthropic client with provided credentials")?,
         None => anthropic::Client::from_env(),
     };
-    client.agent(model)
+    Ok(client.agent(model))
 }
 
 /// Create a Gemini agent builder
@@ -179,20 +176,18 @@ pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> AnthropicBuilder
 /// * `api_key` - Optional API key from config. Resolution order:
 ///   1. Non-empty `api_key` parameter (from config)
 ///   2. `GOOGLE_API_KEY` environment variable
-///   3. Client's `from_env()` (may panic if env var not set)
+///   3. Client's `from_env()` (requires env var to be set)
 ///
-/// # Panics
-/// Panics if no API key is found in either:
-/// - The provided `api_key` parameter (if non-empty)
-/// - The `GOOGLE_API_KEY` environment variable
-pub fn gemini_builder(model: &str, api_key: Option<&str>) -> GeminiBuilder {
+/// # Errors
+/// Returns an error if client creation fails (invalid credentials or missing env var).
+pub fn gemini_builder(model: &str, api_key: Option<&str>) -> Result<GeminiBuilder> {
     let (resolved_key, _source) = resolve_api_key(api_key, Provider::Google);
     let client = match resolved_key {
         Some(key) => gemini::Client::new(&key)
-            .expect("Failed to create Gemini client with provided credentials"),
+            .context("Failed to create Gemini client with provided credentials")?,
         None => gemini::Client::from_env(),
     };
-    client.agent(model)
+    Ok(client.agent(model))
 }
 
 #[cfg(test)]
