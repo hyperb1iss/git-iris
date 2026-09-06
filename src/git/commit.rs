@@ -1,9 +1,9 @@
 use crate::context::{ChangeType, RecentCommit, StagedFile};
 use crate::git::utils::{is_binary_diff, should_exclude_file};
 use crate::log_debug;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use chrono;
-use git2::{FileMode, Repository, Status};
+use git2::{Delta, FileMode, Repository};
 
 /// Results from a commit operation
 #[derive(Debug)]
@@ -46,58 +46,36 @@ pub fn commit(repo: &Repository, message: &str, is_remote: bool) -> Result<Commi
     let mut index = repo.index()?;
     let tree_id = index.write_tree()?;
     let tree = repo.find_tree(tree_id)?;
-    let parent_commit = repo.head()?.peel_to_commit()?;
+    let parent_commit = match repo.head() {
+        Ok(head) => Some(head.peel_to_commit()?),
+        Err(error) if error.code() == git2::ErrorCode::UnbornBranch => None,
+        Err(error) => return Err(error.into()),
+    };
+    let parents: Vec<_> = parent_commit.iter().collect();
     let commit_oid = repo.commit(
         Some("HEAD"),
         &signature,
         &signature,
         message,
         &tree,
-        &[&parent_commit],
+        &parents,
     )?;
 
     let branch_name = repo.head()?.shorthand().unwrap_or("HEAD").to_string();
     let commit = repo.find_commit(commit_oid)?;
     let short_hash = commit.id().to_string()[..7].to_string();
 
-    let mut files_changed = 0;
-    let mut insertions = 0;
-    let mut deletions = 0;
-    let mut new_files = Vec::new();
-
-    let diff = repo.diff_tree_to_tree(Some(&parent_commit.tree()?), Some(&tree), None)?;
-
-    diff.print(git2::DiffFormat::NameStatus, |_, _, line| {
-        files_changed += 1;
-        if line.origin() == '+' {
-            insertions += 1;
-        } else if line.origin() == '-' {
-            deletions += 1;
-        }
-        true
-    })?;
-
-    let statuses = repo.statuses(None)?;
-    for entry in statuses.iter() {
-        if entry.status().contains(Status::INDEX_NEW) {
-            new_files.push((
-                entry.path().context("Could not get path")?.to_string(),
-                entry
-                    .index_to_workdir()
-                    .context("Could not get index to workdir")?
-                    .new_file()
-                    .mode(),
-            ));
-        }
-    }
+    let parent_tree = parent_commit.as_ref().map(git2::Commit::tree).transpose()?;
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+    let stats = diff.stats()?;
 
     Ok(CommitResult {
         branch: branch_name,
         commit_hash: short_hash,
-        files_changed,
-        insertions,
-        deletions,
-        new_files,
+        files_changed: stats.files_changed(),
+        insertions: stats.insertions(),
+        deletions: stats.deletions(),
+        new_files: added_files(&diff),
     })
 }
 
@@ -135,7 +113,7 @@ pub fn amend_commit(repo: &Repository, message: &str, is_remote: bool) -> Result
     // Amend the HEAD commit with the new tree and message
     let commit_oid = head_commit.amend(
         Some("HEAD"),     // Update the HEAD reference
-        Some(&signature), // New author (use current)
+        None,             // Preserve the original author and author date
         Some(&signature), // New committer (use current)
         None,             // Keep original encoding
         Some(message),    // New message
@@ -146,12 +124,6 @@ pub fn amend_commit(repo: &Repository, message: &str, is_remote: bool) -> Result
     let commit = repo.find_commit(commit_oid)?;
     let short_hash = commit.id().to_string()[..7].to_string();
 
-    // Calculate diff stats from the original parent to the new tree
-    let mut files_changed = 0;
-    let mut insertions = 0;
-    let mut deletions = 0;
-    let new_files = Vec::new();
-
     // Use the first parent for diff (or empty tree if initial commit)
     let parent_tree = if head_commit.parent_count() > 0 {
         Some(head_commit.parent(0)?.tree()?)
@@ -160,31 +132,33 @@ pub fn amend_commit(repo: &Repository, message: &str, is_remote: bool) -> Result
     };
     let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
 
-    diff.print(git2::DiffFormat::NameStatus, |_, _, line| {
-        files_changed += 1;
-        if line.origin() == '+' {
-            insertions += 1;
-        } else if line.origin() == '-' {
-            deletions += 1;
-        }
-        true
-    })?;
+    let stats = diff.stats()?;
 
     log_debug!(
         "Amended commit {} -> {} with {} files changed",
         &head_commit.id().to_string()[..7],
         short_hash,
-        files_changed
+        stats.files_changed()
     );
 
     Ok(CommitResult {
         branch: branch_name,
         commit_hash: short_hash,
-        files_changed,
-        insertions,
-        deletions,
-        new_files,
+        files_changed: stats.files_changed(),
+        insertions: stats.insertions(),
+        deletions: stats.deletions(),
+        new_files: added_files(&diff),
     })
+}
+
+fn added_files(diff: &git2::Diff<'_>) -> Vec<(String, FileMode)> {
+    diff.deltas()
+        .filter(|delta| delta.status() == Delta::Added)
+        .filter_map(|delta| {
+            let file = delta.new_file();
+            Some((file.path()?.to_string_lossy().into_owned(), file.mode()))
+        })
+        .collect()
 }
 
 /// Gets the message of the HEAD commit.
