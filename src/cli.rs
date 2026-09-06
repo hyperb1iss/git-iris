@@ -916,8 +916,20 @@ async fn handle_review(
         .git_repo()
         .and_then(|repo| repo.get_default_base_ref().ok())
         .unwrap_or_else(|| "main".to_string());
-    let context =
+    let mut context =
         TaskContext::for_review_with_base(commit, from, to, include_unstaged, &default_base)?;
+    let publication = if output.github_review {
+        let git_repo = service
+            .git_repo()
+            .ok_or_else(|| anyhow::anyhow!("GitHub publishing requires a git repository"))?;
+        let github = GitHubClient::from_git_repo(git_repo)?;
+        let number = github.resolve_pull_number(pull_number, git_repo).await?;
+        let target = github.review_target(number).await?;
+        context = target.pin_context(git_repo, context)?;
+        Some((github, number, target))
+    } else {
+        None
+    };
     let response = service.execute_task("review", context).await?;
 
     // Finish spinner
@@ -930,12 +942,7 @@ async fn handle_review(
         _ => response.to_string(),
     };
 
-    if output.github_review {
-        let git_repo = service
-            .git_repo()
-            .ok_or_else(|| anyhow::anyhow!("GitHub publishing requires a git repository"))?;
-        let github = GitHubClient::from_git_repo(git_repo)?;
-        let number = github.resolve_pull_number(pull_number, git_repo).await?;
+    if let Some((github, number, target)) = publication {
         let publish_options = ReviewPublishOptions {
             event: output.github_review_event.into(),
             inline_comments: output.github_inline_comments,
@@ -943,12 +950,12 @@ async fn handle_review(
         match &response {
             StructuredResponse::Review(review) => {
                 github
-                    .publish_structured_review(number, review, publish_options)
+                    .publish_structured_review(number, review, publish_options, &target)
                     .await?;
             }
             _ => {
                 github
-                    .publish_review(number, &review_content, publish_options)
+                    .publish_review(number, &review_content, publish_options, &target)
                     .await?;
             }
         }

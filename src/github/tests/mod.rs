@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+mod review_target_tests;
+
 use crate::types::{
     Category, EvidenceRef, Finding, FindingId, Review, ReviewMetadata, ReviewStats, Severity,
 };

@@ -11,6 +11,9 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use url::Url;
 
+mod review_target;
+pub use review_target::ReviewTarget;
+
 static BACKTICK_LOCATION_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"`([^`\s]+):(\d+)`").expect("backtick location regex should compile")
 });
@@ -108,9 +111,15 @@ impl GitHubClient {
         pull_number: u64,
         body: &str,
         options: ReviewPublishOptions,
+        target: &ReviewTarget,
     ) -> Result<GitHubReview> {
-        self.publish_review_with_comments(pull_number, ReviewSource::Markdown(body), options)
-            .await
+        self.publish_review_with_comments(
+            pull_number,
+            ReviewSource::Markdown(body),
+            options,
+            target,
+        )
+        .await
     }
 
     pub async fn publish_structured_review(
@@ -118,9 +127,15 @@ impl GitHubClient {
         pull_number: u64,
         review: &CodeReview,
         options: ReviewPublishOptions,
+        target: &ReviewTarget,
     ) -> Result<GitHubReview> {
-        self.publish_review_with_comments(pull_number, ReviewSource::Structured(review), options)
-            .await
+        self.publish_review_with_comments(
+            pull_number,
+            ReviewSource::Structured(review),
+            options,
+            target,
+        )
+        .await
     }
 
     async fn publish_review_with_comments(
@@ -128,6 +143,7 @@ impl GitHubClient {
         pull_number: u64,
         review: ReviewSource<'_>,
         options: ReviewPublishOptions,
+        target: &ReviewTarget,
     ) -> Result<GitHubReview> {
         let pull = self
             .crab
@@ -135,12 +151,17 @@ impl GitHubClient {
             .get(pull_number)
             .await
             .with_context(|| format!("Failed to fetch PR #{pull_number}"))?;
-        let review_body = review.body(&self.repo, &pull.head.sha);
+        target.validate(&pull.base.ref_field, &pull.head.sha)?;
+        let review_body = review.body(&self.repo, &target.head_sha);
         let comments = if options.inline_comments {
             self.validated_inline_comments(pull_number, review).await?
         } else {
             Vec::new()
         };
+
+        // The diff endpoint is mutable; recheck after retrieving inline locations.
+        let current = self.review_target(pull_number).await?;
+        target.validate(&current.base_ref, &current.head_sha)?;
 
         let route = format!(
             "/repos/{owner}/{repo}/pulls/{pull_number}/reviews",
@@ -150,7 +171,7 @@ impl GitHubClient {
         let payload = serde_json::json!({
             "body": review_body,
             "event": options.event,
-            "commit_id": pull.head.sha,
+            "commit_id": target.head_sha,
             "comments": comments,
         });
 
@@ -162,6 +183,21 @@ impl GitHubClient {
 
     pub fn repo(&self) -> &GitHubRepository {
         &self.repo
+    }
+
+    /// Capture the immutable commits before generating a pull-request review.
+    pub async fn review_target(&self, pull_number: u64) -> Result<ReviewTarget> {
+        let pull = self
+            .crab
+            .pulls(&self.repo.owner, &self.repo.name)
+            .get(pull_number)
+            .await
+            .with_context(|| format!("Failed to fetch PR #{pull_number}"))?;
+        Ok(ReviewTarget {
+            base_ref: pull.base.ref_field,
+            base_sha: pull.base.sha,
+            head_sha: pull.head.sha,
+        })
     }
 
     async fn find_open_pull_for_branch(&self, branch: &str) -> Result<u64> {
@@ -392,6 +428,8 @@ fn github_remote_url(repo: &GitRepo) -> Result<String> {
             let remotes = raw_repo.remotes()?;
             let remote_name = remotes
                 .iter()
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
                 .flatten()
                 .next()
                 .ok_or(git2::Error::from_str("No git remotes configured"))?;
@@ -402,7 +440,7 @@ fn github_remote_url(repo: &GitRepo) -> Result<String> {
     remote
         .url()
         .map(std::string::ToString::to_string)
-        .ok_or_else(|| anyhow!("Git remote has no URL"))
+        .context("Git remote has no valid URL")
 }
 
 fn single_pull_number(pulls: &[PullRequest]) -> Option<u64> {
