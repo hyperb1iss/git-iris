@@ -52,13 +52,14 @@ This displays your active provider, model, presets, and all configured providers
 
 ## Provider Details
 
-Git-Iris supports three LLM providers with different strengths:
+Git-Iris supports five providers. Direct-provider defaults are listed below; see
+[Providers](../configuration/providers) for OpenRouter and Fireworks setup.
 
-| Provider      | Default Model        | Fast Model                | Context Window | Best For                          |
-| ------------- | -------------------- | ------------------------- | -------------- | --------------------------------- |
-| **openai**    | gpt-5.4              | gpt-5.4-mini              | 128K           | General purpose, fast             |
-| **anthropic** | claude-opus-4-6      | claude-haiku-4-5-20251001 | 200K           | Deep analysis, code understanding |
-| **google**    | gemini-3-pro-preview | gemini-2.5-flash          | 1M             | Massive context windows           |
+| Provider      | Default Model    | Fast Model                | Context Window | Best For                          |
+| ------------- | ---------------- | ------------------------- | -------------- | --------------------------------- |
+| **openai**    | gpt-6-astra      | gpt-5.6-luna              | 1.05M          | General purpose, fast             |
+| **anthropic** | claude-opus-5    | claude-haiku-4-5-20251001 | 1M             | Deep analysis, code understanding |
+| **google**    | gemini-3.8-flash | gemini-3.5-flash-lite     | 1M             | Massive context windows           |
 
 **Fast models** are used for simple tasks like status updates and parsing. The primary model handles complex analysis.
 
@@ -67,13 +68,13 @@ Git-Iris supports three LLM providers with different strengths:
 Set a custom model for your provider:
 
 ```bash
-git-iris config --provider anthropic --model claude-opus-4-6
+git-iris config --provider anthropic --model claude-opus-5
 ```
 
 Set a custom fast model:
 
 ```bash
-git-iris config --provider openai --fast-model gpt-5.4-mini
+git-iris config --provider openai --fast-model gpt-5.6-luna
 ```
 
 ### Token Limits
@@ -159,8 +160,8 @@ git-iris config --provider openai \
   --param text='{"verbosity":"low"}'
 ```
 
-For OpenAI reasoning models, prefer `--token-limit` for output-token budgets instead of manually
-setting legacy token params in `--param`.
+The `--token-limit` option records context-window metadata. It does not control generation output
+budgets. See [Model Selection](../configuration/models) for role defaults.
 
 ## Project Configuration
 
@@ -177,7 +178,7 @@ git-iris project-config --provider openai --preset conventional
 Set a model for the project:
 
 ```bash
-git-iris project-config --model gpt-5.4
+git-iris project-config --model gpt-6-astra
 ```
 
 Set project PR instructions:
@@ -336,18 +337,18 @@ theme = "silkcircuit-neon"
 
 [providers.openai]
 api_key = "sk-..."
-model = "gpt-5.4"
-fast_model = "gpt-5.4-mini"
+model = "gpt-6-astra"
+fast_model = "gpt-5.6-luna"
 
 [providers.anthropic]
 api_key = "sk-ant-..."
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 fast_model = "claude-haiku-4-5-20251001"
 
 [providers.google]
 api_key = "AIza..."
-model = "gemini-3-pro-preview"
-fast_model = "gemini-2.5-flash"
+model = "gemini-3.8-flash"
+fast_model = "gemini-3.5-flash-lite"
 ```
 
 You can edit this manually if you prefer, but the `git-iris config` command is safer.

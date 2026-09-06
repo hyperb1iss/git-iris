@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Git-Iris is built on an **agent-first architecture** where intelligent decisions are made by Iris, an LLM-driven agent powered by [rig-core 0.37](https://docs.rs/rig-core/0.37.0) (imported as `rig`). Rather than dumping context upfront, Iris dynamically explores codebases using tool calls, gathering precisely what she needs.
+Git-Iris is built on an **agent-first architecture** where intelligent decisions are made by Iris, an LLM-driven agent powered by [Rig 0.42](https://docs.rs/rig/0.42.0). Rather than dumping context upfront, Iris dynamically explores codebases using tool calls, gathering precisely what she needs.
 
 ## Core Philosophy
 
@@ -237,11 +237,11 @@ Each subagent:
 
 Git-Iris supports multiple LLM providers through rig's unified interface. There is no `DynClientBuilder`; instead `IrisAgent::build_agent` dispatches on the configured provider string and calls one of `provider::openai_builder`, `provider::anthropic_builder`, or `provider::gemini_builder`, returning a `DynAgent` enum that wraps the provider-specific `Agent<M>`.
 
-| Provider  | Default Model          | Fast Model                  |
-| --------- | ---------------------- | --------------------------- |
-| OpenAI    | `gpt-5.4`              | `gpt-5.4-mini`              |
-| Anthropic | `claude-opus-4-6`      | `claude-haiku-4-5-20251001` |
-| Google    | `gemini-3-pro-preview` | `gemini-2.5-flash`          |
+| Provider  | Default Model      | Fast Model                  |
+| --------- | ------------------ | --------------------------- |
+| OpenAI    | `gpt-6-astra`      | `gpt-5.6-luna`              |
+| Anthropic | `claude-opus-5`    | `claude-haiku-4-5-20251001` |
+| Google    | `gemini-3.8-flash` | `gemini-3.5-flash-lite`     |
 
 Provider switching is transparent — the same capabilities and tools work across all backends.
 

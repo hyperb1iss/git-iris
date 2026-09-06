@@ -43,11 +43,11 @@ Press `/` in any mode to chat with Iris. Ask her to refine content, explain chan
 
 Work with your preferred LLM:
 
-| Provider      | Default Model        | Context Window |
-| ------------- | -------------------- | -------------- |
-| **OpenAI**    | gpt-5.4              | 128K tokens    |
-| **Anthropic** | claude-opus-4-6      | 200K tokens    |
-| **Google**    | gemini-3-pro-preview | 1M tokens      |
+| Provider      | Default Model    | Context Window |
+| ------------- | ---------------- | -------------- |
+| **OpenAI**    | gpt-6-astra      | 1.05M tokens   |
+| **Anthropic** | claude-opus-5    | 1M tokens      |
+| **Google**    | gemini-3.8-flash | 1M tokens      |
 
 Switch providers instantly—configuration is shared across your system.
 

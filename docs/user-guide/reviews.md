@@ -41,15 +41,15 @@ git-iris review [FLAGS] [OPTIONS]
 
 ### Global Options
 
-| Option                      | Description                                                        |
-| --------------------------- | ------------------------------------------------------------------ |
-| `--provider <name>`         | Override LLM provider                                              |
-| `--model <name>`            | Override model for this operation                                  |
-| `-r, --repo <url>`          | Run against a remote repository URL instead of the local repo      |
-| `--preset <name>`           | Use instruction preset                                             |
-| `-i, --instructions "text"` | Custom review focus                                                |
+| Option                      | Description                                                             |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `--provider <name>`         | Override LLM provider                                                   |
+| `--model <name>`            | Override model for this operation                                       |
+| `-r, --repo <url>`          | Run against a remote repository URL instead of the local repo           |
+| `--preset <name>`           | Use instruction preset                                                  |
+| `-i, --instructions "text"` | Custom review focus                                                     |
 | `--critic` / `--no-critic`  | Run or skip the critic verification pass after generation (default: on) |
-| `--debug`                   | Show agent execution details                                       |
+| `--debug`                   | Show agent execution details                                            |
 
 ## Review Modes
 
@@ -107,20 +107,20 @@ git-iris review --from develop --to feature-xyz
 
 Each finding Iris produces is tagged with one of these categories (the `Category` enum in source):
 
-| Category           | Focus                                                          |
-| ------------------ | -------------------------------------------------------------- |
-| **security**       | Vulnerabilities, unsafe patterns, missing input validation     |
-| **performance**    | Inefficient algorithms, resource leaks, hot-path regressions   |
-| **error_handling** | Edge cases, error propagation, recovery gaps                   |
-| **complexity**     | Deep nesting, god functions, hard-to-reason logic              |
-| **abstraction**    | Leaky abstractions, unclear separation of concerns             |
-| **duplication**    | Copy-pasted code, repeated logic                               |
-| **testing**        | Gaps in coverage, brittle or missing tests                     |
-| **style**          | Inconsistencies, naming, formatting                            |
-| **api_contract**   | Breaking changes, public surface drift                         |
-| **concurrency**    | Race conditions, locking errors, async correctness             |
-| **documentation** | Missing or misleading docs and comments                        |
-| **other**          | Anything that doesn't fit cleanly above                        |
+| Category           | Focus                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| **security**       | Vulnerabilities, unsafe patterns, missing input validation   |
+| **performance**    | Inefficient algorithms, resource leaks, hot-path regressions |
+| **error_handling** | Edge cases, error propagation, recovery gaps                 |
+| **complexity**     | Deep nesting, god functions, hard-to-reason logic            |
+| **abstraction**    | Leaky abstractions, unclear separation of concerns           |
+| **duplication**    | Copy-pasted code, repeated logic                             |
+| **testing**        | Gaps in coverage, brittle or missing tests                   |
+| **style**          | Inconsistencies, naming, formatting                          |
+| **api_contract**   | Breaking changes, public surface drift                       |
+| **concurrency**    | Race conditions, locking errors, async correctness           |
+| **documentation**  | Missing or misleading docs and comments                      |
+| **other**          | Anything that doesn't fit cleanly above                      |
 
 ## Output Format
 
@@ -140,6 +140,7 @@ Risk: medium
 Strategy: Plan → run targeted specialist passes → reconcile findings.
 
 Specialist passes:
+
 - Security pass on auth changes
 - Concurrency pass on the session manager
 
@@ -238,7 +239,7 @@ git-iris review --raw | pandoc -f markdown -t html
 
 ### GitHub Review Publishing
 
-Publish the generated review directly to an open GitHub PR:
+Publish a review of an open GitHub PR:
 
 ```bash
 # Auto-detect the PR from the current branch
@@ -254,7 +255,16 @@ git-iris review --github-review --github-review-event request-changes
 git-iris review --github-review --github-inline-comments
 ```
 
-When `--github-inline-comments` is set, every finding at or above the 70% confidence gate posts an inline comment directly on the cited file and line range — no extra heuristic matching required, since findings carry structured locations.
+Publishing resolves the PR before analysis and pins its base and head commits. Without an explicit
+commit or range, Iris reviews the PR from its merge base to its head. The commits must be available
+locally. An explicit `--commit` or `--to` must match the PR head; unpublished working-tree changes
+cannot be attached to a GitHub commit review. If the PR head changes or the PR targets a different
+base branch during analysis, publication stops and asks for a new review. Normal base-branch
+advancement does not discard the analysis. A push after the final check cannot relabel the review onto newer code:
+the submitted review retains the analyzed commit ID.
+
+When `--github-inline-comments` is set, findings at or above the 70% confidence gate are matched to
+reviewable lines in the PR diff. Findings outside those lines remain in the review body.
 
 The review body is also augmented with a `## GitHub Permalinks` section listing one permalink per visible finding back to the exact commit and lines, so reviewers can jump straight to the code.
 

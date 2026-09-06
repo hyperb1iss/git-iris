@@ -111,7 +111,7 @@ jobs:
     command: release-notes
     from: v1.0.0
     provider: openai
-    model: gpt-5.4
+    model: gpt-6-astra
     api-key: ${{ secrets.OPENAI_API_KEY }}
 ```
 

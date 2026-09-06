@@ -9,7 +9,7 @@
 
 ## Architecture Overview
 
-Git-Iris uses an agent-first architecture powered by **Iris**, an LLM-driven agent built on the [Rig framework](https://docs.rs/rig-core). Iris dynamically explores codebases using tool calls rather than dumping all context upfront.
+Git-Iris uses an agent-first architecture powered by **Iris**, an LLM-driven agent built on the [Rig framework](https://docs.rs/rig/0.42.0). Iris dynamically explores codebases using tool calls rather than dumping all context upfront.
 
 ### Core Principles
 
@@ -233,36 +233,36 @@ Iris can update content directly through tools:
 
 Each capability is defined in `src/agents/capabilities/*.toml`:
 
-| Capability        | Output Type            | Description                                                        |
-| ----------------- | ---------------------- | ------------------------------------------------------------------ |
-| `commit`          | `GeneratedMessage`     | Commit messages with emoji/title/body                              |
-| `review`          | `Review`               | Structured code review with findings, severity, confidence, GitHub inline links |
-| `pr`              | `MarkdownPullRequest`  | Pull request descriptions                                          |
-| `changelog`       | `MarkdownChangelog`    | Keep a Changelog format                                            |
-| `release_notes`   | `MarkdownReleaseNotes` | Release documentation                                              |
-| `chat`            | Varies                 | Interactive conversation                                           |
-| `semantic_blame`  | `SemanticBlame`        | "Why does this code exist?" history-aware explanation              |
-| `verify`          | `Critique`             | Critic verification pass — internal, runs after generation         |
+| Capability       | Output Type            | Description                                                                     |
+| ---------------- | ---------------------- | ------------------------------------------------------------------------------- |
+| `commit`         | `GeneratedMessage`     | Commit messages with emoji/title/body                                           |
+| `review`         | `Review`               | Structured code review with findings, severity, confidence, GitHub inline links |
+| `pr`             | `MarkdownPullRequest`  | Pull request descriptions                                                       |
+| `changelog`      | `MarkdownChangelog`    | Keep a Changelog format                                                         |
+| `release_notes`  | `MarkdownReleaseNotes` | Release documentation                                                           |
+| `chat`           | Varies                 | Interactive conversation                                                        |
+| `semantic_blame` | `SemanticBlame`        | "Why does this code exist?" history-aware explanation                           |
+| `verify`         | `Critique`             | Critic verification pass — internal, runs after generation                      |
 
 ### Tools Available to Iris
 
-| Tool                                                       | Purpose                                                   |
-| ---------------------------------------------------------- | --------------------------------------------------------- |
-| `git_diff(detail, from, to, files)`                        | Get changes with relevance scores; optional file filter   |
-| `git_log(count, from, to)`                                 | Recent commit history for style reference                 |
-| `git_status()`                                             | Repository status                                         |
-| `git_changed_files(from, to)`                              | List of changed files                                     |
-| `git_show(commit, files, max_output_chars)`                | Inspect a historical commit (truncated to budget)         |
-| `git_blame(file, start_line, end_line, recent_commits)`    | Line history and recent file commits                      |
-| `git_repo_info()`                                          | Branch, remote, default-base metadata                     |
-| `file_read(path, start, end)`                              | Read targeted file content and excerpts                   |
-| `code_search()`                                            | Search for patterns, functions, classes                   |
-| `repo_map(token_budget, mentioned_files, max_files)`       | Ranked codebase orientation map                           |
-| `static_analysis(analyzer, timeout_secs, max_output_chars)`| Run rust/python/javascript/go linters directly            |
-| `project_docs(doc_type)`                                   | Read README, AGENTS.md, CLAUDE.md                         |
-| `workspace()`                                              | Iris's notes and task tracking                            |
-| `parallel_analyze()`                                       | Concurrent subagent processing (per-call `max_turns`)     |
-| `update_commit()` / `update_pr()` / `update_review()`      | Chat: update generated content in place                   |
+| Tool                                                        | Purpose                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------- |
+| `git_diff(detail, from, to, files)`                         | Get changes with relevance scores; optional file filter |
+| `git_log(count, from, to)`                                  | Recent commit history for style reference               |
+| `git_status()`                                              | Repository status                                       |
+| `git_changed_files(from, to)`                               | List of changed files                                   |
+| `git_show(commit, files, max_output_chars)`                 | Inspect a historical commit (truncated to budget)       |
+| `git_blame(file, start_line, end_line, recent_commits)`     | Line history and recent file commits                    |
+| `git_repo_info()`                                           | Branch, remote, default-base metadata                   |
+| `file_read(path, start, end)`                               | Read targeted file content and excerpts                 |
+| `code_search()`                                             | Search for patterns, functions, classes                 |
+| `repo_map(token_budget, mentioned_files, max_files)`        | Ranked codebase orientation map                         |
+| `static_analysis(analyzer, timeout_secs, max_output_chars)` | Run rust/python/javascript/go linters directly          |
+| `project_docs(doc_type)`                                    | Read README, AGENTS.md, CLAUDE.md                       |
+| `workspace()`                                               | Iris's notes and task tracking                          |
+| `parallel_analyze()`                                        | Concurrent subagent processing (per-call `max_turns`)   |
+| `update_commit()` / `update_pr()` / `update_review()`       | Chat: update generated content in place                 |
 
 The four extraction tools — `repo_map`, `git_blame`, `git_show`, and `static_analysis` — are **core tools**, attached to every main agent and subagent via `attach_core_tools!` in `src/agents/tools/registry.rs` (`CORE_TOOLS`, 11 entries).
 
@@ -270,11 +270,11 @@ The four extraction tools — `repo_map`, `git_blame`, `git_show`, and `static_a
 
 Iris adapts her approach based on changeset size:
 
-| Scenario                              | Strategy                                              |
-| ------------------------------------- | ----------------------------------------------------- |
-| Small (≤3 files, <100 lines total)    | Full context for all files                            |
-| Medium (≤10 files, <500 lines total)  | Prioritize files with >60% relevance score            |
-| Large (everything else)               | Summaries by default; `parallel_analyze` for breadth  |
+| Scenario                             | Strategy                                             |
+| ------------------------------------ | ---------------------------------------------------- |
+| Small (≤3 files, <100 lines total)   | Full context for all files                           |
+| Medium (≤10 files, <500 lines total) | Prioritize files with >60% relevance score           |
+| Large (everything else)              | Summaries by default; `parallel_analyze` for breadth |
 
 Thresholds live in `format_diff_output` in `src/agents/tools/git.rs`. Iris also gets per-call control via `parallel_analyze`'s `max_turns` and the configurable `subagent_timeout_secs` / `subagent_max_turns` budgets.
 
@@ -301,13 +301,13 @@ Instructions for Iris...
 
 Iris produces structured responses (all in `src/types/`):
 
-| Type                   | Format   | Description                                                          |
-| ---------------------- | -------- | -------------------------------------------------------------------- |
-| `GeneratedMessage`     | JSON     | `{ emoji, title, message, completion_message }`                      |
-| `MarkdownPullRequest`  | Markdown | `{ content: String }`                                                |
+| Type                   | Format   | Description                                                                      |
+| ---------------------- | -------- | -------------------------------------------------------------------------------- |
+| `GeneratedMessage`     | JSON     | `{ emoji, title, message, completion_message }`                                  |
+| `MarkdownPullRequest`  | Markdown | `{ content: String }`                                                            |
 | `Review`               | JSON     | `{ summary, metadata, findings[], stats }` — structured findings with confidence |
-| `MarkdownChangelog`    | Markdown | `{ content: String }`                                                |
-| `MarkdownReleaseNotes` | Markdown | `{ content: String }`                                                |
+| `MarkdownChangelog`    | Markdown | `{ content: String }`                                                            |
+| `MarkdownReleaseNotes` | Markdown | `{ content: String }`                                                            |
 
 The `Markdown*` types use a simple wrapper, letting the LLM drive format while capability TOMLs provide guidelines. `Review` is fully structured — findings carry severity, category, file/line citations, and a confidence score. Findings are gated at confidence ≥ 70 for terminal display and GitHub inline publishing.
 
@@ -463,20 +463,22 @@ Or use CLI:
 
 ```bash
 git-iris config --provider anthropic --api-key YOUR_KEY
-git-iris config --provider anthropic --model claude-opus-4-6
+git-iris config --provider anthropic --model claude-opus-5
 ```
 
 ### Provider Details
 
-| Provider  | Default Model        | Fast Model                | Context |
-| --------- | -------------------- | ------------------------- | ------- |
-| openai    | gpt-5.4              | gpt-5.4-mini              | 128K    |
-| anthropic | claude-opus-4-6      | claude-haiku-4-5-20251001 | 200K    |
-| google    | gemini-3-pro-preview | gemini-2.5-flash          | 1M      |
+| Provider  | Default Model    | Fast Model                | Context |
+| --------- | ---------------- | ------------------------- | ------- |
+| openai    | gpt-6-astra      | gpt-5.6-luna              | 1.05M   |
+| anthropic | claude-opus-5    | claude-haiku-4-5-20251001 | 1M      |
+| google    | gemini-3.8-flash | gemini-3.5-flash-lite     | 1M      |
 
-OpenAI GPT-5 defaults are workflow-aware: main agent generations use medium reasoning, subagents
+OpenAI defaults are workflow-aware: main agent generations use medium reasoning, subagents
 use low reasoning, and status messages use none unless the provider config explicitly overrides
-`reasoning`.
+`reasoning`. Anthropic Opus 5 uses high effort for main tasks and low for subagents.
+OpenRouter and Fireworks are supported through the same agent construction path. The optional
+`subagent_model` selects delegated analysis independently of `fast_model` status messages.
 
 ## Key Design Decisions
 
