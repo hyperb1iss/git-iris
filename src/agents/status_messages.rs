@@ -227,48 +227,18 @@ impl StatusMessageGenerator {
                         Just the message text, nothing else.";
         let provider_name = provider::provider_from_name(provider)?;
 
-        match provider {
-            "openai" => {
-                let builder = provider::openai_builder(fast_model, api_key)?.preamble(preamble);
-                let agent = provider::apply_completion_params(
-                    builder,
-                    provider_name,
-                    fast_model,
-                    50,
-                    additional_params,
-                    CompletionProfile::StatusMessage,
-                )
-                .build();
-                Ok(DynAgent::OpenAI(agent))
-            }
-            "anthropic" => {
-                let builder = provider::anthropic_builder(fast_model, api_key)?.preamble(preamble);
-                let agent = provider::apply_completion_params(
-                    builder,
-                    provider_name,
-                    fast_model,
-                    50,
-                    additional_params,
-                    CompletionProfile::StatusMessage,
-                )
-                .build();
-                Ok(DynAgent::Anthropic(agent))
-            }
-            "google" | "gemini" => {
-                let builder = provider::gemini_builder(fast_model, api_key)?.preamble(preamble);
-                let agent = provider::apply_completion_params(
-                    builder,
-                    provider_name,
-                    fast_model,
-                    50,
-                    additional_params,
-                    CompletionProfile::StatusMessage,
-                )
-                .build();
-                Ok(DynAgent::Gemini(agent))
-            }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", provider)),
-        }
+        let builder =
+            provider::agent_builder(provider_name, fast_model, api_key)?.preamble(preamble);
+        let agent = provider::apply_completion_params(
+            builder,
+            provider_name,
+            fast_model,
+            50,
+            additional_params,
+            CompletionProfile::StatusMessage,
+        )
+        .build();
+        Ok(DynAgent(agent))
     }
 
     /// Internal generation logic

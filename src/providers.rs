@@ -15,11 +15,19 @@ pub enum Provider {
     OpenAI,
     Anthropic,
     Google,
+    OpenRouter,
+    Fireworks,
 }
 
 impl Provider {
     /// All available providers
-    pub const ALL: &'static [Provider] = &[Provider::OpenAI, Provider::Anthropic, Provider::Google];
+    pub const ALL: &'static [Provider] = &[
+        Provider::OpenAI,
+        Provider::Anthropic,
+        Provider::Google,
+        Provider::OpenRouter,
+        Provider::Fireworks,
+    ];
 
     /// Provider name as used in config files and CLI
     #[must_use]
@@ -28,6 +36,8 @@ impl Provider {
             Self::OpenAI => "openai",
             Self::Anthropic => "anthropic",
             Self::Google => "google",
+            Self::OpenRouter => "openrouter",
+            Self::Fireworks => "fireworks",
         }
     }
 
@@ -35,9 +45,11 @@ impl Provider {
     #[must_use]
     pub const fn default_model(&self) -> &'static str {
         match self {
-            Self::OpenAI => "gpt-5.4",
-            Self::Anthropic => "claude-opus-4-6",
-            Self::Google => "gemini-3-pro-preview",
+            Self::OpenAI => "gpt-6-astra",
+            Self::Anthropic => "claude-opus-5",
+            Self::Google => "gemini-3.8-flash",
+            Self::OpenRouter => "anthropic/claude-opus-5",
+            Self::Fireworks => "accounts/fireworks/models/deepseek-v4-pro-0813",
         }
     }
 
@@ -45,9 +57,11 @@ impl Provider {
     #[must_use]
     pub const fn default_fast_model(&self) -> &'static str {
         match self {
-            Self::OpenAI => "gpt-5.4-mini",
+            Self::OpenAI => "gpt-5.6-luna",
             Self::Anthropic => "claude-haiku-4-5-20251001",
-            Self::Google => "gemini-2.5-flash",
+            Self::Google => "gemini-3.5-flash-lite",
+            Self::OpenRouter => "anthropic/claude-haiku-4.5",
+            Self::Fireworks => "accounts/fireworks/models/deepseek-v4-flash-0731",
         }
     }
 
@@ -55,9 +69,9 @@ impl Provider {
     #[must_use]
     pub const fn context_window(&self) -> usize {
         match self {
-            Self::OpenAI => 128_000,
-            Self::Anthropic => 200_000,
-            Self::Google => 1_000_000,
+            Self::OpenAI => 1_050_000,
+            Self::Anthropic | Self::OpenRouter | Self::Fireworks => 1_000_000,
+            Self::Google => 1_048_576,
         }
     }
 
@@ -68,6 +82,8 @@ impl Provider {
             Self::OpenAI => "OPENAI_API_KEY",
             Self::Anthropic => "ANTHROPIC_API_KEY",
             Self::Google => "GOOGLE_API_KEY",
+            Self::OpenRouter => "OPENROUTER_API_KEY",
+            Self::Fireworks => "FIREWORKS_API_KEY",
         }
     }
 
@@ -80,7 +96,8 @@ impl Provider {
         match self {
             Self::OpenAI => &["sk-", "sk-proj-"],
             Self::Anthropic => &["sk-ant-"],
-            Self::Google => &[], // Google API keys don't have a consistent prefix
+            Self::OpenRouter => &["sk-or-"],
+            Self::Google | Self::Fireworks => &[], // Google API keys don't have a consistent prefix
         }
     }
 
@@ -92,7 +109,8 @@ impl Provider {
         match self {
             Self::OpenAI => Some("sk-"),
             Self::Anthropic => Some("sk-ant-"),
-            Self::Google => None,
+            Self::OpenRouter => Some("sk-or-"),
+            Self::Google | Self::Fireworks => None,
         }
     }
 
@@ -176,7 +194,7 @@ impl fmt::Display for Provider {
 /// Provider configuration error
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
-    #[error("Unknown provider: {0}. Supported: openai, anthropic, google")]
+    #[error("Unknown provider: {0}. Supported: openai, anthropic, google, openrouter, fireworks")]
     Unknown(String),
     #[error("API key required for provider: {0}")]
     MissingApiKey(String),
@@ -194,6 +212,9 @@ pub struct ProviderConfig {
     /// Fast model for simple tasks
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast_model: Option<String>,
+    /// Model for delegated analysis (defaults to the primary model)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_model: Option<String>,
     /// Token limit override
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_limit: Option<usize>,
@@ -215,6 +236,7 @@ impl fmt::Debug for ProviderConfig {
             )
             .field("model", &self.model)
             .field("fast_model", &self.fast_model)
+            .field("subagent_model", &self.subagent_model)
             .field("token_limit", &self.token_limit)
             .field("additional_params", &self.additional_params)
             .finish()
@@ -229,6 +251,7 @@ impl ProviderConfig {
             api_key: String::new(),
             model: provider.default_model().to_string(),
             fast_model: Some(provider.default_fast_model().to_string()),
+            subagent_model: None,
             token_limit: None,
             additional_params: HashMap::new(),
         }
@@ -250,6 +273,15 @@ impl ProviderConfig {
         self.fast_model
             .as_deref()
             .unwrap_or_else(|| provider.default_fast_model())
+    }
+
+    /// Get the model used for delegated analysis.
+    #[must_use]
+    pub fn effective_subagent_model(&self, provider: Provider) -> &str {
+        self.subagent_model
+            .as_deref()
+            .filter(|model| !model.is_empty())
+            .unwrap_or_else(|| self.effective_model(provider))
     }
 
     /// Get effective token limit (configured or default)
@@ -298,16 +330,16 @@ mod tests {
 
     #[test]
     fn test_provider_defaults() {
-        assert_eq!(Provider::OpenAI.default_model(), "gpt-5.4");
-        assert_eq!(Provider::OpenAI.default_fast_model(), "gpt-5.4-mini");
-        assert_eq!(Provider::Anthropic.context_window(), 200_000);
+        assert_eq!(Provider::OpenAI.default_model(), "gpt-6-astra");
+        assert_eq!(Provider::OpenAI.default_fast_model(), "gpt-5.6-luna");
+        assert_eq!(Provider::Anthropic.context_window(), 1_000_000);
         assert_eq!(Provider::Google.api_key_env(), "GOOGLE_API_KEY");
     }
 
     #[test]
     fn test_provider_config_defaults() {
         let config = ProviderConfig::with_defaults(Provider::Anthropic);
-        assert_eq!(config.model, "claude-opus-4-6");
+        assert_eq!(config.model, "claude-opus-5");
         assert_eq!(
             config.fast_model.as_deref(),
             Some("claude-haiku-4-5-20251001")

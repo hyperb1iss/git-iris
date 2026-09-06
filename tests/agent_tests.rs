@@ -14,7 +14,7 @@ use git_iris::{
     config::Config,
     git::GitRepo,
 };
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use std::env;
 use std::fs;
 use std::sync::{Mutex, MutexGuard, OnceLock};

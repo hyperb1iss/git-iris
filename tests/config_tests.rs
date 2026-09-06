@@ -242,6 +242,7 @@ fn test_project_config_with_provider_only_serializes_set_fields() {
             api_key: String::new(),
             model: "claude-opus-4-6".to_string(),
             fast_model: None,
+            subagent_model: None,
             token_limit: None,
             additional_params: HashMap::new(),
         },
@@ -376,6 +377,7 @@ fn test_provider_config_skip_serialization() {
         api_key: String::new(),
         model: String::new(),
         fast_model: None,
+        subagent_model: None,
         token_limit: None,
         additional_params: HashMap::new(),
     };
@@ -414,6 +416,7 @@ fn test_provider_config_serializes_set_values() {
         api_key: String::new(), // Still empty, should skip
         model: "gpt-5.4".to_string(),
         fast_model: Some("gpt-5.4-mini".to_string()),
+        subagent_model: None,
         token_limit: Some(4096),
         additional_params: params,
     };

@@ -4,8 +4,7 @@
 //! through proper tool calls rather than JSON parsing.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -75,20 +74,24 @@ impl UpdateCommitTool {
     }
 }
 
-impl Tool for UpdateCommitTool {
+impl PortableTool for UpdateCommitTool {
     const NAME: &'static str = "update_commit";
     type Error = ContentUpdateError;
     type Args = UpdateCommitArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "update_commit".to_string(),
-            description: "Update the current commit message. Use this when the user asks you to modify, change, or rewrite the commit message. The update will be applied immediately.".to_string(),
-            parameters: parameters_schema::<UpdateCommitArgs>(),
-        }
+    fn description(&self) -> String {
+        "Update the current commit message. Use this when the user asks you to modify, change, or rewrite the commit message. The update will be applied immediately.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<UpdateCommitArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         tracing::info!(
             "update_commit tool called! emoji={:?}, title={}, message_len={}",
@@ -146,20 +149,24 @@ impl UpdatePRTool {
     }
 }
 
-impl Tool for UpdatePRTool {
+impl PortableTool for UpdatePRTool {
     const NAME: &'static str = "update_pr";
     type Error = ContentUpdateError;
     type Args = UpdatePRArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "update_pr".to_string(),
-            description: "Update the current PR description. Use this when the user asks you to modify, change, or rewrite the PR content.".to_string(),
-            parameters: parameters_schema::<UpdatePRArgs>(),
-        }
+    fn description(&self) -> String {
+        "Update the current PR description. Use this when the user asks you to modify, change, or rewrite the PR content.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<UpdatePRArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let content_len = args.content.len();
         let update = ContentUpdate::PR {
@@ -205,20 +212,24 @@ impl UpdateReviewTool {
     }
 }
 
-impl Tool for UpdateReviewTool {
+impl PortableTool for UpdateReviewTool {
     const NAME: &'static str = "update_review";
     type Error = ContentUpdateError;
     type Args = UpdateReviewArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "update_review".to_string(),
-            description: "Update the current code review. Use this when the user asks you to modify, change, or rewrite the review content.".to_string(),
-            parameters: parameters_schema::<UpdateReviewArgs>(),
-        }
+    fn description(&self) -> String {
+        "Update the current code review. Use this when the user asks you to modify, change, or rewrite the review content.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<UpdateReviewArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let content_len = args.content.len();
         let update = ContentUpdate::Review {

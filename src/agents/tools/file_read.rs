@@ -4,10 +4,10 @@
 //! This is more efficient than using `code_search` when you need the actual content.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 use crate::define_tool_error;
@@ -26,12 +26,6 @@ impl FileRead {
 
     /// Line number column width (supports files up to 999,999 lines)
     const LINE_NUM_WIDTH: usize = 6;
-
-    /// Check if file appears to be binary
-    fn is_binary(content: &[u8]) -> bool {
-        let check_size = content.len().min(8192);
-        content[..check_size].contains(&0)
-    }
 
     /// Check if file extension indicates binary
     fn is_binary_extension(path: &str) -> bool {
@@ -112,20 +106,24 @@ pub struct FileReadArgs {
     pub num_lines: Option<usize>,
 }
 
-impl Tool for FileRead {
+impl PortableTool for FileRead {
     const NAME: &'static str = "file_read";
     type Error = FileReadError;
     type Args = FileReadArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "file_read".to_string(),
-            description: "Read file contents directly. Use start_line and num_lines for partial reads on large files. Returns line-numbered content.".to_string(),
-            parameters: parameters_schema::<FileReadArgs>(),
-        }
+    fn description(&self) -> String {
+        "Read file contents directly. Use start_line and num_lines for partial reads on large files. Returns line-numbered content.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<FileReadArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(FileReadError::from)?;
         let repo_path = repo.repo_path();
@@ -175,13 +173,17 @@ impl Tool for FileRead {
             ));
         }
 
-        // Guard against excessively large files (10 MB) for full reads.
-        // Partial reads (start_line/num_lines specified) are allowed — the line-based
-        // slicing below limits memory regardless of file size.
-        // Open once to avoid TOCTOU between metadata check and read.
+        Self::read_excerpt(&canonical_file, &args)
+    }
+}
+
+impl FileRead {
+    pub(super) fn read_excerpt(path: &Path, args: &FileReadArgs) -> Result<String, FileReadError> {
         const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+        let file = fs::File::open(path).map_err(|e| FileReadError(e.to_string()))?;
         let is_partial_read = args.start_line.is_some() || args.num_lines.is_some();
-        let file_len = fs::metadata(&canonical_file)
+        let file_len = file
+            .metadata()
             .map_err(|e| FileReadError(e.to_string()))?
             .len();
 
@@ -193,27 +195,61 @@ impl Tool for FileRead {
             )));
         }
 
-        // Read the file (use canonical path for actual read)
-        let content = fs::read(&canonical_file).map_err(|e| FileReadError(e.to_string()))?;
-
-        // Check for binary content
-        if Self::is_binary(&content) {
+        let mut reader = BufReader::new(file);
+        if reader
+            .fill_buf()
+            .map_err(|e| FileReadError(e.to_string()))?
+            .contains(&0)
+        {
             return Ok(format!(
                 "[Binary file detected: {} - content not displayed]",
                 args.path
             ));
         }
 
-        // Convert to string
-        let content_str = String::from_utf8(content).map_err(|e| FileReadError(e.to_string()))?;
-
-        let lines: Vec<&str> = content_str.lines().collect();
-        let total_lines = lines.len();
-
-        // Calculate range
-        let start = args.start_line.unwrap_or(1).saturating_sub(1); // Convert to 0-indexed
+        let requested_start = args.start_line.unwrap_or(1).saturating_sub(1);
         let max_lines = args.num_lines.unwrap_or(Self::DEFAULT_MAX_LINES).min(1000);
-        let end = (start + max_lines).min(total_lines);
+        let requested_end = requested_start.saturating_add(max_lines);
+        let mut total_lines = 0;
+        let mut content = Vec::new();
+        loop {
+            // Skipped lines never allocate, even when a generated file has a giant line.
+            let bytes = if (requested_start..requested_end).contains(&total_lines) {
+                let retained =
+                    u64::try_from(content.len()).map_err(|e| FileReadError(e.to_string()))?;
+                let remaining = MAX_FILE_SIZE.saturating_sub(retained);
+                let bytes = reader
+                    .by_ref()
+                    .take(remaining + 1)
+                    .read_until(b'\n', &mut content)
+                    .map_err(|e| FileReadError(e.to_string()))?;
+                if u64::try_from(content.len()).map_err(|e| FileReadError(e.to_string()))?
+                    > MAX_FILE_SIZE
+                {
+                    return Err(FileReadError(
+                        "Selected excerpt exceeds 10 MB. Request fewer lines.".into(),
+                    ));
+                }
+                bytes
+            } else {
+                reader
+                    .skip_until(b'\n')
+                    .map_err(|e| FileReadError(e.to_string()))?
+            };
+            if bytes == 0 {
+                break;
+            }
+            total_lines += 1;
+        }
+        if content.contains(&0) {
+            return Ok(format!(
+                "[Binary file detected: {} - content not displayed]",
+                args.path
+            ));
+        }
+        let content_str = String::from_utf8(content).map_err(|e| FileReadError(e.to_string()))?;
+        let start = requested_start.min(total_lines);
+        let end = requested_end.min(total_lines);
 
         // Build output with line numbers
         let mut output = String::new();
@@ -222,7 +258,9 @@ impl Tool for FileRead {
             args.path, total_lines
         ));
 
-        if start > 0 || end < total_lines {
+        if start == end {
+            output.push_str("No lines in requested range.\n");
+        } else if start > 0 || end < total_lines {
             output.push_str(&format!(
                 "Showing lines {}-{} of {}\n",
                 start + 1,
@@ -232,10 +270,10 @@ impl Tool for FileRead {
         }
         output.push('\n');
 
-        for (i, line) in lines.iter().enumerate().skip(start).take(end - start) {
+        for (i, line) in content_str.lines().enumerate() {
             output.push_str(&format!(
                 "{:>width$}│ {}\n",
-                i + 1,
+                start + i + 1,
                 line,
                 width = Self::LINE_NUM_WIDTH
             ));

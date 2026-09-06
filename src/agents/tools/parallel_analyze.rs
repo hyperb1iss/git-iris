@@ -5,12 +5,7 @@
 //! dealing with large changesets by distributing work across separate context windows.
 
 use anyhow::Result;
-use rig::{
-    client::{CompletionClient, ProviderClient},
-    completion::{Prompt, ToolDefinition},
-    providers::{anthropic, gemini, openai},
-    tool::Tool,
-};
+use rig::tool::portable::PortableTool;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -21,10 +16,8 @@ use tokio::sync::Mutex;
 
 use crate::agents::debug as agent_debug;
 use crate::agents::provider::{
-    CompletionProfile, anthropic_agent_builder, apply_completion_params, provider_from_name,
-    resolve_api_key,
+    self, CompletionProfile, DynAgent, apply_completion_params, provider_from_name,
 };
-use crate::providers::Provider;
 
 /// Default timeout for individual subagent tasks (2 minutes)
 const DEFAULT_SUBAGENT_TIMEOUT_SECS: u64 = 120;
@@ -68,24 +61,10 @@ pub struct ParallelAnalyzeResult {
     pub execution_time_ms: u64,
 }
 
-/// Provider-specific subagent runner
+/// A reusable agent configured for focused parallel analysis.
 #[derive(Clone)]
-enum SubagentRunner {
-    OpenAI {
-        client: openai::Client,
-        model: String,
-        additional_params: HashMap<String, String>,
-    },
-    Anthropic {
-        client: anthropic::Client,
-        model: String,
-        additional_params: HashMap<String, String>,
-    },
-    Gemini {
-        client: gemini::Client,
-        model: String,
-        additional_params: HashMap<String, String>,
-    },
+struct SubagentRunner {
+    agent: DynAgent,
 }
 
 impl SubagentRunner {
@@ -95,171 +74,33 @@ impl SubagentRunner {
         api_key: Option<&str>,
         additional_params: HashMap<String, String>,
     ) -> Result<Self> {
-        match provider {
-            "openai" => {
-                let client = Self::resolve_openai_client(api_key)?;
-                Ok(Self::OpenAI {
-                    client,
-                    model: model.to_string(),
-                    additional_params,
-                })
-            }
-            "anthropic" => {
-                let client = Self::resolve_anthropic_client(api_key)?;
-                Ok(Self::Anthropic {
-                    client,
-                    model: model.to_string(),
-                    additional_params,
-                })
-            }
-            "google" | "gemini" => {
-                let client = Self::resolve_gemini_client(api_key)?;
-                Ok(Self::Gemini {
-                    client,
-                    model: model.to_string(),
-                    additional_params,
-                })
-            }
-            _ => Err(anyhow::anyhow!(
-                "Unsupported provider for parallel analysis: {}. Supported: openai, anthropic, google",
-                provider
-            )),
-        }
-    }
-
-    /// Create `OpenAI` client using shared resolution logic
-    ///
-    /// Uses `resolve_api_key` from provider module to maintain consistent
-    /// resolution order: config → env var → client default
-    fn resolve_openai_client(api_key: Option<&str>) -> Result<openai::Client> {
-        let (resolved_key, _source) = resolve_api_key(api_key, Provider::OpenAI);
-        match resolved_key {
-            Some(key) => openai::Client::new(&key)
-                // Sanitize error to avoid exposing key material
-                .map_err(|_| {
-                    anyhow::anyhow!(
-                        "Failed to create OpenAI client: authentication or configuration error"
-                    )
-                }),
-            None => openai::Client::from_env()
-                .map_err(|_| anyhow::anyhow!("Failed to create OpenAI client from environment")),
-        }
-    }
-
-    /// Create `Anthropic` client using shared resolution logic
-    ///
-    /// Uses `resolve_api_key` from provider module to maintain consistent
-    /// resolution order: config → env var → client default
-    fn resolve_anthropic_client(api_key: Option<&str>) -> Result<anthropic::Client> {
-        let (resolved_key, _source) = resolve_api_key(api_key, Provider::Anthropic);
-        match resolved_key {
-            Some(key) => anthropic::Client::new(&key)
-                // Sanitize error to avoid exposing key material
-                .map_err(|_| {
-                    anyhow::anyhow!(
-                        "Failed to create Anthropic client: authentication or configuration error"
-                    )
-                }),
-            None => anthropic::Client::from_env()
-                .map_err(|_| anyhow::anyhow!("Failed to create Anthropic client from environment")),
-        }
-    }
-
-    /// Create `Gemini` client using shared resolution logic
-    ///
-    /// Uses `resolve_api_key` from provider module to maintain consistent
-    /// resolution order: config → env var → client default
-    fn resolve_gemini_client(api_key: Option<&str>) -> Result<gemini::Client> {
-        let (resolved_key, _source) = resolve_api_key(api_key, Provider::Google);
-        match resolved_key {
-            Some(key) => gemini::Client::new(&key)
-                // Sanitize error to avoid exposing key material
-                .map_err(|_| {
-                    anyhow::anyhow!(
-                        "Failed to create Gemini client: authentication or configuration error"
-                    )
-                }),
-            None => gemini::Client::from_env()
-                .map_err(|_| anyhow::anyhow!("Failed to create Gemini client from environment")),
-        }
+        let provider = provider_from_name(provider)?;
+        let builder = provider::agent_builder(provider, model, api_key)?.preamble("You are a specialized analysis sub-agent. Complete the assigned task thoroughly using the available tools and return a focused, actionable summary.");
+        let builder = apply_completion_params(
+            builder,
+            provider,
+            model,
+            4096,
+            Some(&additional_params),
+            CompletionProfile::Subagent,
+        );
+        let agent = DynAgent(crate::attach_core_tools!(builder).build());
+        Ok(Self { agent })
     }
 
     async fn run_task(&self, task: &str, max_turns: usize) -> SubagentResult {
-        let preamble = "You are a specialized analysis sub-agent. Complete the assigned \
-            task thoroughly and return a focused summary.\n\n\
-            Guidelines:\n\
-            - Use the available tools to gather necessary information\n\
-            - Focus only on what's asked\n\
-            - Return a clear, structured summary\n\
-            - Be concise but comprehensive";
-
-        // Use shared tool registry for consistent tool attachment
-        let result = match self {
-            Self::OpenAI {
-                client,
-                model,
-                additional_params,
-            } => {
-                let builder = client.agent(model).preamble(preamble);
-                let builder = apply_completion_params(
-                    builder,
-                    Provider::OpenAI,
-                    model,
-                    4096,
-                    Some(additional_params),
-                    CompletionProfile::Subagent,
-                );
-                let agent = crate::attach_core_tools!(builder).build();
-                agent.prompt(task).max_turns(max_turns).await
-            }
-            Self::Anthropic {
-                client,
-                model,
-                additional_params,
-            } => {
-                let builder = anthropic_agent_builder(client, model).preamble(preamble);
-                let builder = apply_completion_params(
-                    builder,
-                    Provider::Anthropic,
-                    model,
-                    4096,
-                    Some(additional_params),
-                    CompletionProfile::Subagent,
-                );
-                let agent = crate::attach_core_tools!(builder).build();
-                agent.prompt(task).max_turns(max_turns).await
-            }
-            Self::Gemini {
-                client,
-                model,
-                additional_params,
-            } => {
-                let builder = client.agent(model).preamble(preamble);
-                let builder = apply_completion_params(
-                    builder,
-                    Provider::Google,
-                    model,
-                    4096,
-                    Some(additional_params),
-                    CompletionProfile::Subagent,
-                );
-                let agent = crate::attach_core_tools!(builder).build();
-                agent.prompt(task).max_turns(max_turns).await
-            }
-        };
-
-        match result {
-            Ok(response) => SubagentResult {
+        match self.agent.prompt_multi_turn(task, max_turns).await {
+            Ok(result) => SubagentResult {
                 task: task.to_string(),
-                result: response,
+                result,
                 success: true,
                 error: None,
             },
-            Err(e) => SubagentResult {
+            Err(error) => SubagentResult {
                 task: task.to_string(),
-                result: format!("Subagent failed: {e}"),
+                result: format!("Subagent failed: {error}"),
                 success: false,
-                error: Some(e.to_string()),
+                error: Some(error.to_string()),
             },
         }
     }
@@ -357,16 +198,14 @@ impl ParallelAnalyze {
 // Use standard tool error macro for consistency
 crate::define_tool_error!(ParallelAnalyzeError);
 
-impl Tool for ParallelAnalyze {
+impl PortableTool for ParallelAnalyze {
     const NAME: &'static str = "parallel_analyze";
     type Error = ParallelAnalyzeError;
     type Args = ParallelAnalyzeArgs;
     type Output = ParallelAnalyzeResult;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Run multiple analysis tasks in parallel using independent subagents. \
+    fn description(&self) -> String {
+        "Run multiple analysis tasks in parallel using independent subagents. \
                          Each subagent has its own context window, preventing overflow when \
                          analyzing large changesets. Use this when you have multiple independent \
                          analysis tasks that can run concurrently.\n\n\
@@ -375,27 +214,29 @@ impl Tool for ParallelAnalyze {
                          - Processing many commits in batches\n\
                          - Running different types of analysis (security, performance, style) in parallel\n\n\
                          Each task should be a focused prompt. Results are aggregated and returned."
-                .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "tasks": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "List of analysis task prompts to run in parallel. Each task runs in its own subagent with independent context.",
-                        "minItems": 1,
-                        "maxItems": 10
-                    },
-                    "max_turns": {
-                        "type": "integer",
-                        "description": "Optional per-subagent turn budget. Increase for broad repository searches; lower it to cap cost or runaway tool loops.",
-                        "minimum": 1,
-                        "maximum": 100
-                    }
+                .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "tasks": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "List of analysis task prompts to run in parallel. Each task runs in its own subagent with independent context.",
+                    "minItems": 1,
+                    "maxItems": 10
                 },
-                "required": ["tasks"]
-            }),
-        }
+                "max_turns": {
+                    "type": "integer",
+                    "description": "Optional per-subagent turn budget. Increase for broad repository searches; lower it to cap cost or runaway tool loops.",
+                    "minimum": 1,
+                    "maximum": 100
+                }
+            },
+            "required": ["tasks"]
+        })
     }
 
     #[allow(clippy::cognitive_complexity)]
@@ -431,6 +272,8 @@ impl Tool for ParallelAnalyze {
 
         // Spawn all tasks as parallel tokio tasks, tracking index for ordering
         let mut handles = Vec::new();
+        let repo_root = super::common::current_repo_root()?;
+        let trusted = super::common::current_repo_execution_trusted();
         let timeout = Duration::from_secs(self.timeout_secs);
         for (index, task) in tasks.into_iter().enumerate() {
             let runner = self.runner.clone();
@@ -439,11 +282,16 @@ impl Tool for ParallelAnalyze {
             let timeout_secs = self.timeout_secs;
             let task_max_turns = max_turns;
 
+            let task_repo_root = repo_root.clone();
             let handle = tokio::spawn(async move {
                 // Wrap task execution in timeout to prevent hanging
                 let result = match tokio::time::timeout(
                     task_timeout,
-                    runner.run_task(&task, task_max_turns),
+                    super::common::with_repo_execution_context(
+                        &task_repo_root,
+                        trusted,
+                        runner.run_task(&task, task_max_turns),
+                    ),
                 )
                 .await
                 {

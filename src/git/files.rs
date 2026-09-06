@@ -240,7 +240,7 @@ pub fn get_untracked_files(repo: &Repository) -> Result<Vec<String>> {
         // Only include files that are untracked (not in index, not ignored)
         if status.is_wt_new()
             && !status.is_index_new()
-            && let Some(path) = entry.path()
+            && let Ok(path) = entry.path()
         {
             untracked.push(path.to_string());
         }
@@ -309,7 +309,7 @@ pub fn get_ahead_behind(repo: &Repository) -> (usize, usize) {
         return (0, 0); // No HEAD
     };
 
-    let Some(branch_name) = head.shorthand() else {
+    let Ok(branch_name) = head.shorthand() else {
         return (0, 0);
     };
 

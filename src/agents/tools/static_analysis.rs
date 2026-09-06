@@ -1,8 +1,7 @@
 //! Static analysis tool for agent review context.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -12,7 +11,7 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-use super::common::{current_repo_root, parameters_schema};
+use super::common::{current_repo_execution_trusted, current_repo_root, parameters_schema};
 
 crate::define_tool_error!(StaticAnalysisError);
 
@@ -86,21 +85,27 @@ fn default_max_output_chars() -> usize {
     DEFAULT_MAX_OUTPUT_CHARS
 }
 
-impl Tool for StaticAnalysis {
+impl PortableTool for StaticAnalysis {
     const NAME: &'static str = "static_analysis";
     type Error = StaticAnalysisError;
     type Args = StaticAnalysisArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Run installed static analysis tools directly without performing package install steps. Supports Rust/clippy, Python/ruff, JavaScript or TypeScript/biome or oxlint, and Go/golangci-lint or go vet. Use this during review to prioritize analyzer findings and avoid reporting issues a linter already catches. These tools can execute project build scripts, plugins, or analyzer configuration, so only run them in trusted workspaces. Timeouts clamp to 1..=600 seconds; output truncates to 512..=40000 characters.".to_string(),
-            parameters: parameters_schema::<StaticAnalysisArgs>(),
-        }
+    fn description(&self) -> String {
+        "Run installed static analysis tools directly without performing package install steps. Supports Rust/clippy, Python/ruff, JavaScript or TypeScript/biome or oxlint, and Go/golangci-lint or go vet. Use this during review to prioritize analyzer findings and avoid reporting issues a linter already catches. These tools can execute project build scripts, plugins, or analyzer configuration, so only run them in trusted workspaces. Timeouts clamp to 1..=600 seconds; output truncates to 512..=40000 characters.".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<StaticAnalysisArgs>()
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        if !current_repo_execution_trusted() {
+            return Err(StaticAnalysisError(
+                "Static analysis cannot execute project code in an untrusted remote clone. Review it with the read-only tools, or inspect and clone the repository locally before running analysis."
+                    .to_string(),
+            ));
+        }
         let repo_root = current_repo_root()?;
         let commands = select_analysis_commands(&repo_root, args.analyzer, command_available);
         if commands.is_empty() {

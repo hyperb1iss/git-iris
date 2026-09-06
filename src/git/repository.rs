@@ -215,6 +215,8 @@ impl GitRepo {
         let remotes = repo.remotes()?;
         let remote_name = remotes
             .iter()
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
             .flatten()
             .next()
             .ok_or_else(|| anyhow!("No remote found"))?;
@@ -223,6 +225,8 @@ impl GitRepo {
         let fetch_refspec_storage: Vec<String> = remote
             .fetch_refspecs()?
             .iter()
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
             .flatten()
             .map(std::string::ToString::to_string)
             .collect();
@@ -266,7 +270,10 @@ impl GitRepo {
         }
 
         if let Ok(remotes) = repo.remotes() {
-            for remote_name in remotes.iter().flatten() {
+            for remote_name in &remotes {
+                let Some(remote_name) = remote_name? else {
+                    continue;
+                };
                 if remote_name == "origin" {
                     continue;
                 }
@@ -1022,7 +1029,7 @@ fn resolve_remote_head_base(
     let Ok(reference) = repo.find_reference(&reference_name) else {
         return None;
     };
-    let symbolic_target = reference.symbolic_target()?;
+    let symbolic_target = reference.symbolic_target().ok()??;
     let remote_ref = symbolic_target.strip_prefix("refs/remotes/")?;
 
     if let Some((_, local_candidate)) = remote_ref.split_once('/')

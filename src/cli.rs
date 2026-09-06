@@ -364,6 +364,10 @@ pub enum Commands {
         )]
         fast_model: Option<String>,
 
+        /// Set the model used for delegated analysis (defaults to the primary model)
+        #[arg(long)]
+        subagent_model: Option<String>,
+
         /// Set token limit for the specified provider
         #[arg(long, help = "Set token limit for the specified provider")]
         token_limit: Option<usize>,
@@ -402,6 +406,10 @@ pub enum Commands {
             help = "Set fast model for the specified provider (used for status updates and simple tasks)"
         )]
         fast_model: Option<String>,
+
+        /// Set the model used for delegated analysis (defaults to the primary model)
+        #[arg(long)]
+        subagent_model: Option<String>,
 
         /// Set token limit for the specified provider
         #[arg(long, help = "Set token limit for the specified provider")]
@@ -788,6 +796,7 @@ fn handle_config(
     api_key: Option<String>,
     model: Option<String>,
     fast_model: Option<String>,
+    subagent_model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
     subagent_timeout: Option<u64>,
@@ -812,6 +821,7 @@ fn handle_config(
         api_key,
         model,
         fast_model,
+        subagent_model,
         token_limit,
         param,
         subagent_timeout,
@@ -1200,6 +1210,7 @@ pub async fn handle_command(
             common,
             api_key,
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,
@@ -1209,6 +1220,7 @@ pub async fn handle_command(
             api_key,
             common.model.clone(),
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,
@@ -1289,6 +1301,7 @@ pub async fn handle_command(
         Commands::ProjectConfig {
             common,
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,
@@ -1298,6 +1311,7 @@ pub async fn handle_command(
             &common,
             common.model.clone(),
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,

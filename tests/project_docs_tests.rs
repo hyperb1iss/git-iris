@@ -2,7 +2,7 @@
 
 use git_iris::agents::tools::docs::{DocType, ProjectDocsArgs};
 use git_iris::agents::tools::{ProjectDocs, with_active_repo_root};
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use std::fs;
 use tempfile::TempDir;
 

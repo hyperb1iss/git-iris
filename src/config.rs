@@ -232,6 +232,9 @@ impl Config {
             if !proj_config.model.is_empty() {
                 entry.model = proj_config.model;
             }
+            if proj_config.subagent_model.is_some() {
+                entry.subagent_model.clone_from(&proj_config.subagent_model);
+            }
             if proj_config.fast_model.is_some() {
                 entry.fast_model = proj_config.fast_model;
             }
@@ -302,6 +305,9 @@ impl Config {
 
             if !proj_config.model.is_empty() {
                 proj_config.model.clone_into(&mut entry.model);
+            }
+            if proj_config.subagent_model.is_some() {
+                entry.subagent_model.clone_from(&proj_config.subagent_model);
             }
             if proj_config.fast_model.is_some() {
                 entry.fast_model.clone_from(&proj_config.fast_model);

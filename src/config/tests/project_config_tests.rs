@@ -179,3 +179,24 @@ model = "claude-opus-4-6"
     let (_migrated, needs_save) = Config::migrate_if_needed(config);
     assert!(!needs_save, "no-op migration must not request a save");
 }
+
+#[test]
+fn project_subagent_model_overrides_personal_without_changing_status_model() {
+    let mut personal = Config::default();
+    let project_toml = r#"
+[providers.openai]
+subagent_model = "gpt-5.6-sol"
+"#;
+    let project: Config = toml::from_str(project_toml).expect("project config");
+    let source: toml::Value = toml::from_str(project_toml).expect("project source");
+    personal.merge_loaded_project_config(project, &source);
+    let provider = personal.providers.get("openai").expect("provider");
+    assert_eq!(
+        provider.effective_subagent_model(crate::providers::Provider::OpenAI),
+        "gpt-5.6-sol"
+    );
+    assert_eq!(
+        provider.effective_fast_model(crate::providers::Provider::OpenAI),
+        "gpt-5.6-luna"
+    );
+}

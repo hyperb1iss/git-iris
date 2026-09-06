@@ -4,8 +4,7 @@
 //! CHANGELOG.md, etc. from the project root.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::path::{Path, PathBuf};
@@ -395,12 +394,12 @@ async fn build_context_output(repo_root: &Path, requested_max_chars: usize) -> R
     let mut docs = Vec::new();
 
     if let Some(path) = find_first_existing_file(repo_root, readme_candidates()) {
-        let content = tokio::fs::read_to_string(&path).await?;
+        let content = read_repo_doc(repo_root, &path).await?;
         docs.push((ContextDocKind::Readme, path, content));
     }
 
     if let Some(path) = find_first_existing_file(repo_root, agent_doc_candidates()) {
-        let content = tokio::fs::read_to_string(&path).await?;
+        let content = read_repo_doc(repo_root, &path).await?;
         docs.push((ContextDocKind::Agents, path, content));
     }
 
@@ -445,20 +444,29 @@ async fn build_context_output(repo_root: &Path, requested_max_chars: usize) -> R
     Ok(truncate_chars(output.trim_end(), context_budget))
 }
 
-impl Tool for ProjectDocs {
+async fn read_repo_doc(repo_root: &Path, path: &Path) -> Result<String> {
+    let canonical_root = tokio::fs::canonicalize(repo_root).await?;
+    let canonical_path = tokio::fs::canonicalize(path).await?;
+    anyhow::ensure!(
+        canonical_path.starts_with(&canonical_root),
+        "Documentation path escapes repository boundaries"
+    );
+    Ok(tokio::fs::read_to_string(canonical_path).await?)
+}
+
+impl PortableTool for ProjectDocs {
     const NAME: &'static str = "project_docs";
     type Error = DocsError;
     type Args = ProjectDocsArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "project_docs".to_string(),
-            description:
-                "Fetch project documentation for context. Types: readme, contributing, changelog, license, codeofconduct, agents (AGENTS.md/CLAUDE.md), context (compact README + agent-instructions snapshot), all"
-                    .to_string(),
-            parameters: parameters_schema::<ProjectDocsArgs>(),
-        }
+    fn description(&self) -> String {
+        "Fetch project documentation for context. Types: readme, contributing, changelog, license, codeofconduct, agents (AGENTS.md/CLAUDE.md), context (compact README + agent-instructions snapshot), all"
+                    .to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<ProjectDocsArgs>()
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -508,7 +516,7 @@ impl Tool for ProjectDocs {
 
             let path: PathBuf = current_dir.join(filename);
             if path.exists() {
-                match tokio::fs::read_to_string(&path).await {
+                match read_repo_doc(&current_dir, &path).await {
                     Ok(content) => {
                         found_any = true;
 
