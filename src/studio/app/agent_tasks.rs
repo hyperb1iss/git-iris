@@ -56,7 +56,7 @@ impl StudioApp {
         use super::super::events::AgentTask;
         use crate::agents::StructuredResponse;
         use crate::agents::status::IRIS_STATUS;
-        use crate::agents::tools::{ContentUpdate, create_content_update_channel};
+        use crate::agents::tools::create_content_update_channel;
         use crate::studio::state::{ChatMessage, ChatRole};
         use tokio_util::sync::CancellationToken;
 
@@ -76,7 +76,7 @@ impl StudioApp {
         self.spawn_status_messages(&task);
 
         // Create bounded content update channel for tool-based updates
-        let (content_tx, mut content_rx) = create_content_update_channel();
+        let (content_tx, content_rx) = create_content_update_channel();
 
         // Capture context before spawning async task
         let tx = self.iris_result_tx.clone();
@@ -89,9 +89,7 @@ impl StudioApp {
             self.state.chat_state.messages.iter().cloned().collect();
 
         // Use context content if provided, otherwise extract from state
-        let current_content = context
-            .current_content
-            .or_else(|| self.get_current_content_for_chat());
+        let current_content = self.chat_content_context(context.current_content);
 
         // Cancellation token to signal when the main task is done
         let cancel_token = CancellationToken::new();
@@ -131,40 +129,11 @@ impl StudioApp {
         });
 
         // Spawn a task to listen for content updates from tools (uses select! for zero latency)
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    () = cancel_updates.cancelled() => break,
-                    update = content_rx.recv() => {
-                        let Some(update) = update else { break };
-                        let chat_update = match update {
-                            ContentUpdate::Commit {
-                                emoji,
-                                title,
-                                message,
-                            } => {
-                                tracing::info!("Content update tool: commit - {}", title);
-                                ChatUpdateType::CommitMessage(GeneratedMessage {
-                                    emoji,
-                                    title,
-                                    message,
-                                    completion_message: None,
-                                })
-                            }
-                            ContentUpdate::PR { content } => {
-                                tracing::info!("Content update tool: PR");
-                                ChatUpdateType::PRDescription(content)
-                            }
-                            ContentUpdate::Review { content } => {
-                                tracing::info!("Content update tool: review");
-                                ChatUpdateType::Review(content)
-                            }
-                        };
-                        let _ = tx_updates.send(IrisTaskResult::ChatUpdate(chat_update));
-                    }
-                }
-            }
-        });
+        tokio::spawn(forward_content_updates(
+            content_rx,
+            tx_updates,
+            cancel_updates,
+        ));
 
         tokio::spawn(async move {
             // Build comprehensive context (universal chat across all modes)
@@ -205,7 +174,7 @@ You have tools to update content. When the user asks you to modify, change, upda
 
 1. **update_commit** - Update the commit message (emoji, title, message)
 2. **update_pr** - Update the PR description (content)
-3. **update_review** - Update the code review (content)
+3. **update_review** - Update the code review (review: complete structured review object). Preserve unmodified findings, metadata, evidence, and statistics from the current full review.
 
 Simply call the appropriate tool with the new content. Do NOT echo back the full content in your response - the tool will update it directly.";
 
@@ -257,6 +226,7 @@ Simply call the appropriate tool with the new content. Do NOT echo back the full
 
     /// Get ALL generated content for chat context (universal across modes)
     pub(super) fn get_current_content_for_chat(&self) -> Option<String> {
+        use crate::studio::utils::truncate_chars;
         let mut sections = Vec::new();
 
         // Commit message
@@ -271,44 +241,28 @@ Simply call the appropriate tool with the new content. Do NOT echo back the full
         // Code review
         let review = &self.state.modes.review.review_content;
         if !review.is_empty() {
-            let preview = if review.len() > 500 {
-                format!("{}...", &review[..500])
-            } else {
-                review.clone()
-            };
+            let preview = truncate_chars(review, 500);
             sections.push(format!("## Code Review\n{}", preview));
         }
 
         // PR description
         let pr = &self.state.modes.pr.pr_content;
         if !pr.is_empty() {
-            let preview = if pr.len() > 500 {
-                format!("{}...", &pr[..500])
-            } else {
-                pr.clone()
-            };
+            let preview = truncate_chars(pr, 500);
             sections.push(format!("## PR Description\n{}", preview));
         }
 
         // Changelog
         let cl = &self.state.modes.changelog.changelog_content;
         if !cl.is_empty() {
-            let preview = if cl.len() > 500 {
-                format!("{}...", &cl[..500])
-            } else {
-                cl.clone()
-            };
+            let preview = truncate_chars(cl, 500);
             sections.push(format!("## Changelog\n{}", preview));
         }
 
         // Release notes
         let rn = &self.state.modes.release_notes.release_notes_content;
         if !rn.is_empty() {
-            let preview = if rn.len() > 500 {
-                format!("{}...", &rn[..500])
-            } else {
-                rn.clone()
-            };
+            let preview = truncate_chars(rn, 500);
             sections.push(format!("## Release Notes\n{}", preview));
         }
 
@@ -317,6 +271,21 @@ Simply call the appropriate tool with the new content. Do NOT echo back the full
         } else {
             Some(sections.join("\n\n"))
         }
+    }
+
+    pub(super) fn chat_content_context(&self, supplied: Option<String>) -> Option<String> {
+        let mut content = supplied.or_else(|| self.get_current_content_for_chat());
+        if let Some(review) = &self.state.modes.review.review {
+            match serde_json::to_string(review) {
+                Ok(review_json) => {
+                    content.get_or_insert_with(String::new).push_str(&format!(
+                        "\n\n## Current Full Review\nUse this complete structured review as the starting point for update_review.\n{review_json}"
+                    ));
+                }
+                Err(error) => tracing::warn!("Could not serialize review chat context: {error}"),
+            }
+        }
+        content
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -796,6 +765,37 @@ Simply call the appropriate tool with the new content. Do NOT echo back the full
 // ═══════════════════════════════════════════════════════════════════════════════
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
+
+pub(super) async fn forward_content_updates(
+    mut receiver: crate::agents::tools::ContentUpdateReceiver,
+    sender: tokio::sync::mpsc::UnboundedSender<IrisTaskResult>,
+    completion: tokio_util::sync::CancellationToken,
+) {
+    use crate::agents::tools::ContentUpdate;
+
+    loop {
+        tokio::select! {
+            // A completed generation can still have successful tool updates queued.
+            biased;
+            update = receiver.recv() => {
+                let Some(update) = update else { break };
+                let update = match update {
+                    ContentUpdate::Commit { emoji, title, message } => {
+                        ChatUpdateType::CommitMessage(GeneratedMessage {
+                            emoji, title, message, completion_message: None,
+                        })
+                    }
+                    ContentUpdate::PR { content } => ChatUpdateType::PRDescription(content),
+                    ContentUpdate::Review { review } => ChatUpdateType::Review(review),
+                };
+                if sender.send(IrisTaskResult::ChatUpdate(update)).is_err() {
+                    break;
+                }
+            }
+            () = completion.cancelled() => break,
+        }
+    }
+}
 
 /// Parse git blame porcelain output to extract commit info
 fn parse_blame_porcelain(output: &str) -> (String, String, String, String) {

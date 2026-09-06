@@ -366,6 +366,9 @@ pub enum ContentPayload {
     /// Structured commit message
     Commit(GeneratedMessage),
 
+    /// Structured code review, including metadata and findings
+    Review(Box<crate::types::Review>),
+
     /// Markdown content (PR, review, changelog, release notes)
     Markdown(String),
 }

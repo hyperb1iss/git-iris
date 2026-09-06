@@ -10,6 +10,8 @@ use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+use crate::types::Review;
+
 use super::common::parameters_schema;
 
 // Use standard tool error macro for consistency
@@ -27,7 +29,7 @@ pub enum ContentUpdate {
     /// Update the PR description
     PR { content: String },
     /// Update the code review
-    Review { content: String },
+    Review { review: Box<Review> },
 }
 
 /// Channel capacity for content updates
@@ -199,8 +201,9 @@ pub struct UpdateReviewTool {
 
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct UpdateReviewArgs {
-    /// The complete review content (markdown)
-    pub content: String,
+    /// The complete updated structured review. Preserve existing metadata and
+    /// findings unless the user requests changes to them.
+    pub review: Review,
 }
 
 impl UpdateReviewTool {
@@ -219,7 +222,7 @@ impl PortableTool for UpdateReviewTool {
     type Output = String;
 
     fn description(&self) -> String {
-        "Update the current code review. Use this when the user asks you to modify, change, or rewrite the review content.".to_string()
+        "Update the current code review with the complete structured review object. Start from the current full review supplied in chat context and preserve unmodified findings, metadata, evidence, and statistics. Change or remove findings only when the user's request or new evidence calls for it. Do not replace the review with markdown.".to_string()
     }
 
     fn parameters(&self) -> serde_json::Value {
@@ -231,9 +234,9 @@ impl PortableTool for UpdateReviewTool {
         reason = "Defer synchronous tool work until polling inside the repository context"
     )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let content_len = args.content.len();
+        let findings_count = args.review.findings.len();
         let update = ContentUpdate::Review {
-            content: args.content,
+            review: Box::new(args.review),
         };
 
         self.sender
@@ -243,7 +246,7 @@ impl PortableTool for UpdateReviewTool {
         let result = json!({
             "success": true,
             "message": "Review updated successfully",
-            "content_length": content_len
+            "findings_count": findings_count
         });
 
         serde_json::to_string_pretty(&result).map_err(|e| ContentUpdateError(e.to_string()))

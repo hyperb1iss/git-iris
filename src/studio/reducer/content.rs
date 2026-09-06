@@ -54,6 +54,21 @@ pub fn update_content(
             );
         }
 
+        (ContentType::CodeReview, ContentPayload::Review(review)) => {
+            let content = review.raw_content();
+            state.modes.review.review = Some(*review);
+            state.modes.review.review_content.clone_from(&content);
+            state.modes.review.review_scroll = 0;
+
+            history.record_content(
+                Mode::Review,
+                content_type,
+                &ContentData::Markdown(content),
+                EventSource::Tool,
+                "tool_update",
+            );
+        }
+
         (ContentType::CodeReview, ContentPayload::Markdown(content)) => {
             state.modes.review.reset_review();
             state.modes.review.review_content.clone_from(&content);
