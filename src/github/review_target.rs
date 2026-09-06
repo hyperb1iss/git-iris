@@ -11,8 +11,9 @@ pub struct ReviewTarget {
 }
 
 impl ReviewTarget {
-    pub(super) fn validate(&self, base_ref: &str, head: &str) -> Result<()> {
-        if self.base_ref != base_ref || self.head_sha != head {
+    pub(super) fn validate(&self, base_ref: &str, base_sha: &str, head: &str) -> Result<()> {
+        // A base advance can change the three-dot diff even when the PR head is unchanged.
+        if self.base_ref != base_ref || self.base_sha != base_sha || self.head_sha != head {
             bail!("Pull request changed during analysis. Generate a new review before publishing.");
         }
         Ok(())

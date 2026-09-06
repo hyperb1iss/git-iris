@@ -151,7 +151,7 @@ impl GitHubClient {
             .get(pull_number)
             .await
             .with_context(|| format!("Failed to fetch PR #{pull_number}"))?;
-        target.validate(&pull.base.ref_field, &pull.head.sha)?;
+        target.validate(&pull.base.ref_field, &pull.base.sha, &pull.head.sha)?;
         let review_body = review.body(&self.repo, &target.head_sha);
         let comments = if options.inline_comments {
             self.validated_inline_comments(pull_number, review).await?
@@ -161,7 +161,7 @@ impl GitHubClient {
 
         // The diff endpoint is mutable; recheck after retrieving inline locations.
         let current = self.review_target(pull_number).await?;
-        target.validate(&current.base_ref, &current.head_sha)?;
+        target.validate(&current.base_ref, &current.base_sha, &current.head_sha)?;
 
         let route = format!(
             "/repos/{owner}/{repo}/pulls/{pull_number}/reviews",

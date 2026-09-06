@@ -251,16 +251,16 @@ git-iris review --from main --to feature-branch --github-review --pr 123
 # Request changes when publishing
 git-iris review --github-review --github-review-event request-changes
 
-# Add an inline comment per finding (uses each finding's file + start/end line)
+# Place qualifying findings on reviewable PR-diff lines
 git-iris review --github-review --github-inline-comments
 ```
 
 Publishing resolves the PR before analysis and pins its base and head commits. Without an explicit
 commit or range, Iris reviews the PR from its merge base to its head. The commits must be available
 locally. An explicit `--commit` or `--to` must match the PR head; unpublished working-tree changes
-cannot be attached to a GitHub commit review. If the PR head changes or the PR targets a different
-base branch during analysis, publication stops and asks for a new review. Normal base-branch
-advancement does not discard the analysis. A push after the final check cannot relabel the review onto newer code:
+cannot be attached to a GitHub commit review. If the PR head, base commit, or base branch changes during analysis, publication stops and asks
+for a new review. A base advance can change the merge base and the reviewed diff even when the
+head stays fixed. A push after the final check cannot relabel the review onto newer code:
 the submitted review retains the analyzed commit ID.
 
 When `--github-inline-comments` is set, findings at or above the 70% confidence gate are matched to
