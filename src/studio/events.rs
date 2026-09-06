@@ -161,6 +161,9 @@ pub enum StudioEvent {
     /// File log loading started
     FileLogLoading(PathBuf),
 
+    /// File history failed to load for a particular selection.
+    FileLogFailed { file: PathBuf, error: String },
+
     /// Global commit log loaded
     GlobalLogLoaded {
         entries: Vec<crate::studio::state::FileLogEntry>,

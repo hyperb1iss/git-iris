@@ -64,15 +64,28 @@ pub fn file_log_loading(state: &mut StudioState, path: PathBuf) -> Vec<SideEffec
 /// Handle `FileLogLoaded` event
 pub fn file_log_loaded(
     state: &mut StudioState,
-    _file: &Path,
+    file: &Path,
     entries: Vec<crate::studio::state::FileLogEntry>,
 ) {
-    // Always update the file log - the path was already validated when loading started
-    // We also reset loading state here since results have arrived
+    if state.modes.explore.current_file.as_deref() != Some(file) {
+        return;
+    }
     state.modes.explore.file_log = entries;
     state.modes.explore.file_log_loading = false;
     state.modes.explore.file_log_selected = 0;
     state.modes.explore.file_log_scroll = 0;
+    state.mark_dirty();
+}
+
+/// Stop loading and report an error only for the current file selection.
+pub fn file_log_failed(state: &mut StudioState, file: &Path, error: &str) {
+    if state.modes.explore.current_file.as_deref() != Some(file) {
+        return;
+    }
+    state.modes.explore.file_log_loading = false;
+    state.notify(Notification::warning(format!(
+        "Could not load file history: {error}"
+    )));
     state.mark_dirty();
 }
 

@@ -89,6 +89,10 @@ pub enum IrisTaskResult {
         file: std::path::PathBuf,
         entries: Vec<crate::studio::state::FileLogEntry>,
     },
+    FileLogFailed {
+        file: std::path::PathBuf,
+        error: String,
+    },
     /// Global commit log loaded
     GlobalLogLoaded {
         entries: Vec<crate::studio::state::FileLogEntry>,
@@ -590,6 +594,10 @@ impl StudioApp {
         use crate::studio::state::FileLogEntry;
 
         let Some(repo) = &self.state.repo else {
+            let _ = self.iris_result_tx.send(IrisTaskResult::FileLogFailed {
+                file: path.to_path_buf(),
+                error: "No repository is open".into(),
+            });
             return;
         };
 
@@ -627,7 +635,9 @@ impl StudioApp {
                     .output()?;
 
                 if !output.status.success() {
-                    return Ok(Vec::new());
+                    return Err(std::io::Error::other(
+                        String::from_utf8_lossy(&output.stderr).into_owned(),
+                    ));
                 }
 
                 let stdout = String::from_utf8_lossy(&output.stdout);
@@ -680,10 +690,16 @@ impl StudioApp {
                     });
                 }
                 Ok(Err(e)) => {
-                    tracing::warn!("Failed to load file log: {}", e);
+                    let _ = tx.send(IrisTaskResult::FileLogFailed {
+                        file: file_for_result,
+                        error: e.to_string(),
+                    });
                 }
                 Err(e) => {
-                    tracing::warn!("File log task panicked: {}", e);
+                    let _ = tx.send(IrisTaskResult::FileLogFailed {
+                        file: file_for_result,
+                        error: e.to_string(),
+                    });
                 }
             }
         });
@@ -1184,6 +1200,9 @@ impl StudioApp {
             }
             IrisTaskResult::FileLogLoaded { file, entries } => {
                 Some(StudioEvent::FileLogLoaded { file, entries })
+            }
+            IrisTaskResult::FileLogFailed { file, error } => {
+                Some(StudioEvent::FileLogFailed { file, error })
             }
             IrisTaskResult::GlobalLogLoaded { entries } => {
                 Some(StudioEvent::GlobalLogLoaded { entries })
@@ -1709,28 +1728,11 @@ impl StudioApp {
 
                 if is_double_click && is_dir {
                     file_tree.toggle_expand();
-                } else if is_double_click && !is_dir {
-                    // Double-click on file: load it and focus code view
-                    if let Some(path) = file_tree.selected_path() {
-                        self.state.modes.explore.current_file = Some(path.clone());
-                        if let Err(e) = self.state.modes.explore.code_view.load_file(&path) {
-                            self.state.notify(Notification::warning(format!(
-                                "Could not load file: {}",
-                                e
-                            )));
-                        }
+                } else if (is_double_click || changed) && !is_dir {
+                    let effects = super::handlers::load_selected_file(&mut self.state);
+                    let _ = self.execute_effects(effects);
+                    if is_double_click {
                         self.state.focused_panel = PanelId::Center;
-                    }
-                } else if changed && !is_dir {
-                    // Single click on file: load it into code view
-                    if let Some(path) = file_tree.selected_path() {
-                        self.state.modes.explore.current_file = Some(path.clone());
-                        if let Err(e) = self.state.modes.explore.code_view.load_file(&path) {
-                            self.state.notify(Notification::warning(format!(
-                                "Could not load file: {}",
-                                e
-                            )));
-                        }
                     }
                 }
                 self.state.mark_dirty();

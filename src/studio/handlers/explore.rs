@@ -45,7 +45,7 @@ pub fn handle_explore_key(state: &mut StudioState, key: KeyEvent) -> Vec<SideEff
 }
 
 /// Load the selected file into the code view and trigger file log loading
-fn load_selected_file(state: &mut StudioState) -> Vec<SideEffect> {
+pub(crate) fn load_selected_file(state: &mut StudioState) -> Vec<SideEffect> {
     if let Some(entry) = state.modes.explore.file_tree.selected_entry()
         && !entry.is_dir
     {
@@ -56,6 +56,9 @@ fn load_selected_file(state: &mut StudioState) -> Vec<SideEffect> {
         }
         // Trigger file log loading
         state.modes.explore.file_log_loading = true;
+        state.modes.explore.file_log.clear();
+        state.modes.explore.file_log_selected = 0;
+        state.modes.explore.file_log_scroll = 0;
         return vec![SideEffect::LoadFileLog(path)];
     }
     vec![]

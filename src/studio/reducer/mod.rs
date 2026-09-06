@@ -338,6 +338,10 @@ pub fn reduce(
             git::file_log_loaded(state, &file, entries);
         }
 
+        StudioEvent::FileLogFailed { file, error } => {
+            git::file_log_failed(state, &file, &error);
+        }
+
         StudioEvent::GlobalLogLoading => {
             effects.extend(git::global_log_loading(state));
         }

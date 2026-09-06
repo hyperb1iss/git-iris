@@ -20,6 +20,7 @@ use crate::studio::state::{Modal, Mode, Notification, SettingsState, StudioState
 pub use changelog::handle_changelog_key;
 pub use commit::handle_commit_key;
 pub use explore::handle_explore_key;
+pub(crate) use explore::load_selected_file;
 pub use modals::handle_modal_key;
 pub use pr::handle_pr_key;
 pub use release_notes::handle_release_notes_key;

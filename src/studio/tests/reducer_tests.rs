@@ -14,6 +14,63 @@ fn test_state() -> StudioState {
     StudioState::new(Config::default(), None)
 }
 
+#[test]
+fn file_log_results_only_update_the_selected_file() {
+    use crate::studio::state::FileLogEntry;
+    let mut state = test_state();
+    let mut history = History::new();
+    state.modes.explore.current_file = Some("new.rs".into());
+    state.modes.explore.file_log_loading = true;
+    let entries = vec![FileLogEntry {
+        hash: "abc123".into(),
+        message: "correct history".into(),
+        author: "Author".into(),
+        short_hash: "abc123".into(),
+        relative_time: "now".into(),
+        additions: None,
+        deletions: None,
+    }];
+    reduce(
+        &mut state,
+        StudioEvent::FileLogLoaded {
+            file: "old.rs".into(),
+            entries: entries.clone(),
+        },
+        &mut history,
+    );
+    assert!(state.modes.explore.file_log.is_empty());
+    assert!(state.modes.explore.file_log_loading);
+    reduce(
+        &mut state,
+        StudioEvent::FileLogLoaded {
+            file: "new.rs".into(),
+            entries,
+        },
+        &mut history,
+    );
+    assert_eq!(state.modes.explore.file_log.len(), 1);
+    assert!(!state.modes.explore.file_log_loading);
+}
+
+#[test]
+fn file_log_failures_only_stop_loading_for_the_current_selection() {
+    let mut state = test_state();
+    let mut history = History::new();
+    state.modes.explore.current_file = Some("new.rs".into());
+    state.modes.explore.file_log_loading = true;
+    for (file, still_loading) in [("old.rs", true), ("new.rs", false)] {
+        reduce(
+            &mut state,
+            StudioEvent::FileLogFailed {
+                file: file.into(),
+                error: "git failed".into(),
+            },
+            &mut history,
+        );
+        assert_eq!(state.modes.explore.file_log_loading, still_loading);
+    }
+}
+
 fn test_review(summary: &str) -> Review {
     Review {
         summary: summary.to_string(),
