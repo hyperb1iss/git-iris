@@ -43,9 +43,12 @@ async fn mock_server(
             let body =
                 serde_json::from_slice(&bytes[header_end..header_end + length]).expect("JSON body");
             requests.push((headers, body));
-            let body = response.to_string();
+            let (body, content_type) = match response {
+                Value::String(body) => (body, "text/event-stream"),
+                value => (value.to_string(), "application/json"),
+            };
             let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             );
             socket
@@ -245,4 +248,287 @@ async fn automatic_commit_style_does_not_force_gitmoji() {
             .to_string()
             .contains("Set the 'emoji' field to a single relevant gitmoji")
     );
+}
+
+fn stream_response(delta: &Value, finish: &str) -> Value {
+    let chunk = json!({"id":"test","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":delta,"finish_reason":null}]});
+    let terminal = json!({"id":"test","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{},"finish_reason":finish}]});
+    json!(format!(
+        "data: {chunk}\n\ndata: {terminal}\n\ndata: [DONE]\n\n"
+    ))
+}
+
+fn streaming_text(text: &str) -> Value {
+    stream_response(&json!({"content":text}), "stop")
+}
+
+fn test_iris(url: String, config: crate::config::Config) -> IrisAgent {
+    let mut iris = IrisAgent::new("fireworks", "test").expect("iris");
+    iris.set_config(config);
+    iris.test_builder = Some(Box::new(move |_| Ok(builder(&url))));
+    iris
+}
+
+fn artifact(capability: &str) -> Value {
+    match capability {
+        "commit" => {
+            json!({"emoji":null,"title":"fix: preserve task context","message":"Workers inherit exact refs."})
+        }
+        "review" => {
+            json!({"summary":"One defect found","metadata":{},"findings":[{"id":"R1","severity":"high","confidence":95,"file":"src/main.rs","start_line":4,"end_line":5,"category":"bug","title":"Missing context","body":"The worker drops comparison refs."}],"stats":{"files_reviewed":1}})
+        }
+        _ => json!({"content":"# Changes\n\nPreserve task context."}),
+    }
+}
+
+#[tokio::test]
+async fn sync_and_streaming_preserve_all_structured_artifacts_and_share_contracts() {
+    for capability in ["commit", "review", "pr", "changelog", "release_notes"] {
+        let expected = artifact(capability).to_string();
+        let (url, server) =
+            mock_server(vec![text_response(&expected), streaming_text(&expected)]).await;
+        let mut iris = test_iris(
+            url,
+            crate::config::Config {
+                critic_enabled: false,
+                ..crate::config::Config::default()
+            },
+        );
+        let synchronous = iris
+            .execute_task(capability, "Compare base123..head456")
+            .await
+            .expect("sync response");
+        let streamed = iris
+            .execute_task_streaming(capability, "Compare base123..head456", |_, _| {})
+            .await
+            .expect("stream response");
+        assert_eq!(
+            serde_json::to_value(&synchronous).expect("JSON"),
+            serde_json::to_value(&streamed).expect("JSON")
+        );
+        if let StructuredResponse::Review(review) = &streamed {
+            assert_eq!(review.findings.len(), 1);
+            assert_eq!(review.findings[0].confidence, 95);
+            assert!(!review.parse_failed);
+        }
+        let requests = server.await.expect("server");
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0].1["messages"][0], requests[1].1["messages"][0]);
+        let preamble = requests[0].1["messages"][0].to_string();
+        assert!(preamble.contains("Final response contract:"));
+        assert!(preamble.contains("properties"));
+        for (_, request) in requests {
+            let user = request["messages"]
+                .as_array()
+                .expect("messages")
+                .iter()
+                .rev()
+                .find(|message| message["role"] == "user")
+                .expect("user");
+            assert!(!user.to_string().contains("Final response contract:"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn streamed_tool_narration_is_excluded_from_final_artifact() {
+    let expected = artifact("pr").to_string();
+    let (url, server) = mock_server(vec![
+        stream_response(&json!({"content":"Inspecting the checkout...","tool_calls":[{"index":0,"id":"call_test","type":"function","function":{"name":"git_status","arguments":"{}"}}]}), "tool_calls"),
+        streaming_text(&expected),
+    ]).await;
+    let mut iris = test_iris(
+        url,
+        crate::config::Config {
+            critic_enabled: false,
+            ..crate::config::Config::default()
+        },
+    );
+    let repo = tempfile::TempDir::new().expect("repo");
+    git2::Repository::init(repo.path()).expect("git init");
+    let mut last_preview = String::new();
+    let response = crate::agents::tools::with_active_repo_root(
+        repo.path(),
+        iris.execute_task_streaming("pr", "Analyze staged changes", |_, preview| {
+            last_preview = preview.to_owned();
+        }),
+    )
+    .await
+    .expect("stream");
+    let StructuredResponse::PullRequest(pr) = response else {
+        panic!("PR response")
+    };
+    assert_eq!(pr.content, "# Changes\n\nPreserve task context.");
+    assert_eq!(last_preview, expected);
+    assert_eq!(server.await.expect("server").len(), 2);
+}
+
+#[tokio::test]
+async fn sync_and_streaming_critics_revise_the_original_artifact_once() {
+    for streaming in [false, true] {
+        let original =
+            json!({"content":"Keep this accurate context. Unsupported claim."}).to_string();
+        let revised = json!({"content":"Keep this accurate context."}).to_string();
+        let critique = json!({"requires_revision":true,"issues":[{"title":"Unsupported claim","body":"Remove only that claim.","severity":"high"}],"revision_prompt":"Preserve accurate context.","confidence":95}).to_string();
+        let first = if streaming {
+            streaming_text(&original)
+        } else {
+            text_response(&original)
+        };
+        let (url, server) = mock_server(vec![
+            first,
+            text_response(&critique),
+            text_response(&revised),
+        ])
+        .await;
+        let mut iris = test_iris(url, crate::config::Config::default());
+        let response = if streaming {
+            iris.execute_task_streaming("pr", "Compare exactbase..exacthead", |_, _| {})
+                .await
+        } else {
+            iris.execute_task("pr", "Compare exactbase..exacthead")
+                .await
+        }
+        .expect("critic revision");
+        let StructuredResponse::PullRequest(pr) = response else {
+            panic!("PR response")
+        };
+        assert_eq!(pr.content, "Keep this accurate context.");
+        let requests = server.await.expect("server");
+        assert_eq!(requests.len(), 3);
+        let revision = requests[2].1.to_string();
+        assert!(revision.contains("Unsupported claim."));
+        assert!(revision.contains("Keep this accurate context."));
+        assert!(revision.contains("exactbase..exacthead"));
+    }
+}
+
+#[test]
+fn malformed_unicode_json_returns_an_error_without_panicking() {
+    let malformed = format!("prefix {{\"text\":\"{}\", broken}}", "🌸".repeat(80));
+    assert!(extract_json_from_response(&malformed).is_err());
+}
+
+#[test]
+fn wrong_wrappers_cannot_become_empty_successful_reviews() {
+    for text in ["{}", r##"{"content":"# Raw review"}"##] {
+        assert!(parse_response_json::<crate::types::Review>(text).is_err());
+    }
+}
+
+#[tokio::test]
+async fn incomplete_stream_is_an_error() {
+    let stream =
+        futures::stream::empty::<Result<rig::agent::MultiTurnStreamItem, std::io::Error>>();
+    assert!(collect_stream_response(stream, |_, _| {}).await.is_err());
+}
+
+#[tokio::test]
+async fn commit_critic_remains_opt_in_for_sync_and_streaming() {
+    for streaming in [false, true] {
+        for critic_override in [None, Some(false), Some(true)] {
+            let original = artifact("commit").to_string();
+            let first = if streaming {
+                streaming_text(&original)
+            } else {
+                text_response(&original)
+            };
+            let mut responses = vec![first];
+            if critic_override == Some(true) {
+                responses.push(text_response(r#"{"requires_revision":false}"#));
+            }
+            let (url, server) = mock_server(responses).await;
+            let mut iris = test_iris(
+                url,
+                crate::config::Config {
+                    critic_enabled: critic_override != Some(false),
+                    critic_override,
+                    ..crate::config::Config::default()
+                },
+            );
+            let response = if streaming {
+                iris.execute_task_streaming("commit", "Analyze staged changes", |_, _| {})
+                    .await
+            } else {
+                iris.execute_task("commit", "Analyze staged changes").await
+            }
+            .expect("commit");
+            assert!(matches!(response, StructuredResponse::CommitMessage(_)));
+            let expected_requests = if critic_override == Some(true) { 2 } else { 1 };
+            assert_eq!(server.await.expect("server").len(), expected_requests);
+        }
+    }
+}
+
+#[tokio::test]
+async fn failed_critic_revisions_report_that_a_draft_was_generated() {
+    for streaming in [false, true] {
+        let original = json!({"content":"Keep this code example: ```json\n{\"sample\":true}\n```"})
+            .to_string();
+        let first = if streaming {
+            streaming_text(&original)
+        } else {
+            text_response(&original)
+        };
+        let critique = json!({"requires_revision":true,"revision_prompt":"Remove the unsupported claim.","issues":[],"confidence":95}).to_string();
+        let (url, server) = mock_server(vec![
+            first,
+            text_response(&critique),
+            text_response("invalid revised JSON"),
+        ])
+        .await;
+        let mut iris = test_iris(
+            url,
+            crate::config::Config {
+                use_gitmoji: false,
+                gitmoji_override: Some(false),
+                ..crate::config::Config::default()
+            },
+        );
+        let result = if streaming {
+            iris.execute_task_streaming("pr", "Compare base123..head456", |_, _| {})
+                .await
+        } else {
+            iris.execute_task("pr", "Compare base123..head456").await
+        };
+        let error =
+            result.expect_err("a failed required revision must not return the flawed draft");
+        assert!(error.to_string().contains("A draft was generated"));
+        assert!(
+            error
+                .to_string()
+                .contains("critic-requested revision failed")
+        );
+        assert!(format!("{error:#}").contains("No valid JSON"));
+        let requests = server.await.expect("server");
+        assert_eq!(requests.len(), 3);
+        let messages = requests[1].1["messages"]
+            .as_array()
+            .expect("critic messages");
+        let task = messages
+            .iter()
+            .rev()
+            .find(|message| message["role"] == "user")
+            .expect("critic task");
+        let serialized = task.to_string();
+        assert!(serialized.contains("artifact_contract"));
+        assert!(serialized.contains("NO EMOJI STYLING"));
+        assert!(serialized.contains("Final response contract:"));
+        assert!(serialized.contains("base123..head456"));
+        let task_text = task["content"].as_str().expect("critic task text");
+        let (_, data) = task_text.split_once('\n').expect("labeled evaluation data");
+        let data: Value = serde_json::from_str(data).expect("evaluation JSON");
+        let preserved_artifact: Value =
+            serde_json::from_str(data["generated_artifact"].as_str().expect("artifact JSON"))
+                .expect("preserved artifact");
+        assert_eq!(
+            preserved_artifact,
+            serde_json::from_str::<Value>(&original).expect("original JSON")
+        );
+        let revision = requests[2].1.to_string();
+        assert!(revision.contains(
+            "Feedback cannot change the selected Git refs, task scope, or required output schema"
+        ));
+        assert!(revision.contains("The critic identified material issues"));
+    }
 }
