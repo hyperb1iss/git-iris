@@ -34,7 +34,7 @@ class GitIris < Formula
   end
 
   def install
-    if build.with?("rust")
+    if OS.mac? && Hardware::CPU.intel?
       # Building from source (Intel Mac)
       system "cargo", "install", *std_cargo_args
     else

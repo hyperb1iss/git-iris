@@ -356,7 +356,7 @@ jobs:
             end
 
             def install
-              if build.with?("rust")
+              if OS.mac? && Hardware::CPU.intel?
                 system "cargo", "install", *std_cargo_args
               else
                 bin.install Dir["git-iris*"].first => "git-iris"
