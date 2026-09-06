@@ -278,10 +278,11 @@ fn cli_accepts_subagent_models_for_both_config_scopes() {
             "openai/gpt-5.6-sol",
         ])
         .expect("configuration args");
-        let subagent_model = match cli.command.expect("command") {
-            crate::cli::Commands::Config { subagent_model, .. }
-            | crate::cli::Commands::ProjectConfig { subagent_model, .. } => subagent_model,
-            _ => panic!("expected config"),
+        let (crate::cli::Commands::Config { subagent_model, .. }
+        | crate::cli::Commands::ProjectConfig { subagent_model, .. }) =
+            cli.command.expect("command")
+        else {
+            panic!("expected config");
         };
         assert_eq!(subagent_model.as_deref(), Some("openai/gpt-5.6-sol"));
     }

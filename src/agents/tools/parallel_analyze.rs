@@ -72,7 +72,7 @@ impl SubagentRunner {
         provider: &str,
         model: &str,
         api_key: Option<&str>,
-        additional_params: HashMap<String, String>,
+        additional_params: &HashMap<String, String>,
     ) -> Result<Self> {
         let provider = provider_from_name(provider)?;
         let builder = provider::agent_builder(provider, model, api_key)?.preamble("You are a specialized analysis sub-agent. Complete the assigned task thoroughly using the available tools and return a focused, actionable summary.");
@@ -81,7 +81,7 @@ impl SubagentRunner {
             provider,
             model,
             4096,
-            Some(&additional_params),
+            Some(additional_params),
             CompletionProfile::Subagent,
         );
         let agent = DynAgent(crate::attach_core_tools!(builder).build());
@@ -176,7 +176,7 @@ impl ParallelAnalyze {
             provider_name.name(),
             model,
             api_key,
-            additional_params.unwrap_or_default(),
+            &additional_params.unwrap_or_default(),
         )
         .map_err(|e| {
             anyhow::anyhow!(

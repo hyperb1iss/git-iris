@@ -20,8 +20,10 @@ fn delegated_analysis_defaults_to_main_model_and_honors_override() {
 #[test]
 fn all_providers_build_complete_agents_and_select_their_own_defaults() {
     for provider in Provider::ALL {
-        let mut config = Config::default();
-        config.default_provider = provider.name().to_string();
+        let mut config = Config {
+            default_provider: provider.name().to_string(),
+            ..Config::default()
+        };
         config
             .providers
             .get_mut(provider.name())

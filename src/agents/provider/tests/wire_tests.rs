@@ -75,22 +75,22 @@ async fn mock_server(
     (format!("http://{address}"), task)
 }
 
-fn responses_result(output: Value) -> Value {
+fn responses_result(output: &Value) -> Value {
     json!({"id":"resp_test", "object":"response", "created_at":1, "status":"completed", "model":"gpt-6-astra", "output":output})
 }
 
-fn chat_result(message: Value, finish: &str) -> Value {
+fn chat_result(message: &Value, finish: &str) -> Value {
     json!({"id":"chat_test", "object":"chat.completion", "created":1, "model":"test", "choices":[{"index":0,"message":message,"finish_reason":finish}]})
 }
 
 #[tokio::test]
 async fn responses_preserve_reasoning_and_tool_results_across_turns() {
-    let first = responses_result(json!([
+    let first = responses_result(&json!([
         {"type":"reasoning","id":"rs_test","summary":[],"encrypted_content":"encrypted-test"},
         {"type":"function_call","id":"fc_test","call_id":"call_test","name":"probe","arguments":"{}","status":"completed"}
     ]));
     let last = responses_result(
-        json!([{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":"done","annotations":[]}]}]),
+        &json!([{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":"done","annotations":[]}]}]),
     );
     let (url, server) = mock_server(vec![first, last]).await;
     let builder = agent_builder_at(
@@ -152,8 +152,8 @@ async fn routed_chat_preserves_provider_reasoning_and_tool_results() {
             message["reasoning_content"] = json!("test reasoning");
         }
         let (url, server) = mock_server(vec![
-            chat_result(message, "tool_calls"),
-            chat_result(json!({"role":"assistant","content":"done"}), "stop"),
+            chat_result(&message, "tool_calls"),
+            chat_result(&json!({"role":"assistant","content":"done"}), "stop"),
         ])
         .await;
         let builder = agent_builder_at(

@@ -90,22 +90,7 @@ fn apply_config_changes(
 
     // Handle provider change - validate and insert if needed
     if let Some(provider_str) = &common.provider {
-        let provider: Provider = provider_str.parse().map_err(|_| {
-            anyhow!(
-                "Invalid provider: {}. Available: {}",
-                provider_str,
-                Provider::all_names().join(", ")
-            )
-        })?;
-
-        // Only check for provider insertion if it wasn't already handled
-        if !config.providers.contains_key(provider.name()) {
-            config.providers.insert(
-                provider.name().to_string(),
-                ProviderConfig::with_defaults(provider),
-            );
-            changes_made = true;
-        }
+        changes_made |= ensure_provider_config(config, provider_str)?;
     }
 
     let provider_config = config
@@ -212,6 +197,26 @@ fn apply_config_changes(
     }
 
     Ok(changes_made)
+}
+
+fn ensure_provider_config(config: &mut Config, provider_name: &str) -> anyhow::Result<bool> {
+    let provider: Provider = provider_name.parse().map_err(|_| {
+        anyhow!(
+            "Invalid provider: {}. Available: {}",
+            provider_name,
+            Provider::all_names().join(", ")
+        )
+    })?;
+
+    if config.providers.contains_key(provider.name()) {
+        return Ok(false);
+    }
+
+    config.providers.insert(
+        provider.name().to_string(),
+        ProviderConfig::with_defaults(provider),
+    );
+    Ok(true)
 }
 
 /// Handle the 'config' command

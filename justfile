@@ -30,7 +30,7 @@ check: lint test
 
 # Run clippy
 clippy:
-    cargo clippy --all-targets
+    cargo clippy --locked --all-targets -- -D warnings
 
 # Run clippy with pedantic warnings
 clippy-pedantic:
