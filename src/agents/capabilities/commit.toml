@@ -1,127 +1,25 @@
 name = "commit"
-description = "Generate commit messages from staged changes"
+description = "Generate a commit message for the selected changes"
 output_type = "GeneratedMessage"
 
 task_prompt = """
-Generate a commit message for the staged changes.
+Write a commit message describing the complete selected changeset.
 
-## Context Gathering
-`project_docs(doc_type="context")` returns a compact snapshot of the README and agent instructions.
-Use it early when repository conventions, product language, or workflow rules might change the message.
-Do not treat it as a mandatory first call if `git_diff`, `git_status`, or injected style instructions already provide enough context.
+## Evidence and scope
+Use the supplied context to distinguish staged changes, a selected commit, and amend mode. Read the relevant patches with git_diff; a compact summary helps orient a broad changeset but is not enough to establish behavior. Account for every meaningful change, using focused reads or independent delegation as needed. Do not limit coverage to a fixed number of files.
+Use project_docs(doc_type="context") when repository conventions or product language affect the message. Use git_log to learn local format when no explicit format is supplied, and git_show or git_blame when history clarifies intent. Skip calls whose answers are already available.
+For amend mode, describe the full amended commit, including its existing changes and the staged additions. When a parent exists, combine git_diff(from="HEAD^1", to="HEAD") for the existing commit with git_diff() for staged additions; the historical diff alone excludes the index. For an initial commit with no HEAD^1, inspect git_show(commit="HEAD") and the staged diff without inventing a parent.
 
-## Tools Available
-- `project_docs(doc_type="context")` - Compact project conventions snapshot; use targeted doc types if you need full docs
-- `git_diff()` - Get summary of staged changes with relevance scores (default: summary only)
-- `git_diff(detail="standard", files=["path1","path2"])` - Get full diffs for specific files
-- `git_diff(from="HEAD^1")` - Get combined diff from parent commit to staged (use for amend)
-- `git_log(count=5)` - Recent commits for style reference
-- `git_show(commit="HEAD")` - Inspect a historical commit's exact message, stat, and patch
-- `git_blame(file="path", start_line=1, end_line=20)` - Line history plus recent commits touching a file
-- `git_status()` - Confirm staged vs unstaged state
-- `git_changed_files()` - Get the file list quickly
-- `repo_map(token_budget=2000, mentioned_files=[...])` - Compact ranked source map when broad structure matters
-- `file_read(path="...")` - Read exact file content when a diff summary is not enough
-- `code_search(query="...")` - Find related symbols, patterns, or callers
-- `parallel_analyze(tasks=[...])` - Spawn subagents for very large changesets (optional)
+## Format and style
+Explicit user format and emoji settings take precedence over inferred repository style. A tone preset changes wording, not the underlying commit format unless it explicitly specifies that format.
+Without an explicit format, infer the prevailing convention from representative recent human commits and repository guidance. One exceptional release, bot, or emoji commit does not establish the convention. Mirror prefixes, capitalization, scopes, and ticket syntax while improving clarity.
+For conventional commits, use type(scope): description with optional scope and set emoji to null. For gitmoji commits, put the single emoji in the emoji field and do not duplicate it in the title. If emojis are explicitly disabled, set emoji to null regardless of historical usage. Otherwise use plain format when no convention is established.
 
-## Workflow — Progressive Analysis
-1. Call `git_status()` if you need to confirm staged versus unstaged state or check amend context
-2. Call `git_diff()` to get the **summary** (file list with relevance scores, no diffs yet)
-3. Review the summary to identify important files (highest relevance scores)
-4. Call `project_docs(doc_type="context")` when repository conventions or product framing might change the wording
-5. Call `repo_map` when the diff references cross-file structure that is not obvious from changed files alone
-6. Call `git_blame` for 1-3 central changed files when the history would clarify intent, ownership, or local wording patterns
-7. Call `git_show` for a referenced historical commit when its exact patch would clarify wording or intent
-8. **If no STYLE INSTRUCTIONS below**: Call `git_log(count=10)` to detect commit format (see "Local Style Detection" section)
-9. Call `git_diff(detail="standard", files=["important-file1.rs", "important-file2.rs"])` for full diffs of key files
-10. Repeat step 9 for additional files if needed (stay focused on top 5-7 files max)
-11. Generate the commit message based on your progressive analysis, using the detected format
-
-**CRITICAL**: Never request all diffs at once for large changesets. Always start with summary, then selectively drill into important files.
-
-## Amend Mode
-When the context indicates **amend mode** (you'll see `"mode": "amend"` with an `original_message`):
-- You are **replacing** an existing commit, not creating a new one
-- Use `git_diff(from="HEAD^1")` to see the **combined** diff (original commit + new staged changes)
-- The original commit message is provided for context—consider its intent
-- Generate a **new** message that accurately describes the full amended commit
-- Don't just append to the original message—write fresh based on the complete changeset
-- The amended commit should feel cohesive, as if it was always this way
-
-## Context Strategy by Size
-- **Small** (≤3 files, <100 lines): Can use `git_diff(detail="standard")` to see all diffs
-- **Medium** (≤10 files, <500 lines): Start with summary, then get diffs for >60% relevance files
-- **Large** (>10 files or >500 lines): Summary first, then analyze top 5-7 files individually
-- **Very Large** (>20 files or >1000 lines): Use `parallel_analyze` to distribute analysis:
-  - Example: `parallel_analyze({ "tasks": ["Summarize changes in src/api/", "Summarize changes in src/models/", "Summarize infrastructure changes"] })`
-  - Each subagent analyzes its scope independently
-  - Synthesize subagent findings into a coherent commit message
-
-## Output Requirements
-- **Subject line**: Imperative mood ("Add", not "Added"), max 72 chars, no period, capitalize first word
-- **Body** (if needed): Explain WHY, not what. Wrap at 72 chars. Separate from subject with blank line.
-- **Plain text only**: No markdown, no code fences, no headers, no emojis in text fields
-
-## Writing Guidelines
-- Focus on concrete changes and their effects
-- Don't mention filenames in subject unless absolutely necessary
-- Be specific—"Fix null pointer in auth flow" beats "Fix bug"
-- Be precise. If a change is ambiguous, inspect more context and clearly separate verified facts from inferences.
-- If you're unsure what a change does, use tools to investigate before writing the final message
-- Do not include reviewer advice or recommendations (for example, "should split this commit"); describe the staged commit as-is.
-
-## Style Adaptation
-If STYLE INSTRUCTIONS are provided below, **prioritize that style** in your word choice, tone, and descriptions. The structural requirements (72 char limit, imperative mood, JSON format) still apply, but lean into the requested personality. A cosmic preset means cosmic language. A playful preset means playful vibes. Express the style!
-
-## Local Style Detection (Default Mode)
-If NO "STYLE INSTRUCTIONS" or "GITMOJI INSTRUCTIONS" section appears below, you MUST detect and mirror the repository's commit **format**:
-
-1. Call `git_log(count=10)` to analyze recent commits
-2. **Observe the actual patterns** — look for:
-   - Prefix patterns (type:, [TAG], (scope), MODULE:, etc.)
-   - Emoji usage (leading emoji, no emoji, emoji elsewhere)
-   - Scope/ticket conventions (feat(api):, [JIRA-123], #123, etc.)
-   - Capitalization style (lowercase, Sentence case, UPPERCASE)
-   - Any other consistent formatting the team uses
-
-3. **Common formats for reference:**
-
-   **Conventional Commits** — `type(scope): message`
-   - `feat: add user authentication`
-   - `fix(api): resolve null pointer`
-   → Set `emoji` to `null`. NO EMOJIS.
-
-   **Gitmoji** — emoji prefix
-   - `✨ Add user authentication`
-   - `🐛 Fix null pointer`
-   → Set `emoji` field appropriately.
-
-   **Ticket/Issue prefixes** — `[TAG-123] message` or `TAG-123: message`
-   - `[ENG-1234] Add user authentication`
-   - `PROJ-456: Fix null pointer`
-   → Mirror the exact bracket/format style. Set `emoji` to `null` unless repo mixes with emoji.
-
-   **Custom patterns** — mirror whatever you see
-   - `(auth) Add user authentication` → use `(scope) message` format
-   - `AUTH: Add user login` → use `MODULE: message` format
-   - `[feature] Add auth` → use `[type] message` format
-
-4. **Decision tree — evaluate in this exact order, stop at the first match:**
-   a. **If ANY commit starts with an emoji character** → this is a **gitmoji** repo. Set the `emoji` field to a matching gitmoji. The remaining non-emoji commits are inconsistent usage, NOT evidence of conventional format. Do NOT use a `type:` prefix in the title.
-   b. **If ZERO commits have emoji AND most use `type: message` format** → this is a **conventional** repo. Set `emoji` to `null`. Use `type(scope): message` format.
-   c. **Otherwise** → plain style. Set `emoji` to `null`. No type prefix.
-
-   Also: mirror the EXACT prefix style (brackets, parens, colons, spacing) and match capitalization patterns.
-
-**Mirror format, NOT quality.** Always write descriptive messages regardless of how terse existing commits are.
-
-**This detection is MANDATORY when no style instructions appear below.**
-
-## JSON Output
-Return a `GeneratedMessage` with:
-- `emoji` (string or null)
-- `title` (subject line)
-- `message` (body or empty)
-- `completion_message` (REQUIRED: brief UI status referencing YOUR commit topic, e.g., "Config updates ready." or "Tests looking good." — sentence case, under 35 chars, no emojis)
+## Writing and output
+Return the GeneratedMessage JSON object required by the supplied schema.
+- title: A specific imperative subject describing the change, no trailing period. Default to at most 72 characters, including any prefix, unless an explicit repository or user rule sets another limit.
+- message: Explain the reason, resulting behavior, and significant compatibility details when supported. Use an empty string if a body adds nothing; honor repositories requiring a body. Wrap prose at the configured limit, otherwise 72 characters.
+- emoji: One matching gitmoji or null according to the format policy.
+- completion_message: A short sentence-case status naming the topic, under 35 characters, without emoji.
+Keep title and message plain text without code fences or surrounding commentary. Do not invent motivation, issue numbers, verification results, or deployment status. Describe the selected commit rather than advising how to split or change it.
 """

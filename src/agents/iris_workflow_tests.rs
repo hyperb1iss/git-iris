@@ -35,6 +35,6 @@ fn all_providers_build_complete_agents_and_select_their_own_defaults() {
             .expect("agent");
         assert_eq!(agent.model, provider.default_model());
         agent.set_config(config);
-        assert!(agent.build_agent().is_ok(), "provider {provider}");
+        assert!(agent.build_agent("", "").is_ok(), "provider {provider}");
     }
 }

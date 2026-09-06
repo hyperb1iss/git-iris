@@ -298,7 +298,7 @@ fn test_generate_commit_produces_agent_effect() {
         StudioEvent::GenerateCommit {
             instructions: None,
             preset: "default".to_string(),
-            use_gitmoji: true,
+            use_gitmoji: Some(true),
             amend: false,
         },
         &mut history,
@@ -410,4 +410,73 @@ fn test_agent_error_clears_generating_flag() {
     assert!(!state.modes.commit.generating);
     // Should have a notification
     assert!(!state.notifications.is_empty());
+}
+
+#[test]
+fn commit_task_preserves_auto_and_explicit_emoji_choices() {
+    use crate::studio::handlers::spawn_commit_task;
+    use crate::studio::state::EmojiMode;
+
+    for (mode, expected) in [
+        (EmojiMode::Auto, None),
+        (EmojiMode::None, Some(false)),
+        (EmojiMode::Custom("🐛".into()), Some(true)),
+    ] {
+        let mut state = test_state();
+        state.modes.commit.emoji_mode = mode;
+        let SideEffect::SpawnAgent {
+            task: AgentTask::Commit { use_gitmoji, .. },
+        } = spawn_commit_task(&state)
+        else {
+            panic!("expected commit generation task");
+        };
+        assert_eq!(use_gitmoji, expected);
+    }
+}
+
+#[test]
+fn custom_commit_emoji_is_sent_alongside_existing_instructions() {
+    use crate::studio::handlers::spawn_commit_task;
+    use crate::studio::state::EmojiMode;
+
+    for instructions in ["", "Keep the body concise.\nMention the migration."] {
+        let mut state = test_state();
+        state.modes.commit.emoji_mode = EmojiMode::Custom("🌸".into());
+        state.modes.commit.custom_instructions = instructions.to_string();
+        let SideEffect::SpawnAgent {
+            task:
+                AgentTask::Commit {
+                    instructions: Some(actual),
+                    use_gitmoji,
+                    ..
+                },
+        } = spawn_commit_task(&state)
+        else {
+            panic!("expected commit generation with an emoji constraint");
+        };
+        assert_eq!(use_gitmoji, Some(true));
+        assert!(actual.starts_with(instructions));
+        assert!(actual.contains("emoji field to exactly 🌸"));
+    }
+}
+
+#[test]
+fn custom_commit_emoji_keeps_inherited_configuration_instructions() {
+    use crate::studio::handlers::spawn_commit_task;
+    use crate::studio::state::EmojiMode;
+
+    let mut state = test_state();
+    state.config.instructions = "Preserve configured style.".to_string();
+    state.modes.commit.emoji_mode = EmojiMode::Custom("🌸".into());
+    let SideEffect::SpawnAgent {
+        task: AgentTask::Commit {
+            instructions: Some(actual),
+            ..
+        },
+    } = spawn_commit_task(&state)
+    else {
+        panic!("expected commit generation instructions");
+    };
+    assert!(actual.starts_with(&state.config.instructions));
+    assert!(actual.contains("emoji field to exactly 🌸"));
 }

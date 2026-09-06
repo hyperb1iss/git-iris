@@ -267,9 +267,15 @@ fn format_diff_output(
     let (size, guidance) = if is_filtered {
         ("Filtered", "Showing requested files only.")
     } else if total_files <= 3 && total_lines < 100 {
-        ("Small", "Focus on all files equally.")
+        (
+            "Small",
+            "Inspect the changed contracts and their relevant callers.",
+        )
     } else if total_files <= 10 && total_lines < 500 {
-        ("Medium", "Prioritize files with >60% relevance.")
+        (
+            "Medium",
+            "Use relevance to order inspection, not to exclude changes.",
+        )
     } else {
         (
             "Large",

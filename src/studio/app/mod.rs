@@ -1584,10 +1584,8 @@ impl StudioApp {
 
         self.state.set_iris_thinking("Analyzing changes...");
         self.state.modes.commit.generating = true;
-        let preset = self.state.modes.commit.preset.clone();
-        let use_gitmoji = self.state.modes.commit.use_gitmoji;
-        let amend = self.state.modes.commit.amend_mode;
-        self.spawn_commit_generation(None, preset, use_gitmoji, amend);
+        let effect = super::handlers::spawn_commit_task(&self.state);
+        self.execute_effects(vec![effect]);
     }
 
     /// Auto-generate code review on mode entry

@@ -2,56 +2,26 @@ use super::IrisAgentService;
 use crate::config::Config;
 
 #[test]
-fn saved_config_instructions_are_pr_defaults() {
+fn invocation_overrides_preserve_explicit_empty_and_gitmoji_choices() {
     let config = Config {
-        instructions: "Lead with reviewer context.".to_string(),
+        instructions: "Saved instruction".into(),
+        temp_instructions: Some("Temporary instruction".into()),
         ..Config::default()
     };
-
+    let service = IrisAgentService::new(config, "fireworks".into(), "test".into(), "test".into());
+    let inherited = service.invocation_config(None, None, None);
     assert_eq!(
-        IrisAgentService::custom_instructions_for_capability(&config, "pr", None),
-        Some("Lead with reviewer context.")
+        inherited.temp_instructions.as_deref(),
+        Some("Temporary instruction")
     );
+    assert_eq!(inherited.instructions, "Saved instruction");
+    let overridden = service.invocation_config(Some("conventional"), Some(false), Some(""));
+    assert_eq!(overridden.temp_instructions.as_deref(), Some(""));
+    assert_eq!(overridden.temp_preset.as_deref(), Some("conventional"));
+    assert_eq!(overridden.gitmoji_override, Some(false));
+    assert!(!overridden.use_gitmoji);
     assert_eq!(
-        IrisAgentService::custom_instructions_for_capability(&config, "commit", None),
-        None
-    );
-}
-
-#[test]
-fn runtime_instructions_apply_to_any_capability() {
-    let config = Config {
-        instructions: "Saved PR default.".to_string(),
-        ..Config::default()
-    };
-
-    assert_eq!(
-        IrisAgentService::custom_instructions_for_capability(
-            &config,
-            "commit",
-            Some("One-shot commit instruction."),
-        ),
-        Some("One-shot commit instruction.")
-    );
-    assert_eq!(
-        IrisAgentService::custom_instructions_for_capability(
-            &config,
-            "review",
-            Some("One-shot review instruction."),
-        ),
-        Some("One-shot review instruction.")
-    );
-}
-
-#[test]
-fn blank_runtime_instructions_clear_saved_pr_defaults() {
-    let config = Config {
-        instructions: "Saved PR default.".to_string(),
-        ..Config::default()
-    };
-
-    assert_eq!(
-        IrisAgentService::custom_instructions_for_capability(&config, "pr", Some("   ")),
-        None
+        service.config.temp_instructions.as_deref(),
+        Some("Temporary instruction")
     );
 }

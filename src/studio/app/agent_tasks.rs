@@ -444,7 +444,7 @@ Simply call the appropriate tool with the new content. Do NOT echo back the full
         &self,
         instructions: Option<String>,
         preset: String,
-        use_gitmoji: bool,
+        use_gitmoji: Option<bool>,
         amend: bool,
     ) {
         use super::super::events::AgentTask;
@@ -501,7 +501,7 @@ Simply call the appropriate tool with the new content. Do NOT echo back the full
                     "commit",
                     context,
                     preset_opt,
-                    Some(use_gitmoji),
+                    use_gitmoji,
                     instructions.as_deref(),
                 )
                 .await

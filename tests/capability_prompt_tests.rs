@@ -1,30 +1,34 @@
 #![allow(clippy::unwrap_used)]
 
+use serde::Deserialize;
 use std::fs;
 
-const CAPABILITY_PATHS: &[&str] = &[
-    "src/agents/capabilities/commit.toml",
-    "src/agents/capabilities/review.toml",
-    "src/agents/capabilities/pr.toml",
-    "src/agents/capabilities/changelog.toml",
-    "src/agents/capabilities/release_notes.toml",
-];
+#[derive(Deserialize)]
+struct Capability {
+    name: String,
+    description: String,
+    output_type: String,
+    task_prompt: String,
+}
 
 #[test]
-fn capability_prompts_do_not_force_context_as_the_first_tool_call() {
-    for path in CAPABILITY_PATHS {
-        let prompt = fs::read_to_string(path).unwrap();
-        assert!(
-            !prompt.contains("## MANDATORY FIRST STEP"),
-            "{path} still forces a docs-first prompt contract"
-        );
-        assert!(
-            !prompt.contains("ALWAYS call `project_docs(doc_type=\"context\")` FIRST"),
-            "{path} still instructs Iris to call project_docs context first"
-        );
-        assert!(
-            prompt.contains("project_docs(doc_type=\"context\")"),
-            "{path} should still mention the compact project_docs context tool"
-        );
+fn embedded_capabilities_parse_with_their_runtime_output_contracts() {
+    let contracts = [
+        ("commit", "GeneratedMessage"),
+        ("review", "Review"),
+        ("pr", "MarkdownPullRequest"),
+        ("changelog", "MarkdownChangelog"),
+        ("release_notes", "MarkdownReleaseNotes"),
+        ("chat", "PlainText"),
+        ("semantic_blame", "SemanticBlame"),
+        ("verify", "Critique"),
+    ];
+    for (name, output_type) in contracts {
+        let text = fs::read_to_string(format!("src/agents/capabilities/{name}.toml")).unwrap();
+        let capability: Capability = toml::from_str(&text).unwrap();
+        assert_eq!(capability.name, name);
+        assert_eq!(capability.output_type, output_type);
+        assert!(!capability.description.trim().is_empty());
+        assert!(!capability.task_prompt.trim().is_empty());
     }
 }

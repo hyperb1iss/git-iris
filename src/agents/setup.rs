@@ -284,12 +284,7 @@ impl IrisAgentService {
     ) -> Result<StructuredResponse> {
         let run_task = async {
             let mut agent = self.create_agent()?;
-            let instructions = Self::custom_instructions_for_capability(
-                &self.config,
-                capability,
-                self.config.temp_instructions.as_deref(),
-            );
-            let task_prompt = Self::build_task_prompt(capability, &context, instructions);
+            let task_prompt = Self::build_task_prompt(capability, &context);
             agent.execute_task(capability, &task_prompt).await
         };
 
@@ -347,13 +342,7 @@ impl IrisAgentService {
         instructions: Option<&str>,
     ) -> Result<StructuredResponse> {
         let run_task = async {
-            let mut config = self.config.clone();
-            if let Some(p) = preset {
-                config.temp_preset = Some(p.to_string());
-            }
-            if let Some(gitmoji) = use_gitmoji {
-                config.use_gitmoji = gitmoji;
-            }
+            let config = self.invocation_config(preset, use_gitmoji, instructions);
 
             let mut agent = IrisAgentBuilder::new()
                 .with_provider(&self.provider)
@@ -362,9 +351,7 @@ impl IrisAgentService {
             agent.set_config(config);
             agent.set_fast_model(self.fast_model.clone());
 
-            let instructions =
-                Self::custom_instructions_for_capability(&self.config, capability, instructions);
-            let task_prompt = Self::build_task_prompt(capability, &context, instructions);
+            let task_prompt = Self::build_task_prompt(capability, &context);
             agent.execute_task(capability, &task_prompt).await
         };
 
@@ -375,20 +362,30 @@ impl IrisAgentService {
         }
     }
 
-    /// Build a task prompt incorporating the context information and optional instructions
-    fn build_task_prompt(
-        capability: &str,
-        context: &TaskContext,
+    fn invocation_config(
+        &self,
+        preset: Option<&str>,
+        use_gitmoji: Option<bool>,
         instructions: Option<&str>,
-    ) -> String {
+    ) -> Config {
+        let mut config = self.config.clone();
+        if let Some(preset) = preset {
+            config.temp_preset = Some(preset.to_string());
+        }
+        if let Some(gitmoji) = use_gitmoji {
+            config.use_gitmoji = gitmoji;
+            config.gitmoji_override = Some(gitmoji);
+        }
+        if let Some(instructions) = instructions {
+            config.temp_instructions = Some(instructions.to_string());
+        }
+        config
+    }
+
+    /// Build a task prompt incorporating task context and repository evidence
+    fn build_task_prompt(capability: &str, context: &TaskContext) -> String {
         let context_json = context.to_prompt_context();
         let diff_hint = context.diff_hint();
-
-        // Build instruction suffix if provided
-        let instruction_suffix = instructions
-            .filter(|i| !i.trim().is_empty())
-            .map(|i| format!("\n\n## Custom Instructions\n{}", i))
-            .unwrap_or_default();
 
         // Extract version and date info if this is a Changelog context
         let version_info = if let TaskContext::Changelog {
@@ -425,40 +422,30 @@ impl IrisAgentService {
 
         match capability {
             "commit" => format!(
-                "Generate a commit message for the following context:\n{}\n\nUse: {}{}",
-                context_json, diff_hint, instruction_suffix
+                "Generate a commit message for the following context:\n{}\n\nUse: {}",
+                context_json, diff_hint
             ),
             "review" => format!(
-                "Review the code changes for the following context:\n{}\n\nUse: {}{}",
-                context_json, diff_hint, instruction_suffix
+                "Review the code changes for the following context:\n{}\n\nUse: {}",
+                context_json, diff_hint
             ),
             "pr" => format!(
-                "Generate a pull request description for:\n{}\n\nUse: {}{}{}{}",
-                context_json, diff_hint, pr_template, existing_pr_body, instruction_suffix
+                "Generate a pull request description for:\n{}\n\nUse: {}{}{}",
+                context_json, diff_hint, pr_template, existing_pr_body
             ),
             "changelog" => format!(
-                "Generate a changelog for:\n{}\n\nUse: {}{}{}",
-                context_json, diff_hint, version_info, instruction_suffix
+                "Generate a changelog for:\n{}\n\nUse: {}{}",
+                context_json, diff_hint, version_info
             ),
             "release_notes" => format!(
-                "Generate release notes for:\n{}\n\nUse: {}{}{}",
-                context_json, diff_hint, version_info, instruction_suffix
+                "Generate release notes for:\n{}\n\nUse: {}{}",
+                context_json, diff_hint, version_info
             ),
             _ => format!(
-                "Execute task with context:\n{}\n\nHint: {}{}",
-                context_json, diff_hint, instruction_suffix
+                "Execute task with context:\n{}\n\nHint: {}",
+                context_json, diff_hint
             ),
         }
-    }
-
-    fn custom_instructions_for_capability<'a>(
-        config: &'a Config,
-        capability: &str,
-        runtime_instructions: Option<&'a str>,
-    ) -> Option<&'a str> {
-        runtime_instructions
-            .or_else(|| (capability == "pr").then_some(config.instructions.as_str()))
-            .filter(|instructions| !instructions.trim().is_empty())
     }
 
     /// Create a configured Iris agent
@@ -566,12 +553,7 @@ impl IrisAgentService {
     {
         let run_task = async {
             let mut agent = self.create_agent()?;
-            let instructions = Self::custom_instructions_for_capability(
-                &self.config,
-                capability,
-                self.config.temp_instructions.as_deref(),
-            );
-            let task_prompt = Self::build_task_prompt(capability, &context, instructions);
+            let task_prompt = Self::build_task_prompt(capability, &context);
             agent
                 .execute_task_streaming(capability, &task_prompt, on_chunk)
                 .await

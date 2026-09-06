@@ -55,7 +55,7 @@ pub enum StudioEvent {
     GenerateCommit {
         instructions: Option<String>,
         preset: String,
-        use_gitmoji: bool,
+        use_gitmoji: Option<bool>,
         amend: bool,
     },
 
@@ -531,7 +531,7 @@ pub enum AgentTask {
     Commit {
         instructions: Option<String>,
         preset: String,
-        use_gitmoji: bool,
+        use_gitmoji: Option<bool>,
         amend: bool,
     },
     Review {
