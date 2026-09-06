@@ -96,23 +96,23 @@ doc:
 
 # Start VitePress dev server
 docs-dev:
-    cd docs && npm run dev
+    cd docs && pnpm dev
 
 # Build VitePress site
 docs-build:
-    cd docs && npm run build
+    cd docs && pnpm build
 
 # Preview built VitePress site
 docs-preview:
-    cd docs && npm run preview
+    cd docs && pnpm preview
 
 # Format docs markdown with prettier
 docs-fmt:
-    cd docs && npm run format
+    cd docs && pnpm format
 
 # Check docs markdown formatting
 docs-fmt-check:
-    cd docs && npm run lint
+    cd docs && pnpm lint
 
 # ── Docker ──────────────────────────────────────────────────────
 

@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: "📥 Checkout"
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -104,8 +104,8 @@ jobs:
             exit 1
           fi
 
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "🚀 Releasing: $CURRENT → $VERSION"
 
       - name: "📝 Update Cargo.toml version"
@@ -133,7 +133,7 @@ jobs:
           output-file: CHANGELOG.md
           update-file: "true"
           provider: anthropic
-          model: claude-opus-4-5-20251101
+          model: claude-opus-5
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           binary-path: ./target/release/git-iris
 
@@ -148,13 +148,13 @@ jobs:
           version-name: ${{ steps.version.outputs.version }}
           output-file: RELEASE_NOTES.md
           provider: anthropic
-          model: claude-opus-4-5-20251101
+          model: claude-opus-5
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           binary-path: ./target/release/git-iris
 
       - name: "📤 Upload release notes artifact"
         if: ${{ !inputs.dry_run }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: RELEASE_NOTES.md
@@ -184,32 +184,32 @@ jobs:
 
       - name: "📊 Summary"
         run: |
-          echo "## Release ${{ inputs.dry_run && '[DRY RUN] ' || '' }}v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Release ${{ inputs.dry_run && '[DRY RUN] ' || '' }}v${{ steps.version.outputs.version }}"
+            echo ""
 
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "✅ Build and tests passed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Ready to release.** Run again without dry-run to publish." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ Version bumped: ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-            echo "✅ Tag created and pushed: v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🚀 **CI/CD pipeline triggered!** The following will happen automatically:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- Build release binaries (Linux x64/ARM64, macOS ARM64, Windows)" >> $GITHUB_STEP_SUMMARY
-            echo "- Build .deb and .rpm packages" >> $GITHUB_STEP_SUMMARY
-            echo "- Publish Docker image to Docker Hub" >> $GITHUB_STEP_SUMMARY
-            echo "- Publish to crates.io" >> $GITHUB_STEP_SUMMARY
-            echo "- Create GitHub Release with release notes" >> $GITHUB_STEP_SUMMARY
-            echo "- Update v1 action tag" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "📦 [View CI/CD progress](https://github.com/${{ github.repository }}/actions)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "---" >> $GITHUB_STEP_SUMMARY
-            echo "### 📝 Release Notes Preview" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            cat << 'EOF' >> $GITHUB_STEP_SUMMARY
-          ${{ steps.release_notes.outputs.content }}
-          EOF
-          fi
+            if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+              echo "✅ Build and tests passed"
+              echo ""
+              echo "**Ready to release.** Run again without dry-run to publish."
+            else
+              echo "✅ Version bumped: ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }}"
+              echo "✅ Tag created and pushed: v${{ steps.version.outputs.version }}"
+              echo ""
+              echo "🚀 **CI/CD pipeline triggered!** The following will happen automatically:"
+              echo ""
+              echo "- Build release binaries (Linux x64/ARM64, macOS ARM64, Windows)"
+              echo "- Build .deb and .rpm packages"
+              echo "- Publish Docker image to Docker Hub"
+              echo "- Publish to crates.io"
+              echo "- Create GitHub Release with release notes"
+              echo "- Update v1 action tag"
+              echo ""
+              echo "📦 [View CI/CD progress](https://github.com/${{ github.repository }}/actions)"
+              echo ""
+              echo "---"
+              echo "### 📝 Release Notes Preview"
+              echo ""
+              cat RELEASE_NOTES.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
