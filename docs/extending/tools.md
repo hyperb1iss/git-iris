@@ -330,7 +330,8 @@ just test-one dependency_analyzer
 
 ### Pattern 1: Simple Query Tool
 
-Returns information based on arguments:
+The following pseudocode sketches a query tool. A complete `PortableTool` implementation also
+provides `description()` and `parameters()`, as shown in the full example above.
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -507,6 +508,9 @@ Err(DependencyAnalyzerError("File not found".to_string()))
 ### 5. Performance Considerations
 
 **Cache expensive operations:**
+
+The following pseudocode shows the caching step only. Supply the trait associated items, schema,
+and description from the complete tool implementation.
 
 ```rust
 #[derive(Debug, Clone)]

@@ -193,23 +193,25 @@ The `git_diff` tool includes a one-line size label and guidance in its output he
 let (size, guidance) = if is_filtered {
     ("Filtered", "Showing requested files only.")
 } else if total_files <= 3 && total_lines < 100 {
-    ("Small",  "Focus on all files equally.")
+    ("Small",  "Inspect the changed contracts and their relevant callers.")
 } else if total_files <= 10 && total_lines < 500 {
-    ("Medium", "Prioritize files with >60% relevance.")
+    ("Medium", "Use relevance to order inspection, not to exclude changes.")
 } else {
     ("Large",
      "Use files=['path1','path2'] with detail='standard' to analyze specific files.")
 };
 ```
 
-Capability prompts layer additional guidance on top — for very large changesets (>20 files or >1000 lines) the `review`, `pr`, and `commit` prompts instruct Iris to escalate to `parallel_analyze`, even though `format_diff_output` doesn't emit a dedicated "very large" bucket.
+Capability prompts require coverage of the selected scope without fixed file-count cutoffs.
+They leave delegation to the task: independent questions can benefit from workers at any size.
+See [Prompt Contracts](./prompting.md) for evidence and completion requirements.
 
 ### Output Format
 
 ```
 === DIFF SUMMARY ===
 Size: Medium (8 files, 347 lines changed)
-Guidance: Focus on files with >60% relevance (top 5-7 shown)
+Guidance: Use relevance to order inspection, not to exclude changes.
 
 === CHANGES (sorted by relevance) ===
 
@@ -256,7 +258,7 @@ The `git_diff` tool supports **two** detail levels — `Summary` (default) and `
 ```
 === CHANGES SUMMARY ===
 8 files | +247 -100 | Size: Medium (347 lines)
-Guidance: Prioritize files with >60% relevance.
+Guidance: Use relevance to order inspection, not to exclude changes.
 
 Files by importance:
   [95%] Modified src/agents/iris.rs (source code, adds function)
@@ -281,68 +283,18 @@ The progressive flow is intentional: call once with `detail="summary"`, then aga
 
 ## Capability-Specific Strategies
 
-Capabilities guide Iris on using relevance scores:
-
-### Commit Messages (`commit.toml`)
-
-```toml
-## Context Strategy by Size
-- **Small** (≤3 files, <100 lines): Consider all changes equally
-- **Medium** (≤10 files, <500 lines): Focus on files with >60% relevance
-- **Large** (>10 files or >500 lines): Focus ONLY on top 5-7 highest-relevance files
-- **Very Large** (>20 files or >1000 lines): Use `parallel_analyze`
-
-Example:
-```
-
-parallel_analyze({
-"tasks": [
-"Summarize changes in src/api/",
-"Summarize changes in src/models/",
-"Summarize infrastructure changes"
-]
-})
-
-```
-
-```
-
-### Code Reviews (`review.toml`)
-
-```toml
-## Analysis Strategy
-1. Call `git_diff(detail="summary")` to understand changeset size
-2. For Small/Medium: Use `git_diff(detail="standard")`
-3. For Large: Focus on high-relevance files, skim low-relevance
-4. For Very Large: Use `parallel_analyze` to distribute review across subagents
-
-Prioritize security and performance issues in high-relevance files.
-```
-
-### Pull Requests (`pr.toml`)
-
-```toml
-## Branch Analysis
-1. Call `git_diff(from="<default-branch>", to="HEAD", detail="summary")` for overview
-2. Identify major themes (new features, refactors, fixes)
-3. For large branches: Use `parallel_analyze` to analyze feature areas separately
-4. Synthesize findings into a cohesive PR description
-
-Include all breaking changes regardless of file relevance.
-```
+Commit generation describes the complete selected changeset. Reviews focus on supported
+regressions and their affected contracts. PR descriptions explain the concrete problem and
+resulting behavior while preserving existing human context and templates. Relevance scores guide
+inspection order across these capabilities, but never define a subset that counts as the whole
+review.
 
 ## Parallel Analysis
 
-For very large changesets, Iris spawns **concurrent subagents**:
-
-### When to Use
-
-Capability prompts direct Iris to escalate to `parallel_analyze` (no hardcoded auto-trigger — the LLM decides based on `git_diff` summary output) when:
-
-- **>20 files** changed
-- **>1000 lines** changed
-- **Batch operations** (multiple commits, release notes)
-- Independent specialist passes (security, API contracts, concurrency, tests) would reduce blind spots
+Iris can delegate independent questions when workers improve coverage or useful investigations
+can run concurrently. Each worker receives a concrete question, exact refs or staged scope,
+relevant paths, and the parent's task constraints. A small question that a few tool calls can
+resolve does not need delegation. The parent reconciles returned claims against evidence.
 
 ### How It Works
 
@@ -393,9 +345,9 @@ Subagent resource use is tunable from two places:
     "Analyze security implications of authentication changes in src/auth/",
     "Review performance impact of database query refactors in src/db/",
     "Summarize API endpoint changes in src/api/",
-    "Check for breaking changes in public interfaces"
+    "Check for breaking changes in public interfaces",
   ],
-  "max_turns": 30
+  "max_turns": 30,
 }
 ```
 
@@ -408,12 +360,12 @@ Iris can **adaptively explore** based on initial findings:
 ```
 1. Call git_diff(detail="summary")
    → See: "8 files, 347 lines, Medium changeset"
-   → Strategy: Focus on >60% relevance
+   → Strategy: Order investigation using relevance and affected contracts
 
-2. Call git_diff(detail="standard")
-   → Get: Full diffs for the top 5 files
+2. Call git_diff(detail="standard", files=[...])
+   → Get: Focused patches for the contracts being investigated
 
-3. Analyze top files
+3. Analyze the selected patches
    → Notice: Major refactor in src/agents/iris.rs
 
 4. Call file_read for context

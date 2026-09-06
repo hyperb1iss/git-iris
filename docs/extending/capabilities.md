@@ -291,14 +291,14 @@ just studio
 
 ### Prompt Engineering
 
-**Be specific about workflow:**
+**State the evidence needed without forcing a tool sequence:**
 
 ```toml
-## Workflow
-1. Call `project_docs(doc_type="context")` first
-2. Get the diff with `git_diff()`
-3. For files over 500 lines, use `file_read(path="...", start_line=1, num_lines=200)` for targeted analysis
-4. Synthesize findings into output format
+## Evidence
+Use the selected comparison scope for all tools and delegated tasks.
+Inspect the patches that support material claims. Use a compact summary to orient broad changes,
+then filtered diffs and targeted reads. Use project_docs(doc_type="context") when conventions matter.
+Account for the requested scope and name evidence gaps. Return the artifact in its supplied schema.
 ```
 
 **Provide clear output requirements:**
@@ -323,14 +323,13 @@ Example output:
 
 ### Context Strategy
 
-Guide Iris on how to handle different changeset sizes:
+Guide investigation without excluding parts of the requested scope:
 
 ```toml
-## Context Strategy by Size
-- **Small** (≤3 files, <100 lines): Consider all changes equally
-- **Medium** (≤10 files, <500 lines): Focus on files with >60% relevance
-- **Large** (>10 files or >500 lines): Use top 5-7 highest-relevance files
-- **Very Large** (>20 files): Use `parallel_analyze` to distribute work
+## Evidence Coverage
+Use summaries to orient broad changes, then inspect supporting patches and affected contracts.
+Relevance scores guide investigation order, not which files count toward coverage.
+Delegate independent questions when their answers improve coverage.
 ```
 
 ### Tool Selection
@@ -347,7 +346,7 @@ Only list tools relevant to the task:
 
 ### Certainty Standards
 
-Enforce definitive language:
+Calibrate claims to evidence:
 
 ```toml
 ## Writing Standards
@@ -398,16 +397,16 @@ Use markdown wrappers when you want the LLM to control the exact structure while
 ## Workflow
 1. Initial scan: `git_diff(detail="summary")` for overview
 2. Identify key areas from relevance scores
-3. Deep dive: `file_read(path="...", start_line=1, num_lines=200)` on top 5 files
+3. Inspect the patches and callers needed to support material claims
 4. Synthesize into structured output
 ```
 
 ### Parallel Processing
 
-For large changesets:
+For independent questions that benefit from concurrent investigation:
 
 ```toml
-## Very Large Changesets (>20 files)
+## Independent Investigations
 Use `parallel_analyze` to distribute work:
 parallel_analyze({
   "tasks": [
@@ -416,7 +415,7 @@ parallel_analyze({
     "Check frontend component updates"
   ]
 })
-Each subagent analyzes independently, then you synthesize.
+Supply exact refs and task constraints to every worker, then reconcile findings against evidence.
 ```
 
 ### Style Adaptation

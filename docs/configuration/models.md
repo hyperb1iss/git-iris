@@ -42,6 +42,20 @@ Leave `subagent_model` unset to use the primary model for delegated analysis. Ch
 only changes status generation. Use lower effort or a different worker model after comparing review
 findings and completion quality on representative repositories.
 
+## Upgrading Existing Configuration
+
+Upgrades preserve explicit primary models, fast models, and provider parameters. Change saved model
+IDs deliberately when adopting new defaults, and review parameter overrides for compatibility with
+the chosen model.
+
+Delegated analysis now uses the primary model unless `subagent_model` is set. Earlier versions used
+the fast model for workers as well as status messages. To retain a previous worker choice, set that
+model explicitly with `git-iris config --provider PROVIDER --subagent-model MODEL`. Worker cost and
+output quality depend on that choice; `fast_model` now affects status messages only.
+
+Saved custom instructions also apply across capabilities. Scope artifact-specific rules explicitly,
+as described in [Configuration](../getting-started/configuration.md#custom-instructions).
+
 ## Reasoning Controls
 
 Iris chooses effort by task role. You can override provider parameters through `--param`:

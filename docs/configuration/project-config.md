@@ -122,7 +122,7 @@ model = "claude-opus-5"
 | `use_gitmoji`           | Boolean | Enable/disable gitmoji                          |
 | `default_provider`      | String  | Team's preferred provider                       |
 | `instruction_preset`    | String  | Shared instruction preset                       |
-| `instructions`          | String  | Custom project instructions across capabilities                  |
+| `instructions`          | String  | Custom project instructions across capabilities |
 | `theme`                 | String  | Team's preferred theme                          |
 | `critic_enabled`        | Boolean | Run critic verification for long-form artifacts |
 | `subagent_timeout_secs` | Integer | Timeout in seconds for parallel subagent tasks  |

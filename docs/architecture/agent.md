@@ -8,7 +8,8 @@ The Iris Agent is the core intelligence of Git-Iris, built on [Rig 0.42](https:/
 
 ### One Agent to Rule Them All
 
-Git-Iris uses a **unified agent architecture** with capability switching:
+Git-Iris uses a unified agent architecture with capability switching. The following sketch shows
+the configuration fields; the implementation also holds shared workspace and execution state:
 
 ```rust
 pub struct IrisAgent {
@@ -137,17 +138,15 @@ The companion `CORE_TOOLS: &[&str]` constant in `src/agents/tools/registry.rs` l
 
 ## Multi-Turn Execution
 
-Iris operates in **multi-turn mode**, allowing up to 50 tool calls. The non-streaming path calls `prompt_extended` on `DynAgent`, which chains `max_turns(depth).extended_details()` on the shared agent:
+Iris operates in **multi-turn mode**, with a budget of 50 model turns. A turn may contain multiple tool calls. The non-streaming path calls `prompt_extended` on `DynAgent`, which chains `max_turns(depth).extended_details()` on the shared agent:
 
 ```rust
 let prompt_response: PromptResponse = agent.prompt_extended(&full_prompt, 50).await?;
 // inside DynAgent::prompt_extended:
-//   Self::OpenAI(a)    => a.prompt(msg).max_turns(depth).extended_details().await,
-//   Self::Anthropic(a) => a.prompt(msg).max_turns(depth).extended_details().await,
-//   Self::Gemini(a)    => a.prompt(msg).max_turns(depth).extended_details().await,
+self.0.prompt(msg).max_turns(depth).extended_details().await
 ```
 
-`.multi_turn()` is the streaming-only equivalent — the streaming path constructs a provider-specific `Agent<M>` first (see `build_*_agent_for_streaming`) and then calls `.stream_prompt(...).multi_turn(50).await`.
+Streaming uses the same shared agent builder and calls `.stream_prompt(...).max_turns(50).await`. Both paths use the configured model, tools, and task contract.
 
 ### Execution Flow
 
@@ -223,51 +222,21 @@ After `execute_output_type` returns a structured response, `execute_task` calls 
 
 `Critique` has four fields: `requires_revision: bool`, `issues: Vec<CritiqueIssue>` (title, body, severity), `revision_prompt: String`, `confidence: u8`. If the critic returns `requires_revision = true` and provides either issues or a revision prompt, `execute_output_type` runs once more with the original system prompt and a user prompt augmented with the critic feedback. The pass runs only for output types where a critic check pays off:
 
-```rust
-matches!(
-    (capability, output_type),
-    ("commit", "GeneratedMessage")
-        | ("review", "Review")
-        | ("pr", "MarkdownPullRequest")
-        | ("changelog", "MarkdownChangelog")
-        | ("release_notes", "MarkdownReleaseNotes"),
-)
-```
+The enabled critic handles review, PR, changelog, and release-note output. Commit generation also
+requires an explicit critic override. Chat and semantic blame do not run the critic.
 
-Failures inside the critic (loading the capability, parsing the JSON, network errors) are logged as warnings and the original artifact is returned unchanged — the critic is a safety net, not a hard gate.
+Critic evaluation failures (loading, parsing, or network errors) are logged as warnings and preserve
+the original artifact. If the critic requests a revision and that generation fails, the error
+propagates to the caller.
 
 ## Structured Output Generation
 
-After tools are called, Iris must return valid JSON:
+Structured capabilities derive their response schema from the Rust output type. The capability,
+style, and response contract belong in the trusted preamble; the task and its repository context
+remain separate. The final response is parsed into the expected type, with recovery for supported
+formatting errors. Prompt instructions are not a substitute for response validation.
 
-```rust
-async fn execute_with_agent<T>(&self, system_prompt: &str, user_prompt: &str) -> Result<T>
-where
-    T: JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
-{
-    // Generate JSON schema for type T
-    let schema = schema_for!(T);
-    let schema_json = serde_json::to_string_pretty(&schema)?;
-
-    // Instruct Iris to respond with JSON matching the schema
-    let full_prompt = format!(
-        "{system_prompt}\n\n{user_prompt}\n\n\
-        === CRITICAL: RESPONSE FORMAT ===\n\
-        REQUIRED JSON SCHEMA:\n{schema_json}\n\n\
-        Your entire response should be ONLY the JSON object."
-    );
-
-    let prompt_response: PromptResponse = agent.prompt_extended(&full_prompt, 50).await?;
-    let response = &prompt_response.output;
-
-    // Extract and validate JSON
-    let json_str = extract_json_from_response(response)?;
-    let sanitized = sanitize_json_response(&json_str);
-    let result: T = parse_with_recovery(sanitized.as_ref())?;
-
-    Ok(result)
-}
-```
+See [Prompt Contracts](./prompting) for instruction precedence and evaluation coverage.
 
 ### JSON Extraction and Sanitization
 
@@ -293,31 +262,14 @@ See [Output Validation](./output.md) for details.
 
 ## Style Injection
 
-Iris adapts her output based on configuration:
+Iris applies capability-appropriate presets and explicit emoji settings before generation. The
+conventional preset defines commit format; it does not impose commit fields on reviews or release
+notes. An explicit emoji setting overrides inferred history. Without an explicit commit format,
+Iris uses the prevailing repository convention rather than a single exceptional commit.
 
-```rust
-fn inject_style_instructions(&self, system_prompt: &mut String, capability: &str) {
-    let config = self.config?;
-    let preset_name = config.get_effective_preset_name();
-    let is_conventional = preset_name == "conventional";
-    let gitmoji_enabled = config.use_gitmoji && !is_conventional;
-
-    // Inject instruction preset
-    if let Some(preset) = library.get_preset(preset_name) {
-        system_prompt.push_str("\n\n=== STYLE INSTRUCTIONS ===\n");
-        system_prompt.push_str(&preset.instructions);
-    }
-
-    // Handle gitmoji
-    if gitmoji_enabled && capability == "commit" {
-        system_prompt.push_str("\n\n=== GITMOJI INSTRUCTIONS ===\n");
-        system_prompt.push_str("Set the 'emoji' field to a relevant gitmoji...");
-        system_prompt.push_str(&get_gitmoji_prompt_guide());
-    }
-}
-```
-
-**Presets** like `cosmic` or `playful` inject personality into Iris's language while maintaining structural requirements (72-char limit, imperative mood, JSON format).
+The shared `get_gitmoji_prompt_guide()` supplies valid gitmoji choices when emoji styling applies.
+Tone presets change wording while preserving facts, identifiers, and the output schema. Persisted
+custom instructions apply across capabilities; invocation and temporary instructions take precedence.
 
 ## Subagent Creation
 
@@ -344,16 +296,16 @@ Git-Iris defaults to GPT-6 Astra for OpenAI analysis and GPT-5.6 Luna for status
 
 ## Streaming Support
 
-Streaming uses the same configured agent and tool registry as non-streaming generation:
+Streaming uses the same configured agent, tool registry, response schema, and critic policy as
+non-streaming generation. The output contract lives in the trusted preamble; the user message
+carries the task once.
 
-```rust
-let agent = self.build_agent()?;
-let stream = agent.0.stream_prompt(&full_prompt).max_turns(50).await;
-```
+Studio receives provisional text and tool activity while the agent runs. The collector resets the
+preview between tool turns and parses Rig's final response, so intermediate narration cannot become
+the artifact. Structured output uses the same Rust types and recovery path in both modes.
 
-The consumer forwards text chunks and tool activity to Studio. The aggregated response is parsed
-through `text_to_structured_response`, so the structured output contract stays consistent across
-streaming and non-streaming tasks.
+When the critic requests a revision, the revision prompt includes the original artifact and the
+material corrections. Studio receives the final typed result after verification finishes.
 
 ## Debug Instrumentation
 
@@ -379,38 +331,19 @@ Enable with `--debug` flag for color-coded execution traces.
 
 ## Testing Patterns
 
-### Unit Tests
+Capability tests parse the embedded TOMLs and verify their output types. Runtime tests in
+`src/agents/iris_runtime_tests.rs` use a local HTTP server to inspect actual provider requests and
+exercise multi-turn tool calls without paid API access. Studio tests follow draft updates from the
+tool through the event channel into typed state.
 
-Test capability loading:
+Run the focused runtime suite with:
 
-```rust
-#[test]
-fn loads_commit_capability() {
-    let agent = IrisAgent::new("openai", "gpt-6-astra").unwrap();
-    let (prompt, output_type) = agent.load_capability_config("commit").unwrap();
-    assert!(prompt.contains("Generate a commit message"));
-    assert_eq!(output_type, "GeneratedMessage");
-}
+```bash
+cargo test --locked --lib iris_runtime_tests
 ```
 
-### Integration Tests
-
-Test full execution with mocked tools:
-
-```rust
-#[tokio::test]
-async fn generates_commit_message() {
-    let agent = IrisAgent::new("openai", "gpt-6-astra").unwrap();
-    let response = agent.execute_task("commit", "Generate message").await.unwrap();
-
-    match response {
-        StructuredResponse::CommitMessage(msg) => {
-            assert!(!msg.title.is_empty());
-        }
-        _ => panic!("Wrong response type"),
-    }
-}
-```
+Live model evaluations are separate. Use a disposable repository, hold the model and task fixed,
+and compare observed behavior before and after the prompt change. See [Prompt Contracts](./prompting.md).
 
 ## Error Handling
 

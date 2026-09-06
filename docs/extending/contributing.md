@@ -230,17 +230,16 @@ fn default_limit() -> usize { 10 }
 ## Output Requirements
 - **Field1**: Description, constraints
 - **Field2**: Description, format
-- Use definitive language, not "probably" or "might"
+- Distinguish verified observations from inferences and unavailable evidence
 ```
 
 **Context strategies:**
 
 ```toml
-## Context Strategy by Size
-- **Small**: Consider all files
-- **Medium**: Focus on high-relevance files
-- **Large**: Use top 5-7 files, summarize rest
-- **Very Large**: Use `parallel_analyze` to distribute work
+## Evidence Coverage
+Use summaries to orient broad changes, then inspect patches and affected contracts.
+Account for the selected scope regardless of relevance score.
+Delegate independent questions when useful, preserving exact comparison refs.
 ```
 
 ### Studio Mode Standards

@@ -41,7 +41,8 @@ Press `/` in any mode to chat with Iris. Ask her to refine content, explain chan
 
 ### Multi-Provider Support
 
-Work with your preferred LLM:
+Direct-provider defaults are listed below. See [Provider Configuration](../configuration/providers.md)
+for OpenRouter and Fireworks setup.
 
 | Provider      | Default Model    | Context Window |
 | ------------- | ---------------- | -------------- |
