@@ -1,6 +1,6 @@
 # Iris Agent System
 
-The Iris Agent is the core intelligence of Git-Iris, built on [rig-core 0.37](https://docs.rs/rig-core/0.37.0) (imported as `rig` via `package = "rig-core"` in `Cargo.toml`) for agentic workflows.
+The Iris Agent is the core intelligence of Git-Iris, built on [Rig 0.42](https://docs.rs/rig/0.42.0) (the `rig` facade crate) for agentic workflows.
 
 **Source:** `src/agents/iris.rs`
 
@@ -12,9 +12,9 @@ Git-Iris uses a **unified agent architecture** with capability switching:
 
 ```rust
 pub struct IrisAgent {
-    provider: String,              // "openai", "anthropic", "google"
+    provider: String,              // Provider registry name
     model: String,                 // Primary model for complex tasks
-    fast_model: Option<String>,    // Fast model for subagents
+    fast_model: Option<String>,    // Lightweight status model
     current_capability: Option<String>, // Active capability
     provider_config: HashMap<String, String>,
     preamble: Option<String>,
@@ -30,13 +30,16 @@ pub struct IrisAgent {
 - **Maintainability** — Fix a bug once, it's fixed everywhere
 - **Testability** — Test one agent with different prompts
 
-### Stateless and Send-Safe
+### Provider Construction
 
-`IrisAgent` doesn't store any rig clients. Each call to `build_agent` constructs a fresh provider client through `provider::openai_builder`, `provider::anthropic_builder`, or `provider::gemini_builder`, then returns a `DynAgent` enum wrapping the provider-specific `Agent<M>`. This design:
+The provider module creates clients through one `agent_builder` entry point. Rig 0.42 erases the
+completion model type inside its agent, so `DynAgent` wraps one shared agent type. OpenAI uses
+Responses, OpenRouter uses its native adapter, and Fireworks uses an OpenAI-compatible Chat
+Completions client. Anthropic and Gemini retain their native adapters.
 
-- Reads API keys from environment (or config) at call time via `resolve_api_key`
-- Allows the agent to be used across async boundaries (`tokio::spawn`)
-- Makes the agent `Send + Sync` safe
+API keys resolve from provider configuration, then the provider's environment variable. Service
+entry points bind repository identity and execution trust for tool calls. Parallel workers carry
+both values into spawned tasks; remote clones cannot run project build scripts through static analysis.
 
 ## Agent Lifecycle
 
@@ -44,12 +47,12 @@ pub struct IrisAgent {
 
 ```rust
 // Direct creation
-let agent = IrisAgent::new("anthropic", "claude-opus-4-6")?;
+let agent = IrisAgent::new("anthropic", "claude-opus-5")?;
 
 // With builder
 let agent = IrisAgentBuilder::new()
     .with_provider("anthropic")
-    .with_model("claude-opus-4-6")
+    .with_model("claude-opus-5")
     .with_preamble("Custom instructions...")
     .build()?;
 ```
@@ -58,7 +61,7 @@ let agent = IrisAgentBuilder::new()
 
 Agents can be configured with:
 
-- **Fast model** for subagents: `agent.set_fast_model("gpt-5.4-mini")`
+- **Subagent model** for delegated analysis: set `providers.<name>.subagent_model` in the config
 - **Config** for gitmoji/presets: `agent.set_config(config)`
 - **Content update sender** for Studio chat mode: `agent.set_content_update_sender(sender)`
 
@@ -86,42 +89,17 @@ agent.execute_task_streaming("review", prompt, |chunk, aggregated| {
 
 ## Tool Attachment
 
-Tools are attached when the agent is built. `build_agent` returns a `DynAgent` enum and dispatches on the configured provider string:
+The shared `build_agent` path creates a focused subagent and main agent using the selected
+provider. It applies `CompletionProfile::Subagent` and `CompletionProfile::MainAgent` through
+`apply_completion_params`, then attaches their tools.
 
-```rust
-fn build_agent(&self) -> Result<DynAgent> {
-    let preamble = self.preamble.as_deref().unwrap_or(DEFAULT_PREAMBLE);
-    let fast_model = self.effective_fast_model();
-    let api_key = self.get_api_key();
-    let subagent_timeout = self.config.as_ref().map_or(120, |c| c.subagent_timeout_secs);
-    let subagent_max_turns = self.config.as_ref().map_or(20, |c| c.subagent_max_turns);
+The main agent receives the core registry plus repository metadata, a persistent workspace,
+`ParallelAnalyze`, and the focused subagent through Rig's `dynamic_tool` adapter. Studio chat adds
+content-update tools when a sender is present. Subagents receive core tools without delegation.
 
-    // ... macros build subagent, attach main tools, optionally add update tools ...
-
-    match self.provider.as_str() {
-        "openai" => {
-            let sub_agent = build_subagent!(provider::openai_builder(fast_model, api_key)?);
-            let builder = provider::openai_builder(&self.model, api_key)?.preamble(preamble);
-            let builder = self.apply_completion_params(builder, &self.model, 16384, CompletionProfile::MainAgent)?;
-            let builder = attach_main_tools!(builder).tool(sub_agent);
-            let agent = maybe_attach_update_tools!(builder);
-            Ok(DynAgent::OpenAI(agent))
-        }
-        "anthropic" => { /* mirror of OpenAI arm using anthropic_builder */ }
-        "google" | "gemini" => { /* mirror using gemini_builder */ }
-        _ => Err(anyhow::anyhow!("Unsupported provider: {}", self.provider)),
-    }
-}
-```
-
-Each arm:
-
-1. Builds a subagent with `attach_core_tools!` (no delegation tools).
-2. Builds the main agent with `attach_core_tools!` plus `GitRepoInfo`, `Workspace`, and `ParallelAnalyze::with_limits` (configured with `subagent_timeout` and `subagent_max_turns`).
-3. Conditionally attaches `UpdateCommitTool`, `UpdatePRTool`, and `UpdateReviewTool` when a `content_update_sender` is present (Studio chat mode).
-4. Wraps the resulting `Agent<M>` in the appropriate `DynAgent` variant.
-
-`apply_completion_params` keeps provider quirks out of the main builder flow. For OpenAI GPT-5 models, it injects the right completion-token parameter and a default reasoning profile (`medium` for the main agent unless the user explicitly overrides `reasoning`). For Anthropic, `anthropic_agent_builder` adds `.with_automatic_caching()` unconditionally so multi-turn tool loops bill prior turns at the cached rate.
+Provider parameter mapping lives in `src/agents/provider.rs`. OpenAI gets Responses reasoning;
+Opus gets adaptive thinking and effort; Gemini gets generation configuration. Anthropic's builder
+enables automatic prompt caching. Explicit model choices and provider parameters remain configurable.
 
 ### Tool Registry Pattern
 
@@ -159,7 +137,7 @@ The companion `CORE_TOOLS: &[&str]` constant in `src/agents/tools/registry.rs` l
 
 ## Multi-Turn Execution
 
-Iris operates in **multi-turn mode**, allowing up to 50 tool calls. The non-streaming path calls `prompt_extended` on the `DynAgent`, which internally chains `max_turns(depth).extended_details()` for the active provider:
+Iris operates in **multi-turn mode**, allowing up to 50 tool calls. The non-streaming path calls `prompt_extended` on `DynAgent`, which chains `max_turns(depth).extended_details()` on the shared agent:
 
 ```rust
 let prompt_response: PromptResponse = agent.prompt_extended(&full_prompt, 50).await?;
@@ -343,78 +321,39 @@ fn inject_style_instructions(&self, system_prompt: &mut String, capability: &str
 
 ## Subagent Creation
 
-The agent builds a **sub-agent** as a tool:
+Iris exposes a focused `analyze_subagent` tool and a `parallel_analyze` tool for independent tasks.
+Both use `subagent_model` when configured, otherwise the primary model. The fast model is reserved
+for status messages.
 
-```rust
-let sub_agent_builder = client_builder
-    .agent(&self.provider, fast_model)
-    .name("analyze_subagent")
-    .description("Delegate focused analysis tasks to a sub-agent...")
-    .preamble("You are a specialized analysis sub-agent...");
-let sub_agent_builder = self.apply_completion_params(
-    sub_agent_builder,
-    fast_model,
-    4_096,
-    CompletionProfile::Subagent,
-)?;
+Subagents receive the core registry, a focused preamble, and 4,096 output tokens. They have no
+further delegation tools. The primary agent receives 16,384 output tokens. Configured turn and
+time budgets govern delegated tasks, and each worker retains the originating repository and trust.
 
-let sub_agent = attach_core_tools!(sub_agent_builder).build();
-```
-
-**Key differences from main agent:**
-
-- Uses **fast model** for cost efficiency
-- Has **core tools** (git, file read) but no delegation tools (no recursion)
-- **Smaller token limit** (4096 vs 16384), applied through provider-aware completion params
-- **Lower default reasoning** for OpenAI GPT-5 (`low`) so delegated analysis stays fast
-- **Focused preamble** — "Complete the task, return concise summary"
-
-The sub-agent is attached as a **tool**, allowing Iris to delegate:
-
-```
-Iris: "analyze_subagent({ task: 'Review database migrations in db/' })"
-Sub-Agent: [Calls git_diff, file_read, returns focused summary]
-Iris: [Incorporates sub-agent findings into final output]
-```
+Reasoning is selected by `CompletionProfile::Subagent`: low for Astra, Opus, and Gemini 3.8.
+Fireworks DeepSeek V4 uses high because its API promotes low and medium to high.
 
 ## Provider-Specific Handling
 
 ### OpenAI Model Defaults
 
-Git-Iris targets the GPT-5 family for OpenAI. Keep examples and docs aligned with the current defaults in `src/providers.rs` rather than older model aliases.
+Git-Iris defaults to GPT-6 Astra for OpenAI analysis and GPT-5.6 Luna for status messages. Keep examples and docs aligned with the current defaults in `src/providers.rs` rather than older model aliases.
 
 ### Anthropic Prompt Caching
 
-`anthropic_agent_builder` calls `.with_automatic_caching()` on every Anthropic completion model (`src/agents/provider.rs:194-204`). Rig places a top-level `cache_control` breakpoint on the last cacheable block, which the API advances as the conversation grows. On Iris's multi-turn tool loops, where every turn otherwise re-sends the whole transcript at full input price, cached turns are billed at a fraction of that cost. Caching is unconditional — prompts below the model's cacheable minimum are simply not cached by the API. Debug output surfaces both `cache_creation_input_tokens` and `cached_input_tokens` so you can confirm the cache is doing real work on your workload.
+`anthropic_agent_builder` calls `.with_automatic_caching()` on every Anthropic completion model (`src/agents/provider.rs`). Rig places a top-level `cache_control` breakpoint on the last cacheable block, which the API advances as the conversation grows. On Iris's multi-turn tool loops, where every turn otherwise re-sends the whole transcript at full input price, cached turns are billed at a fraction of that cost. Caching is unconditional — prompts below the model's cacheable minimum are simply not cached by the API. Debug output surfaces both `cache_creation_input_tokens` and `cached_input_tokens` so you can confirm the cache is doing real work on your workload.
 
 ## Streaming Support
 
-For real-time TUI updates, streaming dispatches per-provider through `build_openai_agent_for_streaming`, `build_anthropic_agent_for_streaming`, or `build_gemini_agent_for_streaming` — each returns a concrete `rig::agent::Agent<M>` rather than a `DynAgent`, because rig's streaming types are model-specific. The aggregated text is then converted to the appropriate structured response by `text_to_structured_response`:
+Streaming uses the same configured agent and tool registry as non-streaming generation:
 
 ```rust
-let aggregated_text = match self.provider.as_str() {
-    "openai" => {
-        let agent = self.build_openai_agent_for_streaming(&full_prompt)?;
-        let stream = agent.stream_prompt(&full_prompt).multi_turn(50).await;
-        consume_stream!(stream)
-    }
-    "anthropic" => { /* build_anthropic_agent_for_streaming + stream_prompt */ }
-    "google" | "gemini" => { /* build_gemini_agent_for_streaming + stream_prompt */ }
-    _ => return Err(anyhow::anyhow!("Unsupported provider: {}", self.provider)),
-};
-
-let response = Self::text_to_structured_response(&output_type, aggregated_text);
+let agent = self.build_agent()?;
+let stream = agent.0.stream_prompt(&full_prompt).max_turns(50).await;
 ```
 
-The `consume_stream!` macro matches `MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(...))` for text chunks and `StreamedAssistantContent::ToolCall { tool_call, .. }` for status updates. `text_to_structured_response` dispatches on the capability's declared output type:
-
-- `GeneratedMessage` — try JSON parse, fall back to `PlainText`.
-- `Review` — wrap text in `Review::from_unstructured` so the streamed markdown is still surfaced when structured parsing fails.
-- `MarkdownPullRequest`, `MarkdownChangelog`, `MarkdownReleaseNotes` — wrap the text directly.
-- `SemanticBlame` — return as-is.
-- anything else — `PlainText` fallback.
-
-**Note:** Streaming does not enforce a JSON schema in-flight. The structured response is reconstructed once the stream completes.
+The consumer forwards text chunks and tool activity to Studio. The aggregated response is parsed
+through `text_to_structured_response`, so the structured output contract stays consistent across
+streaming and non-streaming tasks.
 
 ## Debug Instrumentation
 
@@ -447,7 +386,7 @@ Test capability loading:
 ```rust
 #[test]
 fn loads_commit_capability() {
-    let agent = IrisAgent::new("openai", "gpt-5.4").unwrap();
+    let agent = IrisAgent::new("openai", "gpt-6-astra").unwrap();
     let (prompt, output_type) = agent.load_capability_config("commit").unwrap();
     assert!(prompt.contains("Generate a commit message"));
     assert_eq!(output_type, "GeneratedMessage");
@@ -461,7 +400,7 @@ Test full execution with mocked tools:
 ```rust
 #[tokio::test]
 async fn generates_commit_message() {
-    let agent = IrisAgent::new("openai", "gpt-5.4").unwrap();
+    let agent = IrisAgent::new("openai", "gpt-6-astra").unwrap();
     let response = agent.execute_task("commit", "Generate message").await.unwrap();
 
     match response {

@@ -14,6 +14,7 @@ use crate::git::GitRepo;
 
 tokio::task_local! {
     static ACTIVE_REPO_ROOT: PathBuf;
+    static TRUSTED_EXECUTION: bool;
 }
 
 /// Generate a JSON schema for tool parameters that's `OpenAI`-compatible.
@@ -64,9 +65,28 @@ pub async fn with_active_repo_root<F, T>(repo_path: &Path, future: F) -> T
 where
     F: Future<Output = T>,
 {
+    with_repo_execution_context(repo_path, current_repo_execution_trusted(), future).await
+}
+
+/// Bind repository identity and permission to execute project code to a task.
+pub async fn with_repo_execution_context<F, T>(repo_path: &Path, trusted: bool, future: F) -> T
+where
+    F: Future<Output = T>,
+{
     ACTIVE_REPO_ROOT
-        .scope(repo_path.to_path_buf(), future)
+        .scope(
+            repo_path.to_path_buf(),
+            TRUSTED_EXECUTION.scope(trusted, future),
+        )
         .await
+}
+
+/// Local workspaces permit analysis; remote clones must explicitly carry distrust.
+#[must_use]
+pub fn current_repo_execution_trusted() -> bool {
+    TRUSTED_EXECUTION
+        .try_with(|trusted| *trusted)
+        .unwrap_or(true)
 }
 
 /// Get the repo root bound to the current task, falling back to the current directory.

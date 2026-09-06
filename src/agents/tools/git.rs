@@ -3,8 +3,7 @@
 //! This module provides Git operations using Rig's tool system.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -338,21 +337,24 @@ pub struct GitStatusArgs {
     pub include_unstaged: bool,
 }
 
-impl Tool for GitStatus {
+impl PortableTool for GitStatus {
     const NAME: &'static str = "git_status";
     type Error = GitError;
     type Args = GitStatusArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_status".to_string(),
-            description: "Get current Git repository status including staged and unstaged files"
-                .to_string(),
-            parameters: parameters_schema::<GitStatusArgs>(),
-        }
+    fn description(&self) -> String {
+        "Get current Git repository status including staged and unstaged files".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitStatusArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
 
@@ -406,20 +408,24 @@ pub struct GitDiffArgs {
     pub files: Option<Vec<String>>,
 }
 
-impl Tool for GitDiff {
+impl PortableTool for GitDiff {
     const NAME: &'static str = "git_diff";
     type Error = GitError;
     type Args = GitDiffArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_diff".to_string(),
-            description: "Get Git diff for file changes. Returns summary by default (file list with relevance scores). Use detail='standard' with files=['path1','path2'] to get full diffs for specific files. Progressive approach: call once for summary, then again with files filter for important ones.".to_string(),
-            parameters: parameters_schema::<GitDiffArgs>(),
-        }
+    fn description(&self) -> String {
+        "Get Git diff for file changes. Returns summary by default (file list with relevance scores). Use detail='standard' with files=['path1','path2'] to get full diffs for specific files. Progressive approach: call once for summary, then again with files filter for important ones.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitDiffArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
 
@@ -509,20 +515,24 @@ pub struct GitLogArgs {
     pub to: Option<String>,
 }
 
-impl Tool for GitLog {
+impl PortableTool for GitLog {
     const NAME: &'static str = "git_log";
     type Error = GitError;
     type Args = GitLogArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_log".to_string(),
-            description: "Get Git commit history".to_string(),
-            parameters: parameters_schema::<GitLogArgs>(),
-        }
+    fn description(&self) -> String {
+        "Get Git commit history".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitLogArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
 
@@ -617,20 +627,24 @@ fn default_git_show_max_output_chars() -> usize {
     20_000
 }
 
-impl Tool for GitShow {
+impl PortableTool for GitShow {
     const NAME: &'static str = "git_show";
     type Error = GitError;
     type Args = GitShowArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_show".to_string(),
-            description: "Show a commit message, metadata, stat, and patch for a commit, tag, or branch. Use this after git_log or git_blame when a historical commit's exact changes clarify intent, prior behavior, or regression risk.".to_string(),
-            parameters: parameters_schema::<GitShowArgs>(),
-        }
+    fn description(&self) -> String {
+        "Show a commit message, metadata, stat, and patch for a commit, tag, or branch. Use this after git_log or git_blame when a historical commit's exact changes clarify intent, prior behavior, or regression risk.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitShowArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
         let repo_root = repo.repo_path();
@@ -745,20 +759,24 @@ pub struct GitRepoInfo;
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct GitRepoInfoArgs {}
 
-impl Tool for GitRepoInfo {
+impl PortableTool for GitRepoInfo {
     const NAME: &'static str = "git_repo_info";
     type Error = GitError;
     type Args = GitRepoInfoArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_repo_info".to_string(),
-            description: "Get general information about the Git repository".to_string(),
-            parameters: parameters_schema::<GitRepoInfoArgs>(),
-        }
+    fn description(&self) -> String {
+        "Get general information about the Git repository".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitRepoInfoArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
 
@@ -790,21 +808,24 @@ pub struct GitChangedFilesArgs {
     pub to: Option<String>,
 }
 
-impl Tool for GitChangedFiles {
+impl PortableTool for GitChangedFiles {
     const NAME: &'static str = "git_changed_files";
     type Error = GitError;
     type Args = GitChangedFilesArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_changed_files".to_string(),
-            description: "Get list of files that have changed between commits or branches"
-                .to_string(),
-            parameters: parameters_schema::<GitChangedFilesArgs>(),
-        }
+    fn description(&self) -> String {
+        "Get list of files that have changed between commits or branches".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitChangedFilesArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
 
@@ -889,20 +910,24 @@ fn default_recent_commits() -> usize {
     3
 }
 
-impl Tool for GitBlame {
+impl PortableTool for GitBlame {
     const NAME: &'static str = "git_blame";
     type Error = GitError;
     type Args = GitBlameArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "git_blame".to_string(),
-            description: "Get git blame context for a repository-relative file line range, plus recent commits that touched the file. Use this for history, ownership, and style context before commit messages, PR descriptions, or semantic explanations.".to_string(),
-            parameters: parameters_schema::<GitBlameArgs>(),
-        }
+    fn description(&self) -> String {
+        "Get git blame context for a repository-relative file line range, plus recent commits that touched the file. Use this for history, ownership, and style context before commit messages, PR descriptions, or semantic explanations.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<GitBlameArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitError::from)?;
         let repo_root = repo.repo_path();

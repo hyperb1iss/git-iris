@@ -628,7 +628,7 @@ impl SettingsState {
                     // Truncate for display if too long
                     let preview = self.custom_instructions.lines().next().unwrap_or("");
                     if preview.len() > 30 || self.custom_instructions.lines().count() > 1 {
-                        format!("{}...", &preview.chars().take(30).collect::<String>())
+                        format!("{}...", preview.chars().take(30).collect::<String>())
                     } else {
                         preview.to_string()
                     }

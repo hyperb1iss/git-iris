@@ -173,13 +173,12 @@ let content = fs::read_to_string(&path)
 **Clear tool descriptions:**
 
 ```rust
-async fn definition(&self, _: String) -> ToolDefinition {
-    ToolDefinition {
-        name: "my_tool".to_string(),
-        // Good - actionable, specific
-        description: "Analyze project dependencies from package manifests (Cargo.toml, package.json, requirements.txt)".to_string(),
-        parameters: parameters_schema::<MyToolArgs>(),
-    }
+fn description(&self) -> String {
+    "Analyze project dependencies from package manifests (Cargo.toml, package.json, requirements.txt)".to_string()
+}
+
+fn parameters(&self) -> serde_json::Value {
+    parameters_schema::<MyToolArgs>()
 }
 ```
 
@@ -300,7 +299,7 @@ Example test file at `src/agents/tools/tests/dependency_analyzer_tests.rs`:
 ```rust
 use std::path::PathBuf;
 
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 
 use crate::agents::tools::dependency_analyzer::{
     DependencyAnalyzer, DependencyAnalyzerArgs, detect_manifest_type,
@@ -360,7 +359,7 @@ async fn test_commit_generation_flow() -> anyhow::Result<()> {
     let service = IrisAgentService::new(
         test_config(),
         "anthropic".to_string(),
-        "claude-opus-4-6".to_string(),
+        "claude-opus-5".to_string(),
         "claude-haiku-4-5-20251001".to_string(),
     );
 

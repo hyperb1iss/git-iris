@@ -161,3 +161,67 @@ fn test_verify_and_commit_no_hooks() -> Result<()> {
 
     Ok(())
 }
+
+fn write_executable_hook(path: &std::path::Path, body: &str) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::create_dir_all(path.parent().expect("Hook path has a parent"))?;
+    std::fs::write(path, format!("#!/bin/sh\n{body}\n"))?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+    Ok(())
+}
+
+#[test]
+fn configured_relative_hooks_path_is_respected() -> Result<()> {
+    let (temp_dir, git_repo) = setup_git_repo();
+    let repo = Repository::open(temp_dir.path())?;
+    repo.config()?.set_str("core.hooksPath", ".custom hooks")?;
+    write_executable_hook(&temp_dir.path().join(".custom hooks/pre-commit"), "exit 23")?;
+    assert!(git_repo.execute_hook("pre-commit").is_err());
+    Ok(())
+}
+
+#[test]
+fn configured_absolute_hooks_path_is_respected() -> Result<()> {
+    let (temp_dir, git_repo) = setup_git_repo();
+    let hooks_dir = tempfile::TempDir::new()?;
+    let repo = Repository::open(temp_dir.path())?;
+    repo.config()?.set_str(
+        "core.hooksPath",
+        hooks_dir.path().to_str().expect("UTF-8 temp path"),
+    )?;
+    write_executable_hook(&hooks_dir.path().join("pre-commit"), "exit 23")?;
+    assert!(git_repo.execute_hook("pre-commit").is_err());
+    Ok(())
+}
+
+#[test]
+fn linked_worktree_uses_shared_hooks_with_worktree_environment() -> Result<()> {
+    let (temp_dir, _) = setup_git_repo();
+    let repo = Repository::open(temp_dir.path())?;
+    let checkout_parent = tempfile::TempDir::new()?;
+    let checkout = checkout_parent.path().join("checkout");
+    repo.worktree("hook-test", &checkout, None)?;
+    write_executable_hook(
+        &repo.path().join("hooks/pre-commit"),
+        "test \"$(git rev-parse --show-toplevel)\" = \"$PWD\" || exit 24\nprintf 'hook ran' > hook-marker",
+    )?;
+    let linked_repo = git_iris::git::GitRepo::new(&checkout)?;
+    linked_repo.execute_hook("pre-commit")?;
+    assert_eq!(
+        std::fs::read_to_string(checkout.join("hook-marker"))?,
+        "hook ran"
+    );
+    assert!(!temp_dir.path().join("hook-marker").exists());
+    Ok(())
+}
+
+#[test]
+fn non_executable_hooks_are_ignored() -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let (temp_dir, git_repo) = setup_git_repo();
+    let hook = temp_dir.path().join(".git/hooks/pre-commit");
+    std::fs::write(&hook, "#!/bin/sh\nexit 23\n")?;
+    std::fs::set_permissions(hook, std::fs::Permissions::from_mode(0o644))?;
+    git_repo.execute_hook("pre-commit")?;
+    Ok(())
+}

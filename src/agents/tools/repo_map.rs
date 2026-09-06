@@ -3,8 +3,7 @@
 use anyhow::{Context, Result};
 use ignore::WalkBuilder;
 use regex::Regex;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
@@ -135,20 +134,24 @@ impl RepoMapTool {
     }
 }
 
-impl Tool for RepoMapTool {
+impl PortableTool for RepoMapTool {
     const NAME: &'static str = "repo_map";
     type Error = RepoMapError;
     type Args = RepoMapArgs;
     type Output = RepoMap;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Build a compact repository map with ranked source files, definitions, imports, and changed or mentioned-file signals. Use this before broad cross-file analysis when you need the codebase skeleton without reading every file.".to_string(),
-            parameters: parameters_schema::<RepoMapArgs>(),
-        }
+    fn description(&self) -> String {
+        "Build a compact repository map with ranked source files, definitions, imports, and changed or mentioned-file signals. Use this before broad cross-file analysis when you need the codebase skeleton without reading every file.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<RepoMapArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo_root = current_repo_root().map_err(RepoMapError::from)?;
         Self::build(&repo_root, &args).map_err(RepoMapError::from)

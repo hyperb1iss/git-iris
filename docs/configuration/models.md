@@ -1,236 +1,93 @@
 # Model Selection
 
-Git-Iris uses a dual-model strategy: **primary models** for complex analysis and **fast models** for simple tasks.
+Iris uses separate models for generation, delegated analysis, and status messages. The primary
+model handles commits, reviews, PRs, changelogs, release notes, and chat. Subagents use the primary
+model unless you configure `subagent_model`. The fast model writes progress messages.
 
-## Model Strategy
+## Default Models and Effort
 
-| Model Type  | Used For                                       | Examples                                                        |
-| ----------- | ---------------------------------------------- | --------------------------------------------------------------- |
-| **Primary** | Commit messages, code reviews, PR descriptions | `claude-opus-4-6`, `gpt-5.4`, `gemini-3-pro-preview`            |
-| **Fast**    | Status updates, parsing, simple queries        | `claude-haiku-4-5-20251001`, `gpt-5.4-mini`, `gemini-2.5-flash` |
+| Provider  | Primary model      | Primary effort | Subagent effort | Status model                                     |
+| --------- | ------------------ | -------------- | --------------- | ------------------------------------------------ |
+| OpenAI    | `gpt-6-astra`      | `medium`       | `low`           | `gpt-5.6-luna`, reasoning `none`                 |
+| Anthropic | `claude-opus-5`    | `high`         | `low`           | `claude-haiku-4-5-20251001`, no effort parameter |
+| Google    | `gemini-3.8-flash` | `medium`       | `low`           | `gemini-3.5-flash-lite`                          |
 
-This dual-model approach optimizes for both quality and speed.
+These defaults were checked against provider documentation in September 2026. Model availability
+still depends on your account. Existing explicit model choices stay configured until you change them.
+See [Providers](./providers) for OpenRouter and Fireworks configuration.
 
-## Default Models by Provider
+## Configure Each Role
 
-### OpenAI
+```bash
+# Primary analysis model
+git-iris config --provider openai --model gpt-6-astra
+
+# Optional independent model for delegated analysis
+git-iris config --provider openai --subagent-model gpt-5.6-terra
+
+# Lightweight progress messages
+git-iris config --provider openai --fast-model gpt-5.6-luna
+```
+
+The same fields work in the global provider configuration:
 
 ```toml
 [providers.openai]
-model = "gpt-5.4"
-fast_model = "gpt-5.4-mini"
+model = "gpt-6-astra"
+subagent_model = "gpt-5.6-terra"
+fast_model = "gpt-5.6-luna"
 ```
 
-| Model          | Use Case | Context | Notes                     |
-| -------------- | -------- | ------- | ------------------------- |
-| `gpt-5.4`      | Primary  | 128K    | Best for complex analysis |
-| `gpt-5.4-mini` | Fast     | 128K    | Quick status updates      |
+Leave `subagent_model` unset to use the primary model for delegated analysis. Changing `fast_model`
+only changes status generation. Use lower effort or a different worker model after comparing review
+findings and completion quality on representative repositories.
 
-Git-Iris also applies workflow-specific GPT-5 reasoning defaults for OpenAI:
+## Reasoning Controls
 
-- Main agent tasks use `medium` reasoning for commit/review/PR quality
-- Subagents and `parallel_analyze` use `low` reasoning to stay fast but thoughtful
-- Status messages use `none` reasoning to keep waiting text snappy
-
-If you want a different OpenAI reasoning level everywhere, set `additional_params.reasoning` for
-that provider.
-
-### Anthropic
-
-```toml
-[providers.anthropic]
-model = "claude-opus-4-6"
-fast_model = "claude-haiku-4-5-20251001"
-```
-
-| Model                       | Use Case | Context | Notes                       |
-| --------------------------- | -------- | ------- | --------------------------- |
-| `claude-opus-4-6`           | Primary  | 200K    | Excellent for code analysis |
-| `claude-haiku-4-5-20251001` | Fast     | 200K    | Fastest response times      |
-
-### Google
-
-```toml
-[providers.google]
-model = "gemini-3-pro-preview"
-fast_model = "gemini-2.5-flash"
-```
-
-| Model                  | Use Case | Context | Notes                  |
-| ---------------------- | -------- | ------- | ---------------------- |
-| `gemini-3-pro-preview` | Primary  | 1M      | Largest context window |
-| `gemini-2.5-flash`     | Fast     | 1M      | Good for large diffs   |
-
-## Configuring Models
-
-### Via CLI
+Iris chooses effort by task role. You can override provider parameters through `--param`:
 
 ```bash
-# Set primary model
-git-iris config --provider anthropic --model claude-opus-4-6
-
-# Set fast model
-git-iris config --provider anthropic --fast-model claude-haiku-4-5-20251001
+git-iris config --provider openai --param reasoning='{"effort":"medium"}'
+git-iris config --provider anthropic --param output_config='{"effort":"high"}'
 ```
 
-### Via Config File
+Explicit parameters apply to requests using that provider configuration. Check the selected model's
+supported parameters before overriding defaults, especially when the status model differs from the
+primary model. Anthropic Haiku does not support the effort parameter.
 
-```toml
-[providers.anthropic]
-api_key = "sk-ant-..."
-model = "claude-opus-4-6"
-fast_model = "claude-haiku-4-5-20251001"
-```
+Astra uses the Responses API for tool calling. Astra does not accept reasoning `none` or `minimal`,
+and does not support sampling parameters such as `temperature` and `top_p`.
+[OpenAI migration guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra)
+explains the request requirements.
 
-## When to Use Which Model
+Opus 5 uses adaptive thinking and defaults to high effort. Haiku 4.5 remains the lightweight status
+model. See [Anthropic's model overview](https://platform.claude.com/docs/en/models/overview).
 
-### Primary Model Tasks
+Google's Gemini 3.8 Flash supports `low`, `medium`, and `high` thinking. The old
+`gemini-3-pro-preview` endpoint was retired; update saved configurations that still name it.
+See [Gemini 3.8 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash) and
+[Google's deprecation schedule](https://ai.google.dev/gemini-api/docs/deprecations).
 
-- **Commit message generation** — Needs context understanding
-- **Code reviews** — Requires deep analysis
-- **PR descriptions** — Synthesizes multiple changes
-- **Changelogs** — Categorizes and summarizes
-- **Release notes** — Produces polished documentation
+## Context and Output Budgets
 
-### Fast Model Tasks
+A model's context window covers input and conversation history. Its output limit is a separate
+constraint. A larger output budget does not make the input context window larger.
 
-- **Status updates** — "Analyzing file 3 of 15..."
-- **Progress parsing** — Extracting structured data
-- **Tool responses** — Simple confirmations
-- **Chat queries** — Quick interactions
+The primary Astra and Opus models have roughly one million tokens of context, as does Gemini 3.8
+Flash. Haiku's context is 200K. Tool calls still use targeted file excerpts and diff summaries to
+keep evidence relevant. Those tools do not guarantee that every conversation fits its model's
+context window.
 
-## Model Selection Criteria
+## Availability and Diagnostics
 
-### Choose Primary Model Based On
-
-| Priority    | Consideration                | Recommendation                   |
-| ----------- | ---------------------------- | -------------------------------- |
-| **Quality** | Need best analysis           | Claude Opus 4.6                  |
-| **Context** | Large changesets (>50 files) | Gemini 3 Pro (1M tokens)         |
-| **Speed**   | Fast turnaround              | GPT-5.4-mini or Gemini 2.5 Flash |
-| **Cost**    | Budget constraints           | Use fast models more             |
-
-### Optimize Fast Model For
-
-- **Response time** — Haiku, GPT-5.4-mini, Gemini Flash
-- **Context window** — All fast models support large context
-- **Availability** — Check provider rate limits
-
-## Custom Model Configuration
-
-You can use any model supported by your provider:
-
-```bash
-# OpenAI custom model
-git-iris config --provider openai --model gpt-5.4
-
-# Anthropic custom model
-git-iris config --provider anthropic --model claude-haiku-4-5-20251001
-
-# Google custom model
-git-iris config --provider google --model gemini-2.5-flash
-```
-
-## Model Fallback Behavior
-
-If a configured model is unavailable, Git-Iris will:
-
-1. Attempt to use the provider's default model
-2. Report an error with the model name
-3. Suggest checking provider documentation
-
-## Context Window Management
-
-Git-Iris automatically manages context to fit within model limits:
-
-| Scenario                       | Strategy                   |
-| ------------------------------ | -------------------------- |
-| Small changeset (<10 files)    | Full context               |
-| Medium changeset (10-20 files) | Relevance scoring          |
-| Large changeset (20+ files)    | Parallel subagent analysis |
-
-Override token limits per provider:
-
-```bash
-git-iris config --provider anthropic --token-limit 150000
-```
-
-## Model Performance Tips
-
-### For Large Repositories
-
-```toml
-[providers.google]
-model = "gemini-3-pro-preview"  # 1M context window
-```
-
-### For Speed-Critical Workflows
-
-```toml
-[providers.anthropic]
-model = "claude-haiku-4-5-20251001"  # Fast even for primary tasks
-fast_model = "claude-haiku-4-5-20251001"
-```
-
-### For Maximum Quality
-
-```toml
-[providers.anthropic]
-model = "claude-opus-4-6"  # Best code understanding
-```
-
-## Monitoring Model Usage
-
-Enable debug mode to see which model handles each task:
+Choose an explicit model ID offered by your provider. Iris reports provider errors when a selected
+model is unavailable; it does not silently switch the main task to a different model.
 
 ```bash
 git-iris gen --debug
 ```
 
-Output shows:
-
-- Model name
-- Token usage
-- Tool calls
-- Response time
-
-## Cost Optimization
-
-### Minimize Costs
-
-```toml
-# Use fast model for everything
-[providers.openai]
-model = "gpt-5.4-mini"
-fast_model = "gpt-5.4-mini"
-token_limit = 8000  # Lower limit
-```
-
-### Balance Quality and Cost
-
-```toml
-# Standard setup
-[providers.anthropic]
-model = "claude-opus-4-6"  # Quality for commits
-fast_model = "claude-haiku-4-5-20251001"  # Speed for status
-```
-
-## Troubleshooting
-
-| Issue             | Solution                                             |
-| ----------------- | ---------------------------------------------------- |
-| "Model not found" | Check provider documentation for available models    |
-| Slow responses    | Switch to a faster model                             |
-| Context exceeded  | Reduce `token_limit` or use model with larger window |
-| Poor quality      | Use a more capable primary model                     |
-
-## Model Comparison Table
-
-| Model                | Provider  | Context | Speed  | Quality   | Cost   |
-| -------------------- | --------- | ------- | ------ | --------- | ------ |
-| claude-opus-4-6      | Anthropic | 200K    | Medium | Excellent | Medium |
-| claude-haiku-4-5     | Anthropic | 200K    | Fast   | Good      | Low    |
-| gpt-5.4              | OpenAI    | 128K    | Medium | Excellent | Medium |
-| gpt-5.4-mini         | OpenAI    | 128K    | Fast   | Good      | Low    |
-| gemini-3-pro-preview | Google    | 1M      | Slow   | Excellent | High   |
-| gemini-2.5-flash     | Google    | 1M      | Fast   | Good      | Low    |
+Debug output shows agent activity and token usage. If a request exceeds context, narrow the requested
+comparison or choose a model with sufficient context. Iris currently requests 16,384 output tokens for main tasks and 4,096 for subagents;
+`token_limit` is context metadata and does not change those budgets. Authentication errors require checking the active
+provider's key, independently of model selection.

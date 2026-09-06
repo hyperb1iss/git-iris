@@ -831,7 +831,7 @@ Test tools within agent context:
 ```rust
 #[tokio::test]
 async fn agent_uses_git_diff() {
-    let agent = IrisAgent::new("openai", "gpt-5.4").unwrap();
+    let agent = IrisAgent::new("openai", "gpt-6-astra").unwrap();
     let response = agent.execute_task("commit", "Generate message").await.unwrap();
 
     // Verify the agent called git_diff and produced output

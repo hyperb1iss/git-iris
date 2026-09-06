@@ -18,20 +18,23 @@ A tool is a Rust struct that implements the `rig::tool::Tool` trait. When Iris n
 
 ## Tool Trait Requirements
 
-Every tool must implement:
+Repository tools implement Rig 0.42's `PortableTool`; Rig adapts it to the runtime tool interface:
 
 ```rust
-use rig::tool::Tool;
-use rig::completion::ToolDefinition;
+use rig::tool::portable::PortableTool;
 
-impl Tool for MyTool {
+impl PortableTool for MyTool {
     const NAME: &'static str = "my_tool";
     type Error = MyToolError;
     type Args = MyToolArgs;
     type Output = String;
 
-    async fn definition(&self, _prompt: String) -> ToolDefinition {
-        // Return tool metadata for LLM
+    fn description(&self) -> String {
+        "Describe what the tool does".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<MyToolArgs>()
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -58,8 +61,7 @@ Create `src/agents/tools/dependency_analyzer.rs`:
 //! Analyzes project dependencies from package manifests.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -83,23 +85,23 @@ pub struct DependencyAnalyzerArgs {
     pub include_dev: bool,
 }
 
-impl Tool for DependencyAnalyzer {
+impl PortableTool for DependencyAnalyzer {
     const NAME: &'static str = "dependency_analyzer";
     type Error = DependencyAnalyzerError;
     type Args = DependencyAnalyzerArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "dependency_analyzer".to_string(),
-            description: "Analyze project dependencies from package manifests (Cargo.toml, package.json, requirements.txt)".to_string(),
-            parameters: parameters_schema::<DependencyAnalyzerArgs>(),
-        }
+    fn description(&self) -> String {
+        "Analyze project dependencies from package manifests (Cargo.toml, package.json, requirements.txt)".to_string()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<DependencyAnalyzerArgs>()
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         // Get current working directory
-        let repo_path = std::env::current_dir()
+        let repo_path = super::common::current_repo_root()
             .map_err(|e| DependencyAnalyzerError(format!("Failed to get CWD: {}", e)))?;
 
         // Detect manifest type if not specified
@@ -339,7 +341,7 @@ pub struct SimpleQueryArgs {
     pub query: String,
 }
 
-impl Tool for SimpleQueryTool {
+impl PortableTool for SimpleQueryTool {
     const NAME: &'static str = "simple_query";
     type Error = SimpleQueryError;
     type Args = SimpleQueryArgs;
@@ -376,7 +378,7 @@ impl StatefulTool {
     }
 }
 
-impl Tool for StatefulTool {
+impl PortableTool for StatefulTool {
     // ... implementation uses self.state
 }
 ```
@@ -391,7 +393,7 @@ Accesses Git repository data:
 use crate::git::GitRepo;
 use super::common::get_current_repo;
 
-impl Tool for GitAwareTool {
+impl PortableTool for GitAwareTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(GitAwareError::from)?;
 
@@ -415,7 +417,7 @@ Reads files and analyzes content:
 use std::fs;
 use std::path::PathBuf;
 
-impl Tool for FileSystemTool {
+impl PortableTool for FileSystemTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let path = PathBuf::from(&args.file_path);
 
@@ -437,13 +439,11 @@ impl Tool for FileSystemTool {
 
 ### 1. Clear Tool Descriptions
 
-The `description` field in `ToolDefinition` is what Iris sees. Make it actionable:
+The `description()` method supplies the text Iris sees. Make it actionable:
 
 ```rust
-ToolDefinition {
-    name: "dependency_analyzer".to_string(),
-    description: "Analyze project dependencies from package manifests. Auto-detects Cargo.toml, package.json, or requirements.txt. Use include_dev=true for dev dependencies.".to_string(),
-    parameters: parameters_schema::<DependencyAnalyzerArgs>(),
+fn description(&self) -> String {
+    "Analyze project dependencies from package manifests. Auto-detects Cargo.toml, package.json, or requirements.txt. Use include_dev=true for dev dependencies.".to_string()
 }
 ```
 
@@ -515,7 +515,7 @@ pub struct CachedTool {
     cache: Arc<Mutex<HashMap<String, String>>>,
 }
 
-impl Tool for CachedTool {
+impl PortableTool for CachedTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let mut cache = self.cache.lock().unwrap();
 
@@ -551,7 +551,7 @@ To add tests for `dependency_analyzer`:
 1. Create `src/agents/tools/tests/dependency_analyzer_tests.rs`:
 
    ```rust
-   use rig::tool::Tool;
+   use rig::tool::portable::PortableTool;
 
    use crate::agents::tools::dependency_analyzer::{
        DependencyAnalyzer, DependencyAnalyzerArgs,

@@ -1,5 +1,5 @@
 import DefaultTheme from 'vitepress/theme'
-import type { Theme } from 'vitepress'
+import { useRouter, type Theme } from 'vitepress'
 import './silkcircuit.css'
 
 declare global {
@@ -11,6 +11,7 @@ declare global {
 export default {
   extends: DefaultTheme,
   setup() {
+    const router = useRouter()
     // Mermaid rendering with SilkCircuit theming
     if (typeof window !== 'undefined') {
       const isDarkMode = () =>
@@ -69,12 +70,12 @@ export default {
         },
       })
 
-      let mermaidLoadPromise: Promise<any> | null = null
+      let mermaidLoadPromise: Promise<
+        (typeof import('mermaid'))['default']
+      > | null = null
       const ensureMermaid = async () => {
         if (!mermaidLoadPromise) {
-          mermaidLoadPromise = import(
-            /* @vite-ignore */ 'mermaid/dist/mermaid.esm.mjs'
-          ).then((mod) => mod.default ?? mod)
+          mermaidLoadPromise = import('mermaid').then((mod) => mod.default)
         }
         return mermaidLoadPromise
       }
@@ -98,7 +99,9 @@ export default {
         }
 
         // Handle pre elements with mermaid
-        const pres = Array.from(document.querySelectorAll<HTMLPreElement>('pre'))
+        const pres = Array.from(
+          document.querySelectorAll<HTMLPreElement>('pre')
+        )
         for (const pre of pres) {
           const code = pre.querySelector('code')
           const isMermaid =
@@ -120,11 +123,13 @@ export default {
 
       const resetExistingDiagrams = () => {
         let reset = 0
-        const diagrams = document.querySelectorAll<HTMLElement>('.mermaid-diagram')
+        const diagrams =
+          document.querySelectorAll<HTMLElement>('.mermaid-diagram')
         diagrams.forEach((diagram) => {
           const source = diagram.dataset.mermaidSource
           if (!source) return
           diagram.textContent = source
+          delete diagram.dataset.processed
           reset++
         })
         return reset
@@ -227,9 +232,7 @@ export default {
       }
 
       // Re-render after navigation
-      window.addEventListener('vitepress:after-route-changed', () => {
-        setTimeout(renderMermaid, 100)
-      })
+      router.onAfterRouteChange = () => renderMermaid()
     }
   },
 } satisfies Theme

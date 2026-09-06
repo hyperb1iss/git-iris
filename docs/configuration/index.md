@@ -21,8 +21,8 @@ git-iris config --provider anthropic --api-key YOUR_ANTHROPIC_API_KEY
 git-iris config --provider google --api-key YOUR_GOOGLE_API_KEY
 
 # Optionally override models for the selected provider
-git-iris config --provider openai --model gpt-5.4
-git-iris config --provider openai --fast-model gpt-5.4-mini
+git-iris config --provider openai --model gpt-6-astra
+git-iris config --provider openai --fast-model gpt-5.6-luna
 
 # Enable gitmoji
 git-iris config --gitmoji
@@ -78,18 +78,18 @@ default_provider = "openai"
 # Provider configurations
 [providers.openai]
 api_key = "sk-..."
-model = "gpt-5.4"
-fast_model = "gpt-5.4-mini"
+model = "gpt-6-astra"
+fast_model = "gpt-5.6-luna"
 
 [providers.anthropic]
 api_key = "sk-ant-..."
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 fast_model = "claude-haiku-4-5-20251001"
 
 [providers.google]
 api_key = "AIza..."
-model = "gemini-3-pro-preview"
-fast_model = "gemini-2.5-flash"
+model = "gemini-3.8-flash"
+fast_model = "gemini-3.5-flash-lite"
 ```
 
 ## Global Settings

@@ -5,7 +5,6 @@
 
 use anyhow::Result;
 use rig::agent::{AgentBuilder, PromptResponse};
-use rig::completion::CompletionModel;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -13,64 +12,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::OnceLock;
-
-/// Macro to build a streaming agent for any provider.
-///
-/// All three providers (`OpenAI`, `Anthropic`, `Gemini`) share identical setup logic —
-/// subagent creation, tool attachment, optional content update tools — differing
-/// only in the provider builder function. This macro eliminates that duplication.
-macro_rules! build_streaming_agent {
-    ($self:expr, $builder_fn:path, $fast_model:expr, $api_key:expr, $subagent_timeout:expr, $subagent_max_turns:expr) => {{
-        use crate::agents::debug_tool::DebugTool;
-
-        // Build subagent
-        let sub_builder = $builder_fn($fast_model, $api_key)?
-            .name("analyze_subagent")
-            .preamble("You are a specialized analysis sub-agent.");
-        let sub_builder = $self.apply_completion_params(
-            sub_builder,
-            $fast_model,
-            4096,
-            CompletionProfile::Subagent,
-        )?;
-        let sub_agent = crate::attach_core_tools!(sub_builder).build();
-
-        // Build main agent with tools
-        let builder = $builder_fn(&$self.model, $api_key)?
-            .preamble($self.preamble.as_deref().unwrap_or("You are Iris."));
-        let builder = $self.apply_completion_params(
-            builder,
-            &$self.model,
-            16384,
-            CompletionProfile::MainAgent,
-        )?;
-
-        let builder = crate::attach_core_tools!(builder)
-            .tool(DebugTool::new(GitRepoInfo))
-            .tool(DebugTool::new($self.workspace.clone()))
-            .tool(DebugTool::new(ParallelAnalyze::with_limits(
-                &$self.provider,
-                $fast_model,
-                $subagent_timeout,
-                $subagent_max_turns,
-                $api_key,
-                $self.current_provider_additional_params().cloned(),
-            )?))
-            .tool(sub_agent);
-
-        // Conditionally attach content update tools for chat mode
-        if let Some(sender) = &$self.content_update_sender {
-            use crate::agents::tools::{UpdateCommitTool, UpdatePRTool, UpdateReviewTool};
-            Ok(builder
-                .tool(DebugTool::new(UpdateCommitTool::new(sender.clone())))
-                .tool(DebugTool::new(UpdatePRTool::new(sender.clone())))
-                .tool(DebugTool::new(UpdateReviewTool::new(sender.clone())))
-                .build())
-        } else {
-            Ok(builder.build())
-        }
-    }};
-}
 
 // Embed capability TOML files at compile time so they're always available
 const CAPABILITY_COMMIT: &str = include_str!("capabilities/commit.toml");
@@ -594,6 +535,13 @@ impl IrisAgent {
         self.fast_model.as_deref().unwrap_or(&self.model)
     }
 
+    fn effective_subagent_model(&self) -> &str {
+        provider::current_provider_config(self.config.as_ref(), &self.provider)
+            .and_then(|config| config.subagent_model.as_deref())
+            .filter(|model| !model.is_empty())
+            .unwrap_or(&self.model)
+    }
+
     /// Get the API key for the current provider from config
     fn get_api_key(&self) -> Option<&str> {
         provider::current_provider_config(self.config.as_ref(), &self.provider)
@@ -619,7 +567,7 @@ impl IrisAgent {
         use crate::agents::debug_tool::DebugTool;
 
         let preamble = self.preamble.as_deref().unwrap_or(DEFAULT_PREAMBLE);
-        let fast_model = self.effective_fast_model();
+        let fast_model = self.effective_subagent_model();
         let api_key = self.get_api_key();
         let subagent_timeout = self
             .config
@@ -685,57 +633,17 @@ Guidelines:
             }};
         }
 
-        match self.provider.as_str() {
-            "openai" => {
-                // Build subagent
-                let sub_agent = build_subagent!(provider::openai_builder(fast_model, api_key)?);
-
-                // Build main agent
-                let builder = provider::openai_builder(&self.model, api_key)?.preamble(preamble);
-                let builder = self.apply_completion_params(
-                    builder,
-                    &self.model,
-                    16384,
-                    CompletionProfile::MainAgent,
-                )?;
-                let builder = attach_main_tools!(builder).tool(sub_agent);
-                let agent = maybe_attach_update_tools!(builder);
-                Ok(DynAgent::OpenAI(agent))
-            }
-            "anthropic" => {
-                // Build subagent
-                let sub_agent = build_subagent!(provider::anthropic_builder(fast_model, api_key)?);
-
-                // Build main agent
-                let builder = provider::anthropic_builder(&self.model, api_key)?.preamble(preamble);
-                let builder = self.apply_completion_params(
-                    builder,
-                    &self.model,
-                    16384,
-                    CompletionProfile::MainAgent,
-                )?;
-                let builder = attach_main_tools!(builder).tool(sub_agent);
-                let agent = maybe_attach_update_tools!(builder);
-                Ok(DynAgent::Anthropic(agent))
-            }
-            "google" | "gemini" => {
-                // Build subagent
-                let sub_agent = build_subagent!(provider::gemini_builder(fast_model, api_key)?);
-
-                // Build main agent
-                let builder = provider::gemini_builder(&self.model, api_key)?.preamble(preamble);
-                let builder = self.apply_completion_params(
-                    builder,
-                    &self.model,
-                    16384,
-                    CompletionProfile::MainAgent,
-                )?;
-                let builder = attach_main_tools!(builder).tool(sub_agent);
-                let agent = maybe_attach_update_tools!(builder);
-                Ok(DynAgent::Gemini(agent))
-            }
-            _ => Err(anyhow::anyhow!("Unsupported provider: {}", self.provider)),
-        }
+        let provider = self.current_provider()?;
+        let sub_agent = build_subagent!(provider::agent_builder(provider, fast_model, api_key)?);
+        let builder = provider::agent_builder(provider, &self.model, api_key)?.preamble(preamble);
+        let builder = self.apply_completion_params(
+            builder,
+            &self.model,
+            16384,
+            CompletionProfile::MainAgent,
+        )?;
+        let builder = attach_main_tools!(builder).dynamic_tool(sub_agent.into_tool());
+        Ok(DynAgent(maybe_attach_update_tools!(builder)))
     }
 
     fn apply_completion_params<M>(
@@ -744,10 +652,7 @@ Guidelines:
         model: &str,
         max_tokens: u64,
         profile: CompletionProfile,
-    ) -> Result<AgentBuilder<M>>
-    where
-        M: CompletionModel,
-    {
+    ) -> Result<AgentBuilder<M>> {
         let provider = self.current_provider()?;
         Ok(provider::apply_completion_params(
             builder,
@@ -1351,25 +1256,9 @@ Guidelines:
             }};
         }
 
-        // Build and stream per-provider (streaming types are model-specific)
-        let aggregated_text = match self.provider.as_str() {
-            "openai" => {
-                let agent = self.build_openai_agent_for_streaming(&full_prompt)?;
-                let stream = agent.stream_prompt(&full_prompt).multi_turn(50).await;
-                consume_stream!(stream)
-            }
-            "anthropic" => {
-                let agent = self.build_anthropic_agent_for_streaming(&full_prompt)?;
-                let stream = agent.stream_prompt(&full_prompt).multi_turn(50).await;
-                consume_stream!(stream)
-            }
-            "google" | "gemini" => {
-                let agent = self.build_gemini_agent_for_streaming(&full_prompt)?;
-                let stream = agent.stream_prompt(&full_prompt).multi_turn(50).await;
-                consume_stream!(stream)
-            }
-            _ => return Err(anyhow::anyhow!("Unsupported provider: {}", self.provider)),
-        };
+        let agent = self.build_agent()?;
+        let stream = agent.0.stream_prompt(&full_prompt).max_turns(50).await;
+        let aggregated_text = consume_stream!(stream);
 
         // Update status
         crate::iris_status_dynamic!(
@@ -1416,69 +1305,6 @@ Guidelines:
         let json = extract_json_from_response(text).ok()?;
         let sanitized_json = sanitize_json_response(&json);
         parse_with_recovery(sanitized_json.as_ref()).ok()
-    }
-
-    /// Shared streaming agent configuration
-    fn streaming_agent_config(&self) -> (&str, Option<&str>, u64, usize) {
-        let fast_model = self.effective_fast_model();
-        let api_key = self.get_api_key();
-        let subagent_timeout = self
-            .config
-            .as_ref()
-            .map_or(120, |c| c.subagent_timeout_secs);
-        let subagent_max_turns = self.config.as_ref().map_or(20, |c| c.subagent_max_turns);
-        (fast_model, api_key, subagent_timeout, subagent_max_turns)
-    }
-
-    /// Build `OpenAI` agent for streaming (with tools attached)
-    fn build_openai_agent_for_streaming(
-        &self,
-        _prompt: &str,
-    ) -> Result<rig::agent::Agent<provider::OpenAIModel>> {
-        let (fast_model, api_key, subagent_timeout, subagent_max_turns) =
-            self.streaming_agent_config();
-        build_streaming_agent!(
-            self,
-            provider::openai_builder,
-            fast_model,
-            api_key,
-            subagent_timeout,
-            subagent_max_turns
-        )
-    }
-
-    /// Build Anthropic agent for streaming (with tools attached)
-    fn build_anthropic_agent_for_streaming(
-        &self,
-        _prompt: &str,
-    ) -> Result<rig::agent::Agent<provider::AnthropicModel>> {
-        let (fast_model, api_key, subagent_timeout, subagent_max_turns) =
-            self.streaming_agent_config();
-        build_streaming_agent!(
-            self,
-            provider::anthropic_builder,
-            fast_model,
-            api_key,
-            subagent_timeout,
-            subagent_max_turns
-        )
-    }
-
-    /// Build Gemini agent for streaming (with tools attached)
-    fn build_gemini_agent_for_streaming(
-        &self,
-        _prompt: &str,
-    ) -> Result<rig::agent::Agent<provider::GeminiModel>> {
-        let (fast_model, api_key, subagent_timeout, subagent_max_turns) =
-            self.streaming_agent_config();
-        build_streaming_agent!(
-            self,
-            provider::gemini_builder,
-            fast_model,
-            api_key,
-            subagent_timeout,
-            subagent_max_turns
-        )
     }
 
     /// Load capability configuration from embedded TOML, returning both prompt and output type
@@ -1590,7 +1416,7 @@ Guidelines:
 /// Builder for creating `IrisAgent` instances with different configurations
 pub struct IrisAgentBuilder {
     provider: String,
-    model: String,
+    model: Option<String>,
     preamble: Option<String>,
 }
 
@@ -1600,7 +1426,7 @@ impl IrisAgentBuilder {
     pub fn new() -> Self {
         Self {
             provider: "openai".to_string(),
-            model: "gpt-5.4".to_string(),
+            model: None,
             preamble: None,
         }
     }
@@ -1613,7 +1439,7 @@ impl IrisAgentBuilder {
 
     /// Set the model to use
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
+        self.model = Some(model.into());
         self
     }
 
@@ -1629,7 +1455,12 @@ impl IrisAgentBuilder {
     ///
     /// Returns an error when the configured provider or model cannot build an agent.
     pub fn build(self) -> Result<IrisAgent> {
-        let mut agent = IrisAgent::new(&self.provider, &self.model)?;
+        let provider = provider::provider_from_name(&self.provider)?;
+        let model = self
+            .model
+            .as_deref()
+            .unwrap_or_else(|| provider.default_model());
+        let mut agent = IrisAgent::new(provider.name(), model)?;
 
         // Apply custom preamble if provided
         if let Some(preamble) = self.preamble {
@@ -1891,3 +1722,7 @@ Line2\"}";
         assert!(!prompt.contains("`:analytics:`"));
     }
 }
+
+#[cfg(test)]
+#[path = "iris_workflow_tests.rs"]
+mod workflow_tests;

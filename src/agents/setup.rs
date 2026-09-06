@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::agents::context::TaskContext;
 use crate::agents::iris::StructuredResponse;
-use crate::agents::tools::with_active_repo_root;
+use crate::agents::tools::with_repo_execution_context;
 use crate::agents::{AgentBackend, IrisAgent, IrisAgentBuilder};
 use crate::common::CommonParams;
 use crate::config::Config;
@@ -141,8 +141,12 @@ where
     // Create agent
     let mut agent = setup_service.create_iris_agent()?;
 
-    // Execute task with capability - now returns StructuredResponse
-    let result = agent.execute_task(capability, task_prompt).await?;
+    let execution = agent.execute_task(capability, task_prompt);
+    let result = if let Some(repo) = setup_service.git_repo() {
+        with_repo_execution_context(repo.repo_path(), !repo.is_remote(), execution).await?
+    } else {
+        execution.await?
+    };
 
     // Call the handler with the result
     handler(result).await
@@ -290,7 +294,7 @@ impl IrisAgentService {
         };
 
         if let Some(repo) = &self.git_repo {
-            with_active_repo_root(repo.repo_path(), run_task).await
+            with_repo_execution_context(repo.repo_path(), !repo.is_remote(), run_task).await
         } else {
             run_task.await
         }
@@ -312,7 +316,7 @@ impl IrisAgentService {
         };
 
         if let Some(repo) = &self.git_repo {
-            with_active_repo_root(repo.repo_path(), run_task).await
+            with_repo_execution_context(repo.repo_path(), !repo.is_remote(), run_task).await
         } else {
             run_task.await
         }
@@ -365,7 +369,7 @@ impl IrisAgentService {
         };
 
         if let Some(repo) = &self.git_repo {
-            with_active_repo_root(repo.repo_path(), run_task).await
+            with_repo_execution_context(repo.repo_path(), !repo.is_remote(), run_task).await
         } else {
             run_task.await
         }
@@ -499,7 +503,7 @@ impl IrisAgentService {
         };
 
         if let Some(repo) = &self.git_repo {
-            with_active_repo_root(repo.repo_path(), run_task).await
+            with_repo_execution_context(repo.repo_path(), !repo.is_remote(), run_task).await
         } else {
             run_task.await
         }
@@ -529,7 +533,7 @@ impl IrisAgentService {
         };
 
         if let Some(repo) = &self.git_repo {
-            with_active_repo_root(repo.repo_path(), run_task).await
+            with_repo_execution_context(repo.repo_path(), !repo.is_remote(), run_task).await
         } else {
             run_task.await
         }
@@ -574,7 +578,7 @@ impl IrisAgentService {
         };
 
         if let Some(repo) = &self.git_repo {
-            with_active_repo_root(repo.repo_path(), run_task).await
+            with_repo_execution_context(repo.repo_path(), !repo.is_remote(), run_task).await
         } else {
             run_task.await
         }

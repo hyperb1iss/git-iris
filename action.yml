@@ -18,7 +18,7 @@ inputs:
     required: false
     default: "HEAD"
   provider:
-    description: "LLM provider (openai, anthropic, google)"
+    description: "LLM provider (openai, anthropic, google, openrouter, fireworks)"
     required: false
     default: "openai"
   model:
@@ -230,6 +230,14 @@ runs:
           google|gemini)
             IRIS_PROVIDER="google"
             export GOOGLE_API_KEY="$ACTION_API_KEY"
+            ;;
+          openrouter)
+            IRIS_PROVIDER="openrouter"
+            export OPENROUTER_API_KEY="$ACTION_API_KEY"
+            ;;
+          fireworks|fireworks.ai)
+            IRIS_PROVIDER="fireworks"
+            export FIREWORKS_API_KEY="$ACTION_API_KEY"
             ;;
           *)
             echo "::error::Unsupported provider: $IRIS_PROVIDER_INPUT"

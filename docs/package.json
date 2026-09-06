@@ -2,6 +2,8 @@
   "name": "git-iris-docs",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
   "description": "Git-Iris Documentation",
   "scripts": {
     "dev": "vitepress dev",
@@ -12,8 +14,8 @@
     "format": "pnpm lint:fix"
   },
   "devDependencies": {
-    "mermaid": "^11.12.1",
-    "prettier": "^3.7.1",
-    "vitepress": "^2.0.0-alpha.15"
+    "mermaid": "^11.17.2",
+    "prettier": "^3.9.6",
+    "vitepress": "2.0.0-alpha.20"
   }
 }

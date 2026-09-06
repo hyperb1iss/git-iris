@@ -66,7 +66,7 @@ fn ensure_primary_branch(repo: &Repository, target_branch: &str) {
     let current_branch = repo
         .head()
         .ok()
-        .and_then(|head| head.shorthand().map(std::string::ToString::to_string))
+        .and_then(|head| head.shorthand().ok().map(std::string::ToString::to_string))
         .unwrap_or_default();
     if current_branch == target_branch {
         return;

@@ -58,7 +58,7 @@ Set your API key and preferences:
 git-iris config --provider openai --api-key YOUR_OPENAI_API_KEY
 
 # Set default model
-git-iris config --provider anthropic --model claude-opus-4-6
+git-iris config --provider anthropic --model claude-opus-5
 
 # Google works the same way
 git-iris config --provider google --api-key YOUR_GOOGLE_API_KEY

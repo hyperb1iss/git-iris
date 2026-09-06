@@ -334,7 +334,8 @@ Configure global Git-Iris settings.
 | `--api-key <KEY>`              | Set API key                                    |
 | `--model <NAME>`               | Set primary model                              |
 | `--fast-model <NAME>`          | Set fast model                                 |
-| `--token-limit <NUM>`          | Set token limit                                |
+| `--subagent-model <MODEL>`     | Set delegated analysis model                   |
+| `--token-limit <NUM>`          | Set context-window metadata                    |
 | `--param <KEY=VALUE>`          | Set additional parameters                      |
 | `--subagent-timeout <SECONDS>` | Set parallel subagent timeout (default: `120`) |
 | `--subagent-max-turns <NUM>`   | Set subagent turn budget (default: `20`)       |
@@ -347,7 +348,7 @@ git-iris config --provider openai --api-key sk-...
 
 # Configure models
 git-iris config --provider anthropic \
-  --model claude-opus-4-6 \
+  --model claude-opus-5 \
   --fast-model claude-haiku-4-5-20251001
 
 # Set token limit
@@ -395,7 +396,7 @@ Manage project-specific `.irisconfig` file.
 git-iris project-config --provider google
 
 # Set project model
-git-iris project-config --model gemini-3-pro-preview
+git-iris project-config --model gemini-3.8-flash
 
 # View project config
 git-iris project-config --print

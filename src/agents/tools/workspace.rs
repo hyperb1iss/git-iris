@@ -4,8 +4,7 @@
 //! creating task lists, and managing her workflow during complex operations.
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
@@ -116,20 +115,24 @@ impl Workspace {
     }
 }
 
-impl Tool for Workspace {
+impl PortableTool for Workspace {
     const NAME: &'static str = "workspace";
     type Error = WorkspaceError;
     type Args = WorkspaceArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "workspace".to_string(),
-            description: "Iris's personal workspace for notes and task management. Use this to track progress, take notes on findings, and manage complex workflows.".to_string(),
-            parameters: parameters_schema::<WorkspaceArgs>(),
-        }
+    fn description(&self) -> String {
+        "Iris's personal workspace for notes and task management. Use this to track progress, take notes on findings, and manage complex workflows.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<WorkspaceArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let mut data = self
             .data

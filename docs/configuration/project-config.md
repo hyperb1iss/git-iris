@@ -27,7 +27,7 @@ This prevents credential leakage when committing `.irisconfig` to version contro
 ```bash
 # From repository root
 git-iris project-config --provider anthropic
-git-iris project-config --model claude-opus-4-6
+git-iris project-config --model claude-opus-5
 git-iris project-config --preset conventional
 ```
 
@@ -57,7 +57,8 @@ Focus on business impact over implementation details.
 
 # Provider configurations (no API keys)
 [providers.anthropic]
-model = "claude-opus-4-6"
+model = "claude-opus-5"
+subagent_model = "claude-opus-5"
 fast_model = "claude-haiku-4-5-20251001"
 token_limit = 150000
 ```
@@ -82,7 +83,7 @@ use_gitmoji = false
 
 [providers.openai]
 api_key = "sk-..."
-model = "gpt-5.4"
+model = "gpt-6-astra"
 ```
 
 **Project config:**
@@ -93,7 +94,7 @@ use_gitmoji = true
 instruction_preset = "conventional"
 
 [providers.anthropic]
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 ```
 
 **Effective config:**
@@ -110,7 +111,7 @@ api_key = "sk-..."
 
 # From project config
 [providers.anthropic]
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 # API key loaded from personal config or ANTHROPIC_API_KEY env var
 ```
 
@@ -201,7 +202,7 @@ git-iris project-config --print
 git-iris project-config --provider google
 
 # Change model
-git-iris project-config --model gemini-3-pro-preview
+git-iris project-config --model gemini-3.8-flash
 
 # Update token limit
 git-iris project-config --token-limit 100000
@@ -252,7 +253,7 @@ Project-specific PR description guidelines here.
 """
 
 [providers.anthropic]
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 fast_model = "claude-haiku-4-5-20251001"
 
 # API keys NOT included - loaded from personal config
@@ -372,7 +373,7 @@ Include:
 """
 
 [providers.anthropic]
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 token_limit = 150000
 ```
 

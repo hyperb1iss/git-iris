@@ -5,8 +5,7 @@
 
 use anyhow::Result;
 use regex::escape as regex_escape;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
@@ -209,20 +208,24 @@ fn default_max_results() -> usize {
     20
 }
 
-impl Tool for CodeSearch {
+impl PortableTool for CodeSearch {
     const NAME: &'static str = "code_search";
     type Error = CodeSearchError;
     type Args = CodeSearchArgs;
     type Output = String;
 
-    async fn definition(&self, _: String) -> ToolDefinition {
-        ToolDefinition {
-            name: "code_search".to_string(),
-            description: "Search for code patterns, functions, classes, and related files in the repository using ripgrep. Supports multiple search types and file filtering.".to_string(),
-            parameters: parameters_schema::<CodeSearchArgs>(),
-        }
+    fn description(&self) -> String {
+        "Search for code patterns, functions, classes, and related files in the repository using ripgrep. Supports multiple search types and file filtering.".to_string()
     }
 
+    fn parameters(&self) -> serde_json::Value {
+        parameters_schema::<CodeSearchArgs>()
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "Defer synchronous tool work until polling inside the repository context"
+    )]
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let repo = get_current_repo().map_err(CodeSearchError::from)?;
         let repo_path = repo.repo_path().clone();

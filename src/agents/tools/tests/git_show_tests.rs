@@ -1,7 +1,7 @@
 use std::fs;
 use std::process::Command;
 
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use tempfile::TempDir;
 
 use crate::agents::tools::git::{GitShow, GitShowArgs};

@@ -1,14 +1,17 @@
 # LLM Providers
 
-Git-Iris supports three LLM providers: OpenAI, Anthropic, and Google.
+Git-Iris supports OpenAI, Anthropic, Google, OpenRouter, and Fireworks.
 
 ## Provider Overview
 
-| Provider      | Default Model          | Fast Model                  | Context Window | API Key Env         |
-| ------------- | ---------------------- | --------------------------- | -------------- | ------------------- |
-| **OpenAI**    | `gpt-5.4`              | `gpt-5.4-mini`              | 128K           | `OPENAI_API_KEY`    |
-| **Anthropic** | `claude-opus-4-6`      | `claude-haiku-4-5-20251001` | 200K           | `ANTHROPIC_API_KEY` |
-| **Google**    | `gemini-3-pro-preview` | `gemini-2.5-flash`          | 1M             | `GOOGLE_API_KEY`    |
+| Provider      | Default Model      | Fast Model                  | Context Window | API Key Env         |
+| ------------- | ------------------ | --------------------------- | -------------- | ------------------- |
+| **OpenAI**    | `gpt-6-astra`      | `gpt-5.6-luna`              | 1.05M          | `OPENAI_API_KEY`    |
+| **Anthropic** | `claude-opus-5`    | `claude-haiku-4-5-20251001` | 1M             | `ANTHROPIC_API_KEY` |
+| **Google**    | `gemini-3.8-flash` | `gemini-3.5-flash-lite`     | 1M             | `GOOGLE_API_KEY`    |
+
+OpenRouter defaults to `anthropic/claude-opus-5` and uses `OPENROUTER_API_KEY`. Fireworks defaults
+to `accounts/fireworks/models/deepseek-v4-pro-0813` and uses `FIREWORKS_API_KEY`.
 
 ## Configuration Format
 
@@ -19,7 +22,8 @@ Each provider has its own section under `[providers]`:
 api_key = "YOUR_API_KEY"
 model = "model-name"           # Optional: primary model
 fast_model = "fast-model-name" # Optional: for status updates
-token_limit = 8000             # Optional: custom limit
+subagent_model = "worker-model-name" # Optional: defaults to the primary model
+token_limit = 1050000          # Optional: context-window metadata
 ```
 
 ## OpenAI Configuration
@@ -27,16 +31,15 @@ token_limit = 8000             # Optional: custom limit
 ```toml
 [providers.openai]
 api_key = "sk-..."
-model = "gpt-5.4"
-fast_model = "gpt-5.4-mini"
-token_limit = 128000
+model = "gpt-6-astra"
+fast_model = "gpt-5.6-luna"
 ```
 
 ### CLI Setup
 
 ```bash
 git-iris config --provider openai --api-key YOUR_API_KEY
-git-iris config --provider openai --model gpt-5.4
+git-iris config --provider openai --model gpt-6-astra
 ```
 
 ### Environment Variable
@@ -50,16 +53,15 @@ export OPENAI_API_KEY="sk-..."
 ```toml
 [providers.anthropic]
 api_key = "sk-ant-..."
-model = "claude-opus-4-6"
+model = "claude-opus-5"
 fast_model = "claude-haiku-4-5-20251001"
-token_limit = 200000
 ```
 
 ### CLI Setup
 
 ```bash
 git-iris config --provider anthropic --api-key YOUR_API_KEY
-git-iris config --provider anthropic --model claude-opus-4-6
+git-iris config --provider anthropic --model claude-opus-5
 ```
 
 ### Environment Variable
@@ -77,16 +79,15 @@ The provider names `claude` and `gemini` are still supported as aliases for `ant
 ```toml
 [providers.google]
 api_key = "your-google-api-key"
-model = "gemini-3-pro-preview"
-fast_model = "gemini-2.5-flash"
-token_limit = 1000000
+model = "gemini-3.8-flash"
+fast_model = "gemini-3.5-flash-lite"
 ```
 
 ### CLI Setup
 
 ```bash
 git-iris config --provider google --api-key YOUR_API_KEY
-git-iris config --provider google --model gemini-3-pro-preview
+git-iris config --provider google --model gemini-3.8-flash
 ```
 
 ### Environment Variable
@@ -94,6 +95,46 @@ git-iris config --provider google --model gemini-3-pro-preview
 ```bash
 export GOOGLE_API_KEY="..."
 ```
+
+## OpenRouter Configuration
+
+OpenRouter routes requests to hosted models using its own model IDs and API key. Iris uses the
+native OpenRouter integration to retain reasoning details across tool calls.
+
+```bash
+export OPENROUTER_API_KEY="sk-or-..."
+git-iris config --provider openrouter --model anthropic/claude-opus-5
+```
+
+```toml
+[providers.openrouter]
+model = "anthropic/claude-opus-5"
+fast_model = "anthropic/claude-haiku-4.5"
+```
+
+The Opus default uses high effort for main tasks and low effort for subagents. Use model IDs from
+[OpenRouter's catalog](https://openrouter.ai/models) and choose models with tool-calling support.
+
+## Fireworks Configuration
+
+Fireworks uses its OpenAI-compatible Chat Completions endpoint. Model IDs include the account path.
+
+```bash
+export FIREWORKS_API_KEY="..."
+git-iris config --provider fireworks --model accounts/fireworks/models/deepseek-v4-pro-0813
+```
+
+```toml
+[providers.fireworks]
+model = "accounts/fireworks/models/deepseek-v4-pro-0813"
+fast_model = "accounts/fireworks/models/deepseek-v4-flash-0731"
+```
+
+For the default DeepSeek V4 models, Iris uses high effort for analysis and disables thinking for
+status messages. Fireworks promotes low and medium effort to high for this model family. Custom
+models retain their provider defaults unless you supply parameters.
+See [Fireworks' model guide](https://docs.fireworks.ai/guides/recommended-models) for serverless
+availability and supported features. An account-specific deployment can use its own model ID.
 
 ## Switching Providers
 
@@ -120,14 +161,14 @@ git-iris config --provider openai --param text='{"verbosity":"low"}'
 ```
 
 Git-Iris parses valid JSON values here, so nested provider options work without extra config
-files. For OpenAI reasoning models, use `--token-limit` to control output-token budgets; Git-Iris
-maps that to the provider's current completion-token setting automatically.
+files. The `--token-limit` setting records context-window metadata; it does not change output
+budgets. Iris currently requests 16,384 output tokens for main tasks and 4,096 for subagents.
 
-OpenAI GPT-5 defaults are already tuned by workflow:
+OpenAI defaults use the Responses API and choose reasoning by workflow:
 
 - Main agent generations use `reasoning = {"effort":"medium"}`
 - Subagents and `parallel_analyze` use `reasoning = {"effort":"low"}`
-- Fast status messages use `reasoning = {"effort":"none"}`
+- Fast status messages use Luna with `reasoning = {"effort":"none"}`
 
 Set `reasoning` yourself only when you want to override those defaults for every OpenAI request
 using that provider config.
@@ -145,17 +186,8 @@ api_key = "sk-..."
 
 ## Token Limits
 
-Each provider has a default context window. You can override this:
-
-```bash
-git-iris config --provider anthropic --token-limit 100000
-```
-
-This is useful for:
-
-- Cost control (smaller limit = fewer tokens)
-- Faster responses
-- Testing with limited context
+The model context window and output-token budget are separate limits. See
+[Model Selection](./models) for role defaults and context guidance.
 
 ## API Key Priority
 

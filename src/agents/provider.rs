@@ -1,29 +1,16 @@
-//! Dynamic provider abstraction for rig-core 0.27+
-//!
-//! This module provides runtime provider selection using enum dispatch,
-//! allowing git-iris to work with any supported provider based on config.
+//! Provider transports and workflow defaults for the shared Rig agent runtime.
 
 use anyhow::Result;
 use rig::{
     agent::{Agent, AgentBuilder, PromptResponse},
-    client::{CompletionClient, ProviderClient},
-    completion::{CompletionModel, Prompt, PromptError},
-    providers::{anthropic, gemini, openai},
+    client::{AgentClientExt, CompletionClient},
+    completion::{Prompt, PromptError},
+    providers::{anthropic, gemini, openai, openrouter},
 };
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 
 use crate::providers::{Provider, ProviderConfig};
-
-/// Completion model types for each provider
-pub type OpenAIModel = openai::completion::CompletionModel;
-pub type AnthropicModel = anthropic::completion::CompletionModel;
-pub type GeminiModel = gemini::completion::CompletionModel;
-
-/// Agent builder types for each provider
-pub type OpenAIBuilder = AgentBuilder<OpenAIModel>;
-pub type AnthropicBuilder = AgentBuilder<AnthropicModel>;
-pub type GeminiBuilder = AgentBuilder<GeminiModel>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionProfile {
@@ -42,56 +29,89 @@ impl CompletionProfile {
     }
 }
 
-/// Dynamic agent that can be any provider's agent type
-pub enum DynAgent {
-    OpenAI(Agent<OpenAIModel>),
-    Anthropic(Agent<AnthropicModel>),
-    Gemini(Agent<GeminiModel>),
-}
+/// Shared provider-independent agent runtime.
+#[derive(Clone)]
+pub struct DynAgent(pub Agent);
 
 impl DynAgent {
-    /// Simple prompt - returns response string
+    /// Send a prompt through the selected provider.
     ///
     /// # Errors
-    ///
-    /// Returns an error when the underlying provider request fails.
+    /// Returns the underlying provider or tool error.
     pub async fn prompt(&self, msg: &str) -> Result<String, PromptError> {
-        match self {
-            Self::OpenAI(a) => a.prompt(msg).await,
-            Self::Anthropic(a) => a.prompt(msg).await,
-            Self::Gemini(a) => a.prompt(msg).await,
-        }
+        self.0.prompt(msg).await
     }
 
-    /// Multi-turn prompt with specified depth for tool calling
+    /// Execute a bounded multi-turn tool loop.
     ///
     /// # Errors
-    ///
-    /// Returns an error when the underlying provider request fails.
+    /// Returns the underlying provider or tool error.
     pub async fn prompt_multi_turn(&self, msg: &str, depth: usize) -> Result<String, PromptError> {
-        match self {
-            Self::OpenAI(a) => a.prompt(msg).max_turns(depth).await,
-            Self::Anthropic(a) => a.prompt(msg).max_turns(depth).await,
-            Self::Gemini(a) => a.prompt(msg).max_turns(depth).await,
-        }
+        self.0.prompt(msg).max_turns(depth).await
     }
 
-    /// Multi-turn prompt with extended details (token usage, etc.)
+    /// Execute a tool loop and include usage details.
     ///
     /// # Errors
-    ///
-    /// Returns an error when the underlying provider request fails.
+    /// Returns the underlying provider or tool error.
     pub async fn prompt_extended(
         &self,
         msg: &str,
         depth: usize,
     ) -> Result<PromptResponse, PromptError> {
-        match self {
-            Self::OpenAI(a) => a.prompt(msg).max_turns(depth).extended_details().await,
-            Self::Anthropic(a) => a.prompt(msg).max_turns(depth).extended_details().await,
-            Self::Gemini(a) => a.prompt(msg).max_turns(depth).extended_details().await,
-        }
+        self.0.prompt(msg).max_turns(depth).extended_details().await
     }
+}
+
+/// Select the provider transport while sharing the agent runtime.
+///
+/// # Errors
+/// Returns an error when provider credentials or client configuration are invalid.
+pub fn agent_builder(
+    provider: Provider,
+    model: &str,
+    api_key: Option<&str>,
+) -> Result<AgentBuilder> {
+    agent_builder_at(provider, model, api_key, None)
+}
+
+fn agent_builder_at(
+    provider: Provider,
+    model: &str,
+    api_key: Option<&str>,
+    base_url: Option<&str>,
+) -> Result<AgentBuilder> {
+    let key = required_api_key(api_key, provider)?;
+    macro_rules! client {
+        ($client:path) => {{
+            let builder = <$client>::builder().api_key(&key);
+            let builder = if let Some(url) = base_url {
+                builder.base_url(url)
+            } else {
+                builder
+            };
+            builder.build().map_err(|_| {
+                anyhow::anyhow!(
+                    "Failed to create {provider} client: authentication or configuration error"
+                )
+            })?
+        }};
+    }
+    Ok(match provider {
+        Provider::OpenAI => client!(openai::Client).agent(model),
+        Provider::Anthropic => anthropic_agent_builder(&client!(anthropic::Client), model),
+        Provider::Google => client!(gemini::Client).agent(model),
+        Provider::OpenRouter => client!(openrouter::Client).agent(model),
+        Provider::Fireworks => {
+            let base_url = base_url.unwrap_or(FIREWORKS_BASE_URL);
+            let client = openai::Client::builder()
+                .api_key(&key)
+                .base_url(base_url)
+                .build()
+                .map_err(|_| anyhow::anyhow!("Failed to create Fireworks client"))?;
+            client.completions_api().agent(model)
+        }
+    })
 }
 
 /// Source of the resolved API key (for logging/debugging)
@@ -161,106 +181,23 @@ pub fn resolve_api_key(
     (None, ApiKeySource::ClientDefault)
 }
 
-/// Create an `OpenAI` agent builder
-///
-/// # Arguments
-/// * `model` - The model name to use
-/// * `api_key` - Optional API key from config. Resolution order:
-///   1. Non-empty `api_key` parameter (from config)
-///   2. `OPENAI_API_KEY` environment variable
-///   3. Client's `from_env()` (requires env var to be set)
-///
-/// # Errors
-/// Returns an error if client creation fails (invalid credentials or missing env var).
-///
-/// # Security
-/// Error messages are sanitized to prevent potential API key exposure.
-pub fn openai_builder(model: &str, api_key: Option<&str>) -> Result<OpenAIBuilder> {
-    let (resolved_key, _source) = resolve_api_key(api_key, Provider::OpenAI);
-    let client = match resolved_key {
-        Some(key) => openai::Client::new(&key)
-            // Sanitize error to prevent potential key exposure in error messages
-            .map_err(|_| {
-                anyhow::anyhow!(
-                    "Failed to create OpenAI client: authentication or configuration error"
-                )
-            })?,
-        None => openai::Client::from_env()
-            .map_err(|_| anyhow::anyhow!("Failed to create OpenAI client from environment"))?,
-    };
-    Ok(client.completions_api().agent(model))
-}
-
-/// Wrap an existing Anthropic client into an agent builder with prompt caching.
-///
-/// Enables Anthropic's automatic prompt caching: a top-level `cache_control`
-/// breakpoint that the API places on the last cacheable block and advances as
-/// the conversation grows. On Iris's multi-turn tool loops, where every turn
-/// otherwise re-sends the whole transcript at full input price, cached turns
-/// are billed at a fraction of that cost. Caching is unconditional: prompts
-/// below the model's cacheable minimum are simply not cached by the API.
-pub fn anthropic_agent_builder(client: &anthropic::Client, model: &str) -> AnthropicBuilder {
+/// Enable Anthropic prompt caching for the complete multi-turn transcript.
+pub fn anthropic_agent_builder(client: &anthropic::Client, model: &str) -> AgentBuilder {
     AgentBuilder::new(client.completion_model(model).with_automatic_caching())
 }
 
-/// Create an Anthropic agent builder with prompt caching enabled.
-///
-/// # Arguments
-/// * `model` - The model name to use
-/// * `api_key` - Optional API key from config. Resolution order:
-///   1. Non-empty `api_key` parameter (from config)
-///   2. `ANTHROPIC_API_KEY` environment variable
-///   3. Client's `from_env()` (requires env var to be set)
-///
-/// # Errors
-/// Returns an error if client creation fails (invalid credentials or missing env var).
-///
-/// # Security
-/// Error messages are sanitized to prevent potential API key exposure.
-pub fn anthropic_builder(model: &str, api_key: Option<&str>) -> Result<AnthropicBuilder> {
-    let (resolved_key, _source) = resolve_api_key(api_key, Provider::Anthropic);
-    let client = match resolved_key {
-        Some(key) => anthropic::Client::new(&key)
-            // Sanitize error to prevent potential key exposure in error messages
-            .map_err(|_| {
-                anyhow::anyhow!(
-                    "Failed to create Anthropic client: authentication or configuration error"
-                )
-            })?,
-        None => anthropic::Client::from_env()
-            .map_err(|_| anyhow::anyhow!("Failed to create Anthropic client from environment"))?,
-    };
-    Ok(anthropic_agent_builder(&client, model))
-}
+pub(crate) const FIREWORKS_BASE_URL: &str = "https://api.fireworks.ai/inference/v1";
 
-/// Create a Gemini agent builder
-///
-/// # Arguments
-/// * `model` - The model name to use
-/// * `api_key` - Optional API key from config. Resolution order:
-///   1. Non-empty `api_key` parameter (from config)
-///   2. `GOOGLE_API_KEY` environment variable
-///   3. Client's `from_env()` (requires env var to be set)
-///
-/// # Errors
-/// Returns an error if client creation fails (invalid credentials or missing env var).
-///
-/// # Security
-/// Error messages are sanitized to prevent potential API key exposure.
-pub fn gemini_builder(model: &str, api_key: Option<&str>) -> Result<GeminiBuilder> {
-    let (resolved_key, _source) = resolve_api_key(api_key, Provider::Google);
-    let client = match resolved_key {
-        Some(key) => gemini::Client::new(&key)
-            // Sanitize error to prevent potential key exposure in error messages
-            .map_err(|_| {
-                anyhow::anyhow!(
-                    "Failed to create Gemini client: authentication or configuration error"
-                )
-            })?,
-        None => gemini::Client::from_env()
-            .map_err(|_| anyhow::anyhow!("Failed to create Gemini client from environment"))?,
-    };
-    Ok(client.agent(model))
+fn required_api_key(api_key: Option<&str>, provider: Provider) -> Result<String> {
+    resolve_api_key(api_key, provider)
+        .0
+        .filter(|key| !key.is_empty())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "API key required for {provider}: set {} or configure a key",
+                provider.api_key_env()
+            )
+        })
 }
 
 fn parse_additional_param_value(raw: &str) -> Value {
@@ -282,50 +219,103 @@ where
     params
 }
 
-fn supports_openai_reasoning_defaults(model: &str) -> bool {
-    model.to_lowercase().starts_with("gpt-5")
-}
-
 fn completion_params_json<S>(
     additional_params: Option<&HashMap<String, String, S>>,
     provider: Provider,
     model: &str,
-    max_tokens: u64,
+    _max_tokens: u64,
     profile: CompletionProfile,
 ) -> Map<String, Value>
 where
     S: std::hash::BuildHasher,
 {
     let mut params = additional_params_json(additional_params);
-
-    if provider == Provider::OpenAI && needs_max_completion_tokens(model) {
-        params.insert("max_completion_tokens".to_string(), json!(max_tokens));
+    let model = model.to_lowercase();
+    match provider {
+        Provider::OpenAI if model.starts_with("gpt-5") || model.starts_with("gpt-6") => {
+            let effort =
+                if model.starts_with("gpt-6") && profile == CompletionProfile::StatusMessage {
+                    "low"
+                } else {
+                    profile.default_openai_reasoning_effort()
+                };
+            params
+                .entry("reasoning")
+                .or_insert_with(|| json!({"effort": effort}));
+        }
+        Provider::Anthropic if model.starts_with("claude-opus-5") => {
+            if profile != CompletionProfile::StatusMessage {
+                params
+                    .entry("thinking")
+                    .or_insert_with(|| json!({"type": "adaptive"}));
+                let effort = if profile == CompletionProfile::MainAgent {
+                    "high"
+                } else {
+                    "low"
+                };
+                let output = params.entry("output_config").or_insert_with(|| json!({}));
+                if let Some(output) = output.as_object_mut() {
+                    output.entry("effort").or_insert_with(|| json!(effort));
+                }
+            }
+        }
+        Provider::OpenRouter => {
+            if model.starts_with("anthropic/claude-opus-5") {
+                let effort = if profile == CompletionProfile::MainAgent {
+                    "high"
+                } else {
+                    "low"
+                };
+                params
+                    .entry("reasoning")
+                    .or_insert_with(|| json!({"effort": effort}));
+            } else if model.starts_with("openai/gpt-5") || model.starts_with("openai/gpt-6") {
+                let effort = if model.starts_with("openai/gpt-6")
+                    && profile == CompletionProfile::StatusMessage
+                {
+                    "low"
+                } else {
+                    profile.default_openai_reasoning_effort()
+                };
+                params
+                    .entry("reasoning")
+                    .or_insert_with(|| json!({"effort": effort}));
+            }
+        }
+        Provider::Fireworks if model.starts_with("accounts/fireworks/models/deepseek-v4-") => {
+            let effort = if profile == CompletionProfile::StatusMessage {
+                "none"
+            } else {
+                "high"
+            };
+            if !params.contains_key("thinking") {
+                params
+                    .entry("reasoning_effort")
+                    .or_insert_with(|| json!(effort));
+            }
+        }
+        Provider::Google if model.starts_with("gemini-3.8-flash") => {
+            let effort = if profile == CompletionProfile::MainAgent {
+                "medium"
+            } else {
+                "low"
+            };
+            let config = params
+                .entry("generationConfig")
+                .or_insert_with(|| json!({}));
+            if let Some(config) = config.as_object_mut() {
+                config
+                    .entry("thinkingConfig")
+                    .or_insert_with(|| json!({"thinkingLevel": effort}));
+            }
+        }
+        _ => {}
     }
-
-    if provider == Provider::OpenAI
-        && supports_openai_reasoning_defaults(model)
-        && !params.contains_key("reasoning")
-    {
-        params.insert(
-            "reasoning".to_string(),
-            json!({ "effort": profile.default_openai_reasoning_effort() }),
-        );
-    }
-
     params
 }
 
-fn needs_max_completion_tokens(model: &str) -> bool {
-    let model = model.to_lowercase();
-    model.starts_with("gpt-5")
-        || model.starts_with("gpt-4.1")
-        || model.starts_with("o1")
-        || model.starts_with("o3")
-        || model.starts_with("o4")
-}
-
 pub fn apply_completion_params<M, S>(
-    mut builder: AgentBuilder<M>,
+    builder: AgentBuilder<M>,
     provider: Provider,
     model: &str,
     max_tokens: u64,
@@ -333,15 +323,10 @@ pub fn apply_completion_params<M, S>(
     profile: CompletionProfile,
 ) -> AgentBuilder<M>
 where
-    M: CompletionModel,
     S: std::hash::BuildHasher,
 {
-    if !(provider == Provider::OpenAI && needs_max_completion_tokens(model)) {
-        builder = builder.max_tokens(max_tokens);
-    }
-
+    let builder = builder.max_tokens(max_tokens);
     let params = completion_params_json(additional_params, provider, model, max_tokens, profile);
-
     if params.is_empty() {
         builder
     } else {
@@ -369,171 +354,4 @@ pub fn current_provider_config<'a>(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_resolve_api_key_uses_config_when_provided() {
-        // Config key takes precedence
-        let (key, source) = resolve_api_key(Some("sk-config-key-1234567890"), Provider::OpenAI);
-        assert_eq!(key, Some("sk-config-key-1234567890".to_string()));
-        assert_eq!(source, ApiKeySource::Config);
-    }
-
-    #[test]
-    fn test_resolve_api_key_empty_config_not_used() {
-        // Empty config should NOT be treated as a valid key
-        // It should fall through to env var or client default
-        let empty_config: Option<&str> = Some("");
-        let (_key, source) = resolve_api_key(empty_config, Provider::OpenAI);
-
-        // Empty config should NOT return Config source
-        // This test verifies the empty string is treated as "not configured"
-        assert_ne!(source, ApiKeySource::Config);
-    }
-
-    #[test]
-    fn test_resolve_api_key_none_config_checks_env() {
-        // When config is None, should check env var
-        let (key, source) = resolve_api_key(None, Provider::OpenAI);
-
-        // Result depends on whether OPENAI_API_KEY is set in the environment
-        // We just verify the function doesn't panic and returns appropriate source
-        match source {
-            ApiKeySource::Environment => {
-                assert!(key.is_some());
-            }
-            ApiKeySource::ClientDefault => {
-                assert!(key.is_none());
-            }
-            ApiKeySource::Config => {
-                unreachable!("Should not return Config source when config is None");
-            }
-        }
-    }
-
-    #[test]
-    fn test_api_key_source_enum_equality() {
-        assert_eq!(ApiKeySource::Config, ApiKeySource::Config);
-        assert_eq!(ApiKeySource::Environment, ApiKeySource::Environment);
-        assert_eq!(ApiKeySource::ClientDefault, ApiKeySource::ClientDefault);
-        assert_ne!(ApiKeySource::Config, ApiKeySource::Environment);
-    }
-
-    #[test]
-    fn test_resolve_api_key_all_providers() {
-        // Test that resolve_api_key works for all supported providers
-        for provider in Provider::ALL {
-            let (key, source) = resolve_api_key(Some("test-key-123456789012345"), *provider);
-            assert_eq!(key, Some("test-key-123456789012345".to_string()));
-            assert_eq!(source, ApiKeySource::Config);
-        }
-    }
-
-    #[test]
-    fn test_resolve_api_key_config_precedence() {
-        // Even if env var is set, config should take precedence
-        // We can't easily mock env vars in unit tests, but we can verify
-        // that a provided config key is always used regardless of env state
-        let config_key = "sk-from-config-abcdef1234567890";
-        let (key, source) = resolve_api_key(Some(config_key), Provider::OpenAI);
-
-        assert_eq!(key.as_deref(), Some(config_key));
-        assert_eq!(source, ApiKeySource::Config);
-    }
-
-    #[test]
-    fn test_api_key_source_debug_impl() {
-        // Verify Debug is implemented for logging purposes
-        let source = ApiKeySource::Config;
-        let debug_str = format!("{:?}", source);
-        assert!(debug_str.contains("Config"));
-    }
-
-    #[test]
-    fn test_apply_completion_params_parses_json_like_additional_params() {
-        let mut additional_params = HashMap::new();
-        additional_params.insert("temperature".to_string(), "0.7".to_string());
-        additional_params.insert("reasoning".to_string(), r#"{"effort":"low"}"#.to_string());
-
-        let params = additional_params_json(Some(&additional_params));
-        assert_eq!(params.get("temperature"), Some(&json!(0.7)));
-        assert_eq!(params.get("reasoning"), Some(&json!({"effort": "low"})));
-    }
-
-    #[test]
-    fn test_completion_params_use_profile_specific_openai_reasoning_defaults() {
-        let main_params = completion_params_json::<std::collections::hash_map::RandomState>(
-            None,
-            Provider::OpenAI,
-            "gpt-5.4",
-            16_384,
-            CompletionProfile::MainAgent,
-        );
-        assert_eq!(
-            main_params.get("reasoning"),
-            Some(&json!({"effort": "medium"}))
-        );
-        assert_eq!(
-            main_params.get("max_completion_tokens"),
-            Some(&json!(16_384))
-        );
-
-        let status_params = completion_params_json::<std::collections::hash_map::RandomState>(
-            None,
-            Provider::OpenAI,
-            "gpt-5.4-mini",
-            50,
-            CompletionProfile::StatusMessage,
-        );
-        assert_eq!(
-            status_params.get("reasoning"),
-            Some(&json!({"effort": "none"}))
-        );
-        assert_eq!(status_params.get("max_completion_tokens"), Some(&json!(50)));
-    }
-
-    #[test]
-    fn test_completion_params_preserve_explicit_reasoning_overrides() {
-        let mut additional_params = HashMap::new();
-        additional_params.insert("reasoning".to_string(), r#"{"effort":"high"}"#.to_string());
-
-        let params = completion_params_json(
-            Some(&additional_params),
-            Provider::OpenAI,
-            "gpt-5.4",
-            4096,
-            CompletionProfile::MainAgent,
-        );
-
-        assert_eq!(params.get("reasoning"), Some(&json!({"effort": "high"})));
-    }
-
-    #[test]
-    fn test_completion_params_skip_openai_reasoning_defaults_for_non_gpt5_models() {
-        let params = completion_params_json::<std::collections::hash_map::RandomState>(
-            None,
-            Provider::OpenAI,
-            "gpt-4.1",
-            4096,
-            CompletionProfile::MainAgent,
-        );
-
-        assert!(!params.contains_key("reasoning"));
-        assert_eq!(params.get("max_completion_tokens"), Some(&json!(4096)));
-    }
-
-    #[test]
-    fn test_provider_from_name_supports_aliases() {
-        assert_eq!(provider_from_name("openai").ok(), Some(Provider::OpenAI));
-        assert_eq!(provider_from_name("claude").ok(), Some(Provider::Anthropic));
-        assert_eq!(provider_from_name("gemini").ok(), Some(Provider::Google));
-    }
-
-    #[test]
-    fn test_needs_max_completion_tokens_for_gpt5_family() {
-        assert!(needs_max_completion_tokens("gpt-5.4"));
-        assert!(needs_max_completion_tokens("o3"));
-        assert!(!needs_max_completion_tokens("claude-opus-4-6"));
-    }
-}
+mod tests;

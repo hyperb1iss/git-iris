@@ -364,6 +364,10 @@ pub enum Commands {
         )]
         fast_model: Option<String>,
 
+        /// Set the model used for delegated analysis (defaults to the primary model)
+        #[arg(long)]
+        subagent_model: Option<String>,
+
         /// Set token limit for the specified provider
         #[arg(long, help = "Set token limit for the specified provider")]
         token_limit: Option<usize>,
@@ -402,6 +406,10 @@ pub enum Commands {
             help = "Set fast model for the specified provider (used for status updates and simple tasks)"
         )]
         fast_model: Option<String>,
+
+        /// Set the model used for delegated analysis (defaults to the primary model)
+        #[arg(long)]
+        subagent_model: Option<String>,
 
         /// Set token limit for the specified provider
         #[arg(long, help = "Set token limit for the specified provider")]
@@ -788,6 +796,7 @@ fn handle_config(
     api_key: Option<String>,
     model: Option<String>,
     fast_model: Option<String>,
+    subagent_model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
     subagent_timeout: Option<u64>,
@@ -812,6 +821,7 @@ fn handle_config(
         api_key,
         model,
         fast_model,
+        subagent_model,
         token_limit,
         param,
         subagent_timeout,
@@ -906,8 +916,20 @@ async fn handle_review(
         .git_repo()
         .and_then(|repo| repo.get_default_base_ref().ok())
         .unwrap_or_else(|| "main".to_string());
-    let context =
+    let mut context =
         TaskContext::for_review_with_base(commit, from, to, include_unstaged, &default_base)?;
+    let publication = if output.github_review {
+        let git_repo = service
+            .git_repo()
+            .ok_or_else(|| anyhow::anyhow!("GitHub publishing requires a git repository"))?;
+        let github = GitHubClient::from_git_repo(git_repo)?;
+        let number = github.resolve_pull_number(pull_number, git_repo).await?;
+        let target = github.review_target(number).await?;
+        context = target.pin_context(git_repo, context)?;
+        Some((github, number, target))
+    } else {
+        None
+    };
     let response = service.execute_task("review", context).await?;
 
     // Finish spinner
@@ -920,12 +942,7 @@ async fn handle_review(
         _ => response.to_string(),
     };
 
-    if output.github_review {
-        let git_repo = service
-            .git_repo()
-            .ok_or_else(|| anyhow::anyhow!("GitHub publishing requires a git repository"))?;
-        let github = GitHubClient::from_git_repo(git_repo)?;
-        let number = github.resolve_pull_number(pull_number, git_repo).await?;
+    if let Some((github, number, target)) = publication {
         let publish_options = ReviewPublishOptions {
             event: output.github_review_event.into(),
             inline_comments: output.github_inline_comments,
@@ -933,12 +950,12 @@ async fn handle_review(
         match &response {
             StructuredResponse::Review(review) => {
                 github
-                    .publish_structured_review(number, review, publish_options)
+                    .publish_structured_review(number, review, publish_options, &target)
                     .await?;
             }
             _ => {
                 github
-                    .publish_review(number, &review_content, publish_options)
+                    .publish_review(number, &review_content, publish_options, &target)
                     .await?;
             }
         }
@@ -1200,6 +1217,7 @@ pub async fn handle_command(
             common,
             api_key,
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,
@@ -1209,6 +1227,7 @@ pub async fn handle_command(
             api_key,
             common.model.clone(),
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,
@@ -1289,6 +1308,7 @@ pub async fn handle_command(
         Commands::ProjectConfig {
             common,
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,
@@ -1298,6 +1318,7 @@ pub async fn handle_command(
             &common,
             common.model.clone(),
             fast_model,
+            subagent_model,
             token_limit,
             param,
             subagent_timeout,

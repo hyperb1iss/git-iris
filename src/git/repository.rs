@@ -215,6 +215,8 @@ impl GitRepo {
         let remotes = repo.remotes()?;
         let remote_name = remotes
             .iter()
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
             .flatten()
             .next()
             .ok_or_else(|| anyhow!("No remote found"))?;
@@ -223,6 +225,8 @@ impl GitRepo {
         let fetch_refspec_storage: Vec<String> = remote
             .fetch_refspecs()?
             .iter()
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
             .flatten()
             .map(std::string::ToString::to_string)
             .collect();
@@ -246,8 +250,17 @@ impl GitRepo {
     /// A Result containing the branch name as a String or an error.
     pub fn get_current_branch(&self) -> Result<String> {
         let repo = self.open_repo()?;
-        let head = repo.head()?;
-        let branch_name = head.shorthand().unwrap_or("HEAD detached").to_string();
+        let branch_name = match repo.head() {
+            Ok(head) if head.is_branch() => head.shorthand().unwrap_or("HEAD").to_string(),
+            Ok(_) => "HEAD detached".to_string(),
+            Err(error) if error.code() == git2::ErrorCode::UnbornBranch => repo
+                .find_reference("HEAD")?
+                .symbolic_target()?
+                .and_then(|target| target.strip_prefix("refs/heads/"))
+                .context("Unborn HEAD has no branch name")?
+                .to_string(),
+            Err(error) => return Err(error.into()),
+        };
         log_debug!("Current branch: {}", branch_name);
         Ok(branch_name)
     }
@@ -266,7 +279,10 @@ impl GitRepo {
         }
 
         if let Ok(remotes) = repo.remotes() {
-            for remote_name in remotes.iter().flatten() {
+            for remote_name in &remotes {
+                let Some(remote_name) = remote_name? else {
+                    continue;
+                };
                 if remote_name == "origin" {
                     continue;
                 }
@@ -314,16 +330,42 @@ impl GitRepo {
         }
 
         let repo = self.open_repo()?;
-        let hook_path = repo.path().join("hooks").join(hook_name);
+        let repo_workdir = repo
+            .workdir()
+            .context("Repository has no working directory")?;
+        // Git resolves core.hooksPath and the shared directory of linked worktrees.
+        let output = Command::new("git")
+            .current_dir(repo_workdir)
+            .env("GIT_DIR", repo.path())
+            .env("GIT_WORK_TREE", repo_workdir)
+            .args(["rev-parse", "--git-path", &format!("hooks/{hook_name}")])
+            .output()
+            .context("Failed to resolve Git hook path")?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "Failed to resolve Git hook path: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        let hook_path = repo_workdir.join(
+            String::from_utf8(output.stdout)
+                .context("Git hook path is not valid UTF-8")?
+                .trim_end_matches(['\r', '\n']),
+        );
 
         if !hook_path.exists() {
             log_debug!("Hook '{}' not found at {:?}", hook_name, hook_path);
             return Ok(());
         }
 
-        let repo_workdir = repo
-            .workdir()
-            .context("Repository has no working directory")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if hook_path.metadata()?.permissions().mode() & 0o111 == 0 {
+                log_debug!("Skipping non-executable hook: {:?}", hook_path);
+                return Ok(());
+            }
+        }
         execute_hook_command(hook_name, &hook_path, repo.path(), repo_workdir)
     }
 
@@ -749,7 +791,11 @@ impl GitRepo {
         let repo = self.open_repo()?;
         log_debug!("Fetching {} recent commits", count);
         let mut revwalk = repo.revwalk()?;
-        revwalk.push_head()?;
+        match repo.head() {
+            Ok(_) => revwalk.push_head()?,
+            Err(error) if error.code() == git2::ErrorCode::UnbornBranch => return Ok(Vec::new()),
+            Err(error) => return Err(error.into()),
+        }
 
         let commits = revwalk
             .take(count)
@@ -914,14 +960,15 @@ impl GitRepo {
         let repo = self.open_repo()?;
 
         // Get HEAD tree to reset index entry
-        let head = repo.head()?;
-        let head_commit = head.peel_to_commit()?;
-        let head_tree = head_commit.tree()?;
-
         let mut index = repo.index()?;
+        let head_tree = match repo.head() {
+            Ok(head) => Some(head.peel_to_tree()?),
+            Err(error) if error.code() == git2::ErrorCode::UnbornBranch => None,
+            Err(error) => return Err(error.into()),
+        };
 
         // Try to get the entry from HEAD
-        if let Ok(entry) = head_tree.get_path(path) {
+        if let Some(entry) = head_tree.as_ref().and_then(|tree| tree.get_path(path).ok()) {
             // File exists in HEAD, reset to that state
             let blob = repo.find_blob(entry.id())?;
             #[allow(
@@ -970,9 +1017,18 @@ impl GitRepo {
     /// Unstage all files (reset index to HEAD)
     pub fn unstage_all(&self) -> Result<()> {
         let repo = self.open_repo()?;
-        let head = repo.head()?;
-        let head_commit = head.peel_to_commit()?;
-        repo.reset(head_commit.as_object(), git2::ResetType::Mixed, None)?;
+        match repo.head() {
+            Ok(head) => {
+                let head_commit = head.peel_to_commit()?;
+                repo.reset(head_commit.as_object(), git2::ResetType::Mixed, None)?;
+            }
+            Err(error) if error.code() == git2::ErrorCode::UnbornBranch => {
+                let mut index = repo.index()?;
+                index.clear()?;
+                index.write()?;
+            }
+            Err(error) => return Err(error.into()),
+        }
         Ok(())
     }
 
@@ -1022,7 +1078,7 @@ fn resolve_remote_head_base(
     let Ok(reference) = repo.find_reference(&reference_name) else {
         return None;
     };
-    let symbolic_target = reference.symbolic_target()?;
+    let symbolic_target = reference.symbolic_target().ok()??;
     let remote_ref = symbolic_target.strip_prefix("refs/remotes/")?;
 
     if let Some((_, local_candidate)) = remote_ref.split_once('/')

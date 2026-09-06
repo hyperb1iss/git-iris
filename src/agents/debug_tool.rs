@@ -1,8 +1,7 @@
 //! Debug wrapper for Rig tools to provide real-time observability
 
 use anyhow::Result;
-use rig::completion::ToolDefinition;
-use rig::tool::Tool;
+use rig::tool::portable::PortableTool;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -12,7 +11,7 @@ use crate::agents::debug;
 /// Wrapper that adds debug logging to any Rig tool
 pub struct DebugTool<T>
 where
-    T: Tool,
+    T: PortableTool,
 {
     inner: T,
     _phantom: PhantomData<T>,
@@ -20,7 +19,7 @@ where
 
 impl<T> DebugTool<T>
 where
-    T: Tool,
+    T: PortableTool,
 {
     pub fn new(tool: T) -> Self {
         Self {
@@ -32,7 +31,7 @@ where
 
 impl<T> Clone for DebugTool<T>
 where
-    T: Tool + Clone,
+    T: PortableTool + Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -44,7 +43,7 @@ where
 
 impl<T> Debug for DebugTool<T>
 where
-    T: Tool + Debug,
+    T: PortableTool + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DebugTool")
@@ -55,7 +54,7 @@ where
 
 impl<T> Serialize for DebugTool<T>
 where
-    T: Tool + Serialize,
+    T: PortableTool + Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -67,7 +66,7 @@ where
 
 impl<'de, T> Deserialize<'de> for DebugTool<T>
 where
-    T: Tool + Deserialize<'de>,
+    T: PortableTool + Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -81,9 +80,9 @@ where
     }
 }
 
-impl<T> Tool for DebugTool<T>
+impl<T> PortableTool for DebugTool<T>
 where
-    T: Tool + Send + Sync,
+    T: PortableTool + Send + Sync,
     T::Args: Debug + Send + Sync,
     T::Output: Debug + Send + Sync,
     T::Error: Send + Sync,
@@ -93,8 +92,12 @@ where
     type Args = T::Args;
     type Output = T::Output;
 
-    async fn definition(&self, prompt: String) -> ToolDefinition {
-        self.inner.definition(prompt).await
+    fn description(&self) -> String {
+        self.inner.description()
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        self.inner.parameters()
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

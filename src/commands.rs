@@ -75,6 +75,7 @@ fn apply_config_changes(
     common: &CommonParams,
     model: Option<String>,
     fast_model: Option<String>,
+    subagent_model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
     api_key: Option<String>,
@@ -89,22 +90,7 @@ fn apply_config_changes(
 
     // Handle provider change - validate and insert if needed
     if let Some(provider_str) = &common.provider {
-        let provider: Provider = provider_str.parse().map_err(|_| {
-            anyhow!(
-                "Invalid provider: {}. Available: {}",
-                provider_str,
-                Provider::all_names().join(", ")
-            )
-        })?;
-
-        // Only check for provider insertion if it wasn't already handled
-        if !config.providers.contains_key(provider.name()) {
-            config.providers.insert(
-                provider.name().to_string(),
-                ProviderConfig::with_defaults(provider),
-            );
-            changes_made = true;
-        }
+        changes_made |= ensure_provider_config(config, provider_str)?;
     }
 
     let provider_config = config
@@ -129,6 +115,13 @@ fn apply_config_changes(
     }
 
     // Apply fast model change
+    if let Some(model) = subagent_model
+        && provider_config.subagent_model.as_ref() != Some(&model)
+    {
+        provider_config.subagent_model = Some(model);
+        changes_made = true;
+    }
+
     if let Some(fast_model) = fast_model
         && provider_config.fast_model != Some(fast_model.clone())
     {
@@ -206,6 +199,26 @@ fn apply_config_changes(
     Ok(changes_made)
 }
 
+fn ensure_provider_config(config: &mut Config, provider_name: &str) -> anyhow::Result<bool> {
+    let provider: Provider = provider_name.parse().map_err(|_| {
+        anyhow!(
+            "Invalid provider: {}. Available: {}",
+            provider_name,
+            Provider::all_names().join(", ")
+        )
+    })?;
+
+    if config.providers.contains_key(provider.name()) {
+        return Ok(false);
+    }
+
+    config.providers.insert(
+        provider.name().to_string(),
+        ProviderConfig::with_defaults(provider),
+    );
+    Ok(true)
+}
+
 /// Handle the 'config' command
 #[allow(clippy::too_many_lines)]
 ///
@@ -217,6 +230,7 @@ pub fn handle_config_command(
     api_key: Option<String>,
     model: Option<String>,
     fast_model: Option<String>,
+    subagent_model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
     subagent_timeout: Option<u64>,
@@ -245,6 +259,7 @@ pub fn handle_config_command(
         common,
         model,
         fast_model,
+        subagent_model,
         token_limit,
         param,
         api_key,
@@ -314,6 +329,7 @@ pub fn handle_project_config_command(
     common: &CommonParams,
     model: Option<String>,
     fast_model: Option<String>,
+    subagent_model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
     subagent_timeout: Option<u64>,
@@ -363,6 +379,7 @@ pub fn handle_project_config_command(
         common,
         model,
         fast_model,
+        subagent_model,
         token_limit,
         param,
         &mut changes_made,
@@ -389,6 +406,7 @@ fn apply_provider_settings(
     common: &CommonParams,
     model: Option<String>,
     fast_model: Option<String>,
+    subagent_model: Option<String>,
     token_limit: Option<usize>,
     param: Option<Vec<String>>,
     changes_made: &mut bool,
@@ -414,20 +432,19 @@ fn apply_provider_settings(
     }
 
     // Get provider name to use
-    let provider_name = common
-        .provider
-        .clone()
-        .or_else(|| {
-            if config.default_provider.is_empty() {
-                None
-            } else {
-                Some(config.default_provider.clone())
-            }
-        })
-        .unwrap_or_else(|| Provider::default().name().to_string());
+    let provider_name = if config.default_provider.is_empty() {
+        Provider::default().name().to_string()
+    } else {
+        config.default_provider.clone()
+    };
 
     // Ensure provider config entry exists if setting model options
-    if model.is_some() || fast_model.is_some() || token_limit.is_some() || param.is_some() {
+    if model.is_some()
+        || fast_model.is_some()
+        || subagent_model.is_some()
+        || token_limit.is_some()
+        || param.is_some()
+    {
         config.providers.entry(provider_name.clone()).or_default();
     }
 
@@ -437,6 +454,14 @@ fn apply_provider_settings(
         && pc.model != m
     {
         pc.model = m;
+        *changes_made = true;
+    }
+
+    if let Some(model) = subagent_model
+        && let Some(pc) = config.providers.get_mut(&provider_name)
+        && pc.subagent_model.as_ref() != Some(&model)
+    {
+        pc.subagent_model = Some(model);
         *changes_made = true;
     }
 
@@ -733,6 +758,10 @@ fn print_provider_section(config: &Config, provider_name: &str) {
         .or_else(|| provider.map(|p| p.default_fast_model().to_string()))
         .unwrap_or_default();
     print_config_row("Fast Model", &fast_model, dim, false);
+    let subagent_model = provider_config
+        .and_then(|pc| provider.map(|p| pc.effective_subagent_model(p)))
+        .unwrap_or(&model);
+    print_config_row("Subagent Model", subagent_model, dim, false);
 
     // Context window
     if let Some(p) = provider {
@@ -1076,3 +1105,7 @@ fn find_git_hooks_dir() -> Result<std::path::PathBuf> {
 
     Ok(hooks_dir)
 }
+
+#[cfg(test)]
+#[path = "commands_tests.rs"]
+mod tests;
