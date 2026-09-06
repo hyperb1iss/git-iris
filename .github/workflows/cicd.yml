@@ -11,6 +11,10 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      validate_only:
+        description: "Build and test release artifacts without publishing"
+        type: boolean
+        default: true
       tag:
         description: "Tag to build/release (e.g., v1.2.3)"
         required: false
@@ -53,7 +57,7 @@ jobs:
   # ── Build Artifacts ──────────────────────────────────────────
   build-artifacts:
     name: 📦 Build Artifacts (${{ matrix.build }})
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.validate_only)
     needs: ci
     runs-on: ${{ matrix.os }}
     strategy:
@@ -88,6 +92,11 @@ jobs:
           cache-on-failure: true
       - name: Build release binary
         run: cargo build --verbose --locked --release --target ${{ matrix.target }}
+      - name: Smoke test release binary
+        shell: bash
+        run: |
+          ./target/${{ matrix.target }}/release/${{ matrix.binary_name }} --version
+          ./target/${{ matrix.target }}/release/${{ matrix.binary_name }} --help
       - uses: actions/upload-artifact@v7
         with:
           name: git-iris-${{ matrix.build }}
@@ -98,7 +107,7 @@ jobs:
   # ── Build Packages (.deb, .rpm) ──────────────────────────────
   build-packages:
     name: 📦 Build Packages
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.validate_only)
     needs: ci
     runs-on: ${{ matrix.os }}
     strategy:
@@ -116,12 +125,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Get version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - name: Get package version
+        id: get_version
+        run: |
+          VERSION=$(cargo metadata --locked --no-deps --format-version 1 | jq -er '.packages[] | select(.name == "git-iris") | .version')
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match Cargo version $VERSION"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Setup cross-compilation (ARM64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -171,7 +186,7 @@ jobs:
 
   # ── Docker Publish ───────────────────────────────────────────
   docker-publish:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && !inputs.validate_only
     needs: [ci, docker-build-and-test, build-packages]
     uses: hyperb1iss/shared-workflows/.github/workflows/docker-publish.yml@main
     with:
@@ -184,7 +199,7 @@ jobs:
 
   # ── Publish to crates.io ─────────────────────────────────────
   cargo-publish:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && !inputs.validate_only
     needs: [build-artifacts, build-packages]
     uses: hyperb1iss/shared-workflows/.github/workflows/rust-publish.yml@main
     permissions:
@@ -195,7 +210,7 @@ jobs:
   # ── Create GitHub Release ────────────────────────────────────
   create-release:
     name: 🚀 Create GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && !inputs.validate_only
     needs: [build-artifacts, build-packages, docker-publish, cargo-publish]
     runs-on: ubuntu-latest
     permissions:
@@ -273,7 +288,7 @@ jobs:
   # ── Update Major Version Tag ─────────────────────────────────
   update-major-tag:
     name: 🏷️ Update Major Version Tag
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !inputs.validate_only
     needs: create-release
     runs-on: ubuntu-latest
     permissions:
@@ -294,7 +309,7 @@ jobs:
   # ── Update Homebrew Tap ──────────────────────────────────────
   update-homebrew:
     name: 🍺 Update Homebrew Tap
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !inputs.validate_only
     needs: create-release
     runs-on: ubuntu-latest
     steps:
@@ -380,7 +395,7 @@ jobs:
   # ── Update AUR Package ──────────────────────────────────────
   update-aur:
     name: 📦 Update AUR Package
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !inputs.validate_only
     needs: create-release
     runs-on: ubuntu-latest
     steps:
