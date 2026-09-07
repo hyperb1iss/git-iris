@@ -324,7 +324,7 @@ Configure global Git-Iris settings.
 
 | Flag                           | Description                                    |
 | ------------------------------ | ---------------------------------------------- |
-| `--instructions <TEXT>`        | Set default PR instructions                    |
+| `--instructions <TEXT>`        | Set default instructions across capabilities   |
 | `--preset <NAME>`              | Set default preset                             |
 | `--gitmoji`                    | Enable gitmoji                                 |
 | `--no-gitmoji`                 | Disable gitmoji                                |
@@ -375,7 +375,7 @@ Manage project-specific `.irisconfig` file.
 | Flag                           | Short | Description                                    |
 | ------------------------------ | ----- | ---------------------------------------------- |
 | `--provider <NAME>`            |       | Set project provider                           |
-| `--instructions <TEXT>`        |       | Set project PR instructions                    |
+| `--instructions <TEXT>`        |       | Set project instructions across capabilities   |
 | `--preset <NAME>`              |       | Set project preset                             |
 | `--gitmoji`                    |       | Enable gitmoji                                 |
 | `--no-gitmoji`                 |       | Disable gitmoji                                |
@@ -383,7 +383,7 @@ Manage project-specific `.irisconfig` file.
 | `--no-critic`                  |       | Disable critic verification                    |
 | `--model <NAME>`               |       | Set project model                              |
 | `--fast-model <NAME>`          |       | Set project fast model                         |
-| `--token-limit <NUM>`          |       | Set project token limit                        |
+| `--token-limit <NUM>`          |       | Set project context-window metadata            |
 | `--param <KEY=VALUE>`          |       | Set project parameters                         |
 | `--subagent-timeout <SECONDS>` |       | Set parallel subagent timeout (default: `120`) |
 | `--subagent-max-turns <NUM>`   |       | Set subagent turn budget (default: `20`)       |

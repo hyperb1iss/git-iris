@@ -280,15 +280,33 @@ pub fn copy_to_clipboard(state: &mut StudioState, content: &str, description: &s
 pub fn spawn_commit_task(state: &StudioState) -> SideEffect {
     use crate::studio::state::EmojiMode;
 
+    let mut instructions = (!state.modes.commit.custom_instructions.is_empty())
+        .then(|| state.modes.commit.custom_instructions.clone());
+    if let EmojiMode::Custom(emoji) = &state.modes.commit.emoji_mode {
+        let instructions = instructions.get_or_insert_with(|| {
+            state
+                .config
+                .temp_instructions
+                .clone()
+                .unwrap_or_else(|| state.config.instructions.clone())
+        });
+        if !instructions.is_empty() {
+            instructions.push_str("\n\n");
+        }
+        instructions.push_str(&format!(
+            "Set the generated commit's emoji field to exactly {emoji}."
+        ));
+    }
+
     SideEffect::SpawnAgent {
         task: AgentTask::Commit {
-            instructions: if state.modes.commit.custom_instructions.is_empty() {
-                None
-            } else {
-                Some(state.modes.commit.custom_instructions.clone())
-            },
+            instructions,
             preset: state.modes.commit.preset.clone(),
-            use_gitmoji: state.modes.commit.emoji_mode != EmojiMode::None,
+            use_gitmoji: match state.modes.commit.emoji_mode {
+                EmojiMode::Auto => None,
+                EmojiMode::None => Some(false),
+                EmojiMode::Custom(_) => Some(true),
+            },
             amend: state.modes.commit.amend_mode,
         },
     }

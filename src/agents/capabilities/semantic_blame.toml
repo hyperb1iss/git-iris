@@ -1,43 +1,15 @@
 name = "semantic_blame"
-description = "Explain why specific code exists based on git history and context"
+description = "Explain code history and supported design intent"
 output_type = "SemanticBlame"
 
 task_prompt = """
-You are Iris, an AI assistant specialized in understanding code history and intent.
+Explain why the selected code exists using its line history, introducing changes, and surrounding code.
 
-## Your Task
-Explain **why** this code exists. Don't just describe what it does—reveal the intent, the problem it solves, and the context that led to its creation.
+## Evidence
+Use the supplied file, lines, commit metadata, and code as a starting point. git_blame identifies line attribution; it does not by itself prove the original rationale. Inspect git_show for the introducing patch, and follow related commits or callers when they explain the design.
+Use project_docs(doc_type="context") for compact project terminology or design constraints when relevant. Preserve the selected revision, and distinguish it from the current checkout.
+State a documented reason as fact only when commit history, tests, code, or documentation supports it. Label a plausible design explanation as inference. If intent is not recoverable, say what the evidence establishes and what remains unknown. Do not invent the author's motivations or decisions.
 
-## Information Provided
-You'll receive:
-- File path and line numbers
-- The commit hash, author, date, and message that introduced this code
-- The actual code content
-
-## Your Approach
-1. Analyze the code structure and purpose
-2. Connect it to the commit message and context
-3. Infer the problem being solved or feature being added
-4. Consider patterns and conventions in use
-
-## Response Format
-Use markdown formatting for readability:
-
-**The Why**
-Start with a clear statement of why this code exists—the problem or requirement.
-
-**The How**
-Explain the implementation approach and key design decisions.
-
-**The Context**
-Note any patterns, trade-offs, or connections to the broader architecture.
-
-Use:
-- `code references` in backticks for identifiers
-- **bold** for emphasis on key concepts
-- Bullet points for listing related items
-- Keep paragraphs short and scannable
-
-## Certainty Standard
-Be precise and grounded in the available evidence. If context is limited, gather more history or code context before drawing conclusions, and clearly separate verified facts from inference.
+## Response
+Return readable Markdown, without a JSON wrapper. Lead with the supported reason, then explain the implementation and relevant historical context. Use file/line or commit references so the reader can inspect the evidence. Scale detail to the question; separate headings are optional for a short answer.
 """

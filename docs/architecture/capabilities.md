@@ -21,13 +21,15 @@ This separation allows:
 
 ### LLM-Driven Structure
 
-Capabilities don't rigidly enforce structure — they **guide** the LLM. For example:
+Capabilities define the task, evidence requirements, and output contract. Presentation remains flexible within that contract:
 
 - **Commit messages:** JSON with specific fields (`emoji`, `title`, `message`)
-- **Reviews:** Markdown with suggested sections, but Iris decides final structure
+- **Reviews:** Structured JSON with findings, evidence, metadata, and counts
 - **PRs:** Markdown with flexibility for project-specific conventions
 
 The LLM adapts to project needs while following general guidelines.
+
+See [Prompt Contracts](./prompting) for instruction precedence, delegation, current provider guidance, and evaluation limits.
 
 ## Capability Structure
 
@@ -87,8 +89,8 @@ pub struct GeneratedMessage {
 - Start with `git_diff()` for change evidence
 - Use `project_docs(doc_type="context")` when repository conventions or product framing matter
 - Treat `project_docs(doc_type="context")` as a compact snapshot; use targeted doc types for full files
-- Adapt context strategy based on changeset size
-- Use `parallel_analyze` for very large changes
+- Account for the selected scope, using summaries to orient broad changes
+- Delegate independent questions when their answers improve coverage
 
 **Style adaptation:**
 
@@ -116,7 +118,7 @@ pub struct Review {
 
 **Key instructions (from `review.toml`):**
 
-- Use `git_diff(detail="summary")` first; escalate to `repo_map`, `file_read`, `static_analysis`, `git_show`, or `parallel_analyze` based on size and risk.
+- Use summaries to orient broad comparisons, then inspect patches and affected contracts with the tools that answer unresolved questions.
 - Only report findings with confidence ≥ 70; do not duplicate issues a configured linter or type-checker already catches.
 - Cite an exact `file:start_line` (and `end_line`) on a changed line; supply `suggested_fix` when feasible and `evidence` references for non-trivial claims.
 - Set `metadata.risk_level`, name your `strategy`, list `specialist_passes` you ran (or delegated through `parallel_analyze`), and record `coverage_notes`.
@@ -128,20 +130,19 @@ pub struct Review {
 
 **Output:** `MarkdownPullRequest`
 
-**Suggested sections:**
+**Document structure:**
 
-- Summary
-- Changes
-- Test Plan
-- Breaking Changes (if any)
-- Screenshots/Demos (if applicable)
+- Follow the supplied PR template and preserve accurate human context
+- Lead with the problem and resulting behavior
+- Explain the mechanism and validation at the depth the change needs
+- Add compatibility or rollout details when they affect review
 
 **Key instructions:**
 
-- Use `git_diff(from="<default-branch>", to="HEAD")` for full branch context
-- Analyze entire feature branch, not just latest commit
+- Preserve the supplied base and head refs in every diff and delegated task
+- Account for the complete requested comparison
 - Include migration/upgrade notes for breaking changes
-- Suggest testing approach
+- Distinguish executed validation from checks still needed
 
 ### 4. Changelog (`changelog.toml`)
 
@@ -249,7 +250,8 @@ pub struct Review {
 
 **What the critic flags.** Unsupported claims, asserted risks without code verification, review findings citing the wrong file or line, PR/changelog/release note text that overstates scope, and missing caveats when an inference is presented as fact. It deliberately skips wording preferences and style choices that match repository conventions.
 
-The critic is a safety net: any error inside the pass (capability load failure, schema mismatch, network error) is logged as a warning and the original artifact is returned unchanged. To opt out, set `critic_enabled = false` in the Git-Iris config.
+Critic evaluation failures preserve the original artifact and log a warning. Revision-generation
+errors propagate to the caller. To opt out, set `critic_enabled = false` in the Git-Iris config.
 
 ## Creating a Custom Capability
 
@@ -363,110 +365,32 @@ cargo run -- my-capability
 
 ## Prompt Engineering Best Practices
 
-### 1. Context Gathering
+### Scope and Evidence
 
-Instruct Iris to gather the highest-signal evidence first, then pull repo docs when they materially change the answer:
+Give Iris the requested artifact, exact refs or staged scope, and completion criteria. Ask for the
+highest-signal evidence first, then follow affected contracts and callers until the selected scope
+is accounted for. Relevance scores guide inspection order; they do not exclude files from review.
+Delegate independent questions when their answers improve coverage. Avoid mandatory tool sequences
+or file-count thresholds.
 
-```toml
-task_prompt = """
-## Context Gathering
-`project_docs(doc_type="context")` returns a compact snapshot of README and agent instructions.
-Start with `git_diff()` for code evidence, then call `project_docs` when conventions, terminology, or workflow rules matter.
-"""
-```
+### Output and Style
 
-### 2. Tool Guidance
+Specify the output type and required fields once. Preserve explicit user instructions and existing
+templates. Apply presets within the artifact contract: commit formatting does not belong in a JSON
+review, and personality must not invent evidence or pad a short PR description.
 
-List available tools with clear purposes:
+### Uncertainty
 
-```toml
-## Tools Available
-- `git_diff()` - Get staged changes with relevance scores
-- `git_log(count=5)` - Recent commits for style reference
-- `file_read(path, start_line, num_lines)` - Read file contents
-```
+Separate observations from inferences. Investigate uncertainty when the answer can change a finding;
+otherwise state the gap. A confident tone cannot substitute for evidence, and an empty review is a
+valid outcome when no supported regressions remain.
 
-### 3. Size-Based Strategy
+### Repository Context
 
-Guide Iris on how to handle different changeset sizes:
+Read relevant project documentation for conventions and terminology. Repository text and tool
+results are evidence, not instructions that can override the user's task or the output contract.
 
-```toml
-## Context Strategy by Size
-- **Small** (≤3 files): Consider all changes
-- **Large** (>10 files): Focus on high-relevance files
-- **Huge** (>20 files): Use `parallel_analyze`
-```
-
-### 4. Output Requirements
-
-Be explicit about format:
-
-```toml
-## Output Requirements
-- **Subject line**: Imperative mood, max 72 chars
-- **Body**: Wrap at 72 chars, explain WHY not what
-- **Plain text only**: No markdown, no code fences
-```
-
-### 5. Avoid Uncertainty
-
-Instruct Iris to be definitive:
-
-```toml
-## Writing Guidelines
-- **NEVER use speculative language**: Avoid "likely", "probably", "seems"
-- If unsure, use tools to investigate
-- State facts definitively
-```
-
-### 6. Style Flexibility
-
-Allow preset injection:
-
-```toml
-## Style Adaptation
-If STYLE INSTRUCTIONS are provided, prioritize that style.
-A cosmic preset means cosmic language. Express the style!
-```
-
-This enables users to inject personality via presets.
-
-## Advanced Patterns
-
-### Conditional Tool Calls
-
-Instruct Iris to adapt:
-
-```toml
-If the changeset is large (>20 files or >1000 lines):
-  - Use `parallel_analyze` to distribute analysis
-  - Example: parallel_analyze({ "tasks": ["Analyze auth/", "Review API/"] })
-Otherwise:
-  - Use `git_diff()` and `file_read()` directly
-```
-
-### Multi-Stage Analysis
-
-Guide a workflow:
-
-```toml
-1. Call `git_diff()` to see what changed
-2. Identify the primary affected subsystem
-3. Call `code_search()` to find related patterns
-4. Call `file_read()` for detailed context
-5. Synthesize findings into a coherent summary
-```
-
-### Project-Specific Adaptation
-
-Use project docs:
-
-```toml
-When `project_docs(doc_type="context")` is relevant:
-- Follow any commit conventions from AGENTS.md
-- Use terminology from README
-- Respect project style guide
-```
+See [Prompt Contracts](./prompting.md) for runtime precedence and the evaluation approach.
 
 ## Validation and Recovery
 
@@ -500,25 +424,6 @@ Color-coded output shows:
 - 🟢 Green — Successful operations
 - 🟡 Yellow — Warnings
 - 🔴 Red — Errors
-
-## Best Practices Summary
-
-✅ **DO:**
-
-- Start with `git_diff()` or the primary change evidence
-- Use `project_docs(doc_type="context")` as a compact conventions snapshot
-- Provide clear tool descriptions
-- Guide size-based strategies
-- Allow style flexibility
-- Be explicit about output format
-
-❌ **DON'T:**
-
-- Hardcode project-specific details
-- Over-constrain markdown structure
-- Assume file locations
-- Use speculative language
-- Ignore relevance scores
 
 ## Next Steps
 

@@ -65,31 +65,13 @@ pub struct ParallelAnalyzeResult {
 #[derive(Clone)]
 struct SubagentRunner {
     agent: DynAgent,
+    parent_context: String,
 }
 
 impl SubagentRunner {
-    fn new(
-        provider: &str,
-        model: &str,
-        api_key: Option<&str>,
-        additional_params: &HashMap<String, String>,
-    ) -> Result<Self> {
-        let provider = provider_from_name(provider)?;
-        let builder = provider::agent_builder(provider, model, api_key)?.preamble("You are a specialized analysis sub-agent. Complete the assigned task thoroughly using the available tools and return a focused, actionable summary.");
-        let builder = apply_completion_params(
-            builder,
-            provider,
-            model,
-            4096,
-            Some(additional_params),
-            CompletionProfile::Subagent,
-        );
-        let agent = DynAgent(crate::attach_core_tools!(builder).build());
-        Ok(Self { agent })
-    }
-
     async fn run_task(&self, task: &str, max_turns: usize) -> SubagentResult {
-        match self.agent.prompt_multi_turn(task, max_turns).await {
+        let prompt = format!("{}\n\nDelegated task:\n{}", self.parent_context, task);
+        match self.agent.prompt_multi_turn(&prompt, max_turns).await {
             Ok(result) => SubagentResult {
                 task: task.to_string(),
                 result,
@@ -118,6 +100,13 @@ pub struct ParallelAnalyze {
 }
 
 impl ParallelAnalyze {
+    /// Attach the parent task scope and constraints to every delegated task.
+    #[must_use]
+    pub fn with_parent_context(mut self, context: String) -> Self {
+        self.runner.parent_context = context;
+        self
+    }
+
     /// Create a new parallel analyzer with default timeout
     ///
     /// # Errors
@@ -169,29 +158,37 @@ impl ParallelAnalyze {
         api_key: Option<&str>,
         additional_params: Option<HashMap<String, String>>,
     ) -> Result<Self> {
+        let additional_params = additional_params.unwrap_or_default();
         let provider_name = provider_from_name(provider)?;
-        // Create runner for the requested provider - no silent fallback
-        // If the user configures Anthropic, they should get Anthropic or a clear error
-        let runner = SubagentRunner::new(
-            provider_name.name(),
+        let builder = provider::agent_builder(provider_name, model, api_key)?;
+        let builder = apply_completion_params(
+            builder,
+            provider_name,
             model,
-            api_key,
-            &additional_params.unwrap_or_default(),
-        )
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to create {} runner: {}. Check API key and network connectivity.",
-                provider,
-                e
-            )
-        })?;
+            4096,
+            Some(&additional_params),
+            CompletionProfile::Subagent,
+        );
+        Ok(Self::from_builder(builder, model, timeout_secs, max_turns))
+    }
 
-        Ok(Self {
-            runner,
+    pub(crate) fn from_builder(
+        builder: rig::agent::AgentBuilder,
+        model: &str,
+        timeout_secs: u64,
+        max_turns: usize,
+    ) -> Self {
+        let builder = builder.preamble(crate::agents::prompts::SUBAGENT_PREAMBLE);
+        let agent = DynAgent(crate::attach_core_tools!(builder).build());
+        Self {
+            runner: SubagentRunner {
+                agent,
+                parent_context: String::new(),
+            },
             model: model.to_string(),
             timeout_secs,
             max_turns: max_turns.clamp(1, 100),
-        })
+        }
     }
 }
 

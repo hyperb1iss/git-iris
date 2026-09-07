@@ -180,7 +180,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh workflow run cicd.yml --ref "v${{ steps.version.outputs.version }}" -f release_run_id=${{ github.run_id }}
+          gh workflow run cicd.yml --ref "v${{ steps.version.outputs.version }}" -f release_run_id=${{ github.run_id }} -f validate_only=false
 
       - name: "📊 Summary"
         run: |

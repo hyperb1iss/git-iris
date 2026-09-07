@@ -419,7 +419,7 @@ impl SettingsField {
             SettingsField::Theme => "Theme",
             SettingsField::UseGitmoji => "Gitmoji",
             SettingsField::InstructionPreset => "Preset",
-            SettingsField::CustomInstructions => "PR Instructions",
+            SettingsField::CustomInstructions => "Custom Instructions",
         }
     }
 
@@ -475,7 +475,7 @@ pub struct SettingsState {
     pub use_gitmoji: bool,
     /// Instruction preset
     pub instruction_preset: String,
-    /// Saved custom instructions used as pull request description defaults
+    /// Saved custom instructions applied across capabilities
     pub custom_instructions: String,
     /// Available providers
     pub available_providers: Vec<String>,

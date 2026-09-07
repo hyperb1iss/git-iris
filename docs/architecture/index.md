@@ -227,7 +227,7 @@ Each subagent:
 - Runs concurrently with its own context window (default timeout 120 s, default turn budget 20)
 - Has access to the same 11 core tools attached by `attach_core_tools!`, but no delegation tools (no recursion)
 - Returns a focused analysis
-- Uses the **fast model** for cost efficiency
+- Uses the configured **subagent model**, falling back to the primary model
 
 **Configurable budgets.** Both `Config.subagent_timeout_secs` (default 120) and `Config.subagent_max_turns` (default 20) tune subagent resource use. `parallel_analyze` also accepts an optional `max_turns` argument (clamped to 1..=100) so the LLM can request a larger budget for sweeping repository searches or a smaller one to cap cost.
 
@@ -235,15 +235,19 @@ Each subagent:
 
 ## Provider Abstraction
 
-Git-Iris supports multiple LLM providers through rig's unified interface. There is no `DynClientBuilder`; instead `IrisAgent::build_agent` dispatches on the configured provider string and calls one of `provider::openai_builder`, `provider::anthropic_builder`, or `provider::gemini_builder`, returning a `DynAgent` enum that wraps the provider-specific `Agent<M>`.
+The shared `provider::agent_builder` selects the configured provider and returns a `DynAgent`.
+OpenRouter and Fireworks use dedicated adapters alongside OpenAI, Anthropic, and Google.
 
-| Provider  | Default Model      | Fast Model                  |
-| --------- | ------------------ | --------------------------- |
-| OpenAI    | `gpt-6-astra`      | `gpt-5.6-luna`              |
-| Anthropic | `claude-opus-5`    | `claude-haiku-4-5-20251001` |
-| Google    | `gemini-3.8-flash` | `gemini-3.5-flash-lite`     |
+| Provider   | Default Model                                    | Fast Model                                         |
+| ---------- | ------------------------------------------------ | -------------------------------------------------- |
+| OpenAI     | `gpt-6-astra`                                    | `gpt-5.6-luna`                                     |
+| Anthropic  | `claude-opus-5`                                  | `claude-haiku-4-5-20251001`                        |
+| Google     | `gemini-3.8-flash`                               | `gemini-3.5-flash-lite`                            |
+| OpenRouter | `anthropic/claude-opus-5`                        | `anthropic/claude-haiku-4.5`                       |
+| Fireworks  | `accounts/fireworks/models/deepseek-v4-pro-0813` | `accounts/fireworks/models/deepseek-v4-flash-0731` |
 
-Provider switching is transparent — the same capabilities and tools work across all backends.
+The same capability and tool contracts apply across backends. See [Provider Configuration](../configuration/providers.md)
+for credentials and model overrides.
 
 **Anthropic prompt caching is always-on.** `anthropic_agent_builder` wraps every Anthropic completion model with `.with_automatic_caching()` (`src/agents/provider.rs:194-204`). The API places a `cache_control` breakpoint on the last cacheable block and advances it as the conversation grows, so multi-turn tool loops re-bill prior turns at the cached rate. Token-usage debug surfaces `cache_creation_input_tokens` and `cached_input_tokens` alongside the standard input/output totals.
 

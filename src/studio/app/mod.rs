@@ -4,6 +4,9 @@
 
 mod agent_tasks;
 
+#[cfg(test)]
+mod tests;
+
 use anyhow::{Result, anyhow};
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind, MouseButton, MouseEventKind,
@@ -131,7 +134,7 @@ pub enum ChatUpdateType {
     /// Update PR description
     PRDescription(String),
     /// Update review content
-    Review(String),
+    Review(Box<Review>),
 }
 
 fn agent_complete_event(task_type: TaskType, result: AgentResult) -> StudioEvent {
@@ -147,9 +150,7 @@ fn chat_update_event(update: ChatUpdateType) -> StudioEvent {
             ContentType::PRDescription,
             ContentPayload::Markdown(content),
         ),
-        ChatUpdateType::Review(content) => {
-            (ContentType::CodeReview, ContentPayload::Markdown(content))
-        }
+        ChatUpdateType::Review(review) => (ContentType::CodeReview, ContentPayload::Review(review)),
     };
 
     StudioEvent::UpdateContent {
@@ -1583,10 +1584,8 @@ impl StudioApp {
 
         self.state.set_iris_thinking("Analyzing changes...");
         self.state.modes.commit.generating = true;
-        let preset = self.state.modes.commit.preset.clone();
-        let use_gitmoji = self.state.modes.commit.use_gitmoji;
-        let amend = self.state.modes.commit.amend_mode;
-        self.spawn_commit_generation(None, preset, use_gitmoji, amend);
+        let effect = super::handlers::spawn_commit_task(&self.state);
+        self.execute_effects(vec![effect]);
     }
 
     /// Auto-generate code review on mode entry

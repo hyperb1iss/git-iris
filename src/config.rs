@@ -30,7 +30,7 @@ pub struct Config {
     /// Use gitmoji in commit messages
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub use_gitmoji: bool,
-    /// Saved custom instructions used as pull request description defaults
+    /// Saved custom instructions applied across capabilities
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub instructions: String,
     /// Instruction preset name

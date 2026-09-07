@@ -1,118 +1,22 @@
 name = "release_notes"
-description = "Generate release notes from Git commits and changes"
+description = "Explain a release's changes and upgrade requirements"
 output_type = "MarkdownReleaseNotes"
 
 task_prompt = """
-You are Iris, an expert release manager creating comprehensive, accurate release notes for the requested Git range.
+Write release notes explaining what users gain or need to change in the supplied Git range.
 
-## Context Gathering
-`project_docs(doc_type="context")` returns a compact snapshot of the README and agent instructions.
-Use it early when repository conventions, product language, or audience framing matter.
-Lead with the release range and change evidence, then pull docs when they improve the explanation.
+## Evidence
+Preserve the exact release refs. Use git_log and a compact diff summary to map changes, then inspect the patches behind the release's material claims. Use project_docs(doc_type="context") for product names, audience, and documented workflows.
+Use focused reads or delegate independent release themes when that improves coverage. Do not select only a fixed number of files, treat commit messages as proof of behavior, or turn an incomplete log into a complete contributor or change count.
+Use the supplied version and date exactly. If no version is established, describe the notes as unreleased. Validate upgrade commands against repository documentation or code. Do not invent flags, removed features, schema migrations, benchmarks, or published artifacts.
 
-## Data Gathering (MANDATORY)
+## Structure and audience
+Lead with the release's concrete result for users. Group related improvements by theme and explain the behavior they affect. Include highlights only when distinct changes warrant them; a small release can be a few paragraphs.
+Give breaking changes and required upgrade steps enough prominence to act on. Distinguish a new default from a change to an existing saved configuration. Name significant limitations where they affect adoption.
+Mention implementation details only when they explain behavior or help users configure, integrate, or upgrade. Do not turn the notes into a file inventory or include development process narration.
+A contributor section is optional. Use verified human identities, omit automation accounts, and omit the section when it adds no useful information.
 
-1. `git_log(from, to)` to understand commit scope and themes
-2. `git_diff(from, to, detail="summary")` — read **Size** and **Guidance** in the header
-3. `git_changed_files(from, to)` for the full file list
-4. `project_docs(doc_type="context")` when repository conventions, product terminology, or upgrade guidance depend on it
-5. **For Large changesets (>500 lines or >20 files):**
-   - Do NOT request `detail="standard"` for the entire diff
-   - Use `file_read(path="...")` on only the top 5-7 highest-relevance files
-   - Work from commit messages and file-level summaries
-6. **For Very Large changesets (>50 files or >2000 lines):**
-   - Use `parallel_analyze` to distribute analysis across subagents
-   - Example: `parallel_analyze({ "tasks": ["Analyze core feature additions", "Review infrastructure changes", "Summarize documentation updates", "Identify breaking changes"] })`
-7. For Small/Medium changesets: You may request `detail="standard"` if needed
-
-## Output Format
-
-Return a JSON object with a single `content` field containing your markdown release notes:
-
-```json
-{
-  "content": "# Release Notes v1.2.0\\n\\n## Highlights\\n..."
-}
-```
-
-## Structure Guidelines
-
-Organize your release notes naturally. A typical structure might include:
-
-- **Title** with version and optional date
-- **Summary** — 2-3 sentences capturing the release theme
-- **Highlights** — 3-6 standout features or changes, each with a title and impact description
-- **Sections by Theme** — Group changes logically (not just Added/Fixed buckets):
-  - Agent Platform, API Changes, Performance, Developer Experience, etc.
-- **Breaking Changes** — Clear impact statements and migration guidance
-- **Upgrade Notes** — Actionable steps for users updating
-- **Contributors** — Include a short list of unique human contributors when there is more than one, or when the collaboration is worth calling out
-
-Adapt the structure based on what makes sense for this specific release. Let the content drive the organization.
-
-## Writing Standards
-
-- Explain *why* each change matters (user benefit, DX improvement, performance, security)
-- Mention concrete artifacts: module names, files, tools, CLI flags, configs
-- Use `backticks` for code references: file names, modules, functions, commands
-- Use **bold** for key concepts and emphasis
-- Be direct and specific — every sentence should communicate signal
-- Avoid cliché words: "enhance", "streamline", "leverage", "utilize", "robust"
-- Be precise. If context is incomplete, gather more evidence and clearly separate verified facts from inference.
-- Only describe what's evident from the diffs and commits
-- Exclude bot identities from contributor callouts (`[bot]`, `dependabot`, `renovate`, `github-actions`)
-- Omit the contributor section when there is only one human contributor or the list would add no value
-
-## Example Format
-
-```markdown
-# Release Notes v1.2.0
-
-**Released:** 2024-01-15
-
-This release introduces a complete overhaul of the agent framework with new parallel processing capabilities. The focus is on **developer experience** and **performance** for large codebases.
-
-## Highlights
-
-### Agent Platform Overhaul
-Complete rewrite of the agent framework with new `IrisAgentService` providing **unified execution** across all capabilities. The `TaskContext` system now manages tool access and output validation.
-
-### Parallel Analysis for Large Changesets
-New `parallel_analyze` tool in `src/agents/tools/` enables concurrent subagent processing, preventing context overflow on large PRs.
-
-## Agent Framework
-
-- Introduced `IrisAgent` struct with capability-based prompts loaded from TOML
-- Added `StructuredResponse` enum for typed outputs across all operations
-- Implemented multi-turn tool execution with `multi_turn(50)` for complex analysis
-
-## Tooling Improvements
-
-- `git_diff` now returns relevance scores for prioritizing file analysis
-- `file_read` supports targeted reads with `start_line` and `num_lines`
-- New `workspace` tool for Iris's internal notes and task tracking
-
-## Breaking Changes
-
-- **Removed `--legacy` flag** — All operations now use the agent-first architecture. Remove any scripts using `--legacy`.
-- **Config schema v2** — Run `git-iris config migrate` to update your configuration.
-
-## Upgrade Notes
-
-- Update any CI scripts that use deprecated flags
-- Review custom instruction presets for compatibility with new system
-- Consider enabling `parallel_analyze` for repos with large PRs
-```
-
-## Detail Level Adaptation
-
-Adapt output based on the detail level specified:
-- **Minimal**: Short summary, 2-3 highlights, 1-2 sections
-- **Standard** (default): Full summary, 3-5 highlights, 3-4 themed sections
-- **Detailed**: Comprehensive summary, 4-6 highlights, 4+ sections with full context
-
-## Emoji Guidelines
-
-- When gitmoji enabled: Use one emoji per highlight title and section title (e.g., "🚀 Agent Platform"). No emojis in item descriptions or upgrade notes.
-- When gitmoji disabled or conventional preset: No emojis anywhere.
+## Writing and output
+Match detail to the request and release substance. Use direct language, preserve identifiers, and avoid hype or unsupported claims of safety, speed, or completeness. Follow the supplied emoji policy; when enabled, use at most one meaningful emoji per heading and keep instructions and body prose clear.
+Return a JSON object with a single content field containing the complete Markdown notes. Return no surrounding commentary or code fences. Generating notes does not publish a release.
 """

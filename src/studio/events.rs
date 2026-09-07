@@ -55,7 +55,7 @@ pub enum StudioEvent {
     GenerateCommit {
         instructions: Option<String>,
         preset: String,
-        use_gitmoji: bool,
+        use_gitmoji: Option<bool>,
         amend: bool,
     },
 
@@ -366,6 +366,9 @@ pub enum ContentPayload {
     /// Structured commit message
     Commit(GeneratedMessage),
 
+    /// Structured code review, including metadata and findings
+    Review(Box<crate::types::Review>),
+
     /// Markdown content (PR, review, changelog, release notes)
     Markdown(String),
 }
@@ -528,7 +531,7 @@ pub enum AgentTask {
     Commit {
         instructions: Option<String>,
         preset: String,
-        use_gitmoji: bool,
+        use_gitmoji: Option<bool>,
         amend: bool,
     },
     Review {

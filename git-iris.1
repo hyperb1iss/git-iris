@@ -1,4 +1,4 @@
-.TH GIT-IRIS 1 "May 2026" "git-iris 2.0.9" "User Commands"
+.TH GIT-IRIS 1 "September 2026" "Git-Iris" "User Commands"
 .SH NAME
 git-iris \- agentic Git companion
 .SH SYNOPSIS
@@ -7,7 +7,7 @@ git-iris \- agentic Git companion
 \fICOMMAND \fR[\fICOMMAND OPTIONS\fR]
 .SH DESCRIPTION
 .B git-iris
-is powered by Iris, an intelligent agent that actively explores your codebase to understand what you're building. Rather than dumping context and hoping for the best, Iris uses tools to gather precisely the information she needs\(emanalyzing diffs, exploring file relationships, and building understanding iteratively. This agent-first architecture delivers contextual commit messages, thorough code reviews, structured changelogs, and comprehensive release notes.
+uses Iris to inspect Git changes, gather repository evidence with tools, and generate commit messages, reviews, PR descriptions, changelogs, and release notes.
 .PP
 When run without a subcommand, Git-Iris launches Iris Studio (see the \fBstudio\fR command) with auto-detected mode.
 .SH GLOBAL OPTIONS
@@ -225,10 +225,13 @@ Accepts all options listed in \fBCOMMON OPTIONS\fR, plus:
 Set API key for the specified provider
 .TP
 .BR \-\-fast-model =\fIMODEL\fR
-Set fast model for the specified provider (used for status updates and simple tasks)
+Set the model used for status messages
+.TP
+.BR \-\-subagent-model =\fIMODEL\fR
+Set the model used for delegated analysis (defaults to the primary model)
 .TP
 .BR \-\-token-limit =\fILIMIT\fR
-Set token limit for the specified provider
+Set context-window metadata for the provider, not the generation output budget
 .TP
 .BR \-\-param =\fIKEY\fR=\fIVALUE\fR
 Set additional parameters for the specified provider (repeatable)
@@ -242,10 +245,13 @@ Set turn budget for parallel subagent tasks (default: 20)
 Accepts all options listed in \fBCOMMON OPTIONS\fR (which set per-project defaults), plus:
 .TP
 .BR \-\-fast-model =\fIMODEL\fR
-Set fast model for the specified provider (used for status updates and simple tasks)
+Set the model used for status messages
+.TP
+.BR \-\-subagent-model =\fIMODEL\fR
+Set the model used for delegated analysis (defaults to the primary model)
 .TP
 .BR \-\-token-limit =\fILIMIT\fR
-Set token limit for the specified provider
+Set context-window metadata for the provider, not the generation output budget
 .TP
 .BR \-\-param =\fIKEY\fR=\fIVALUE\fR
 Set additional parameters for the specified provider (repeatable)
@@ -274,13 +280,22 @@ Shell to generate completions for: \fIbash\fR, \fIzsh\fR, \fIfish\fR, \fIelvish\
 Git-Iris supports the following LLM providers:
 .TP
 .B openai
-GPT models by OpenAI (default: gpt-5.4, API key required)
+OpenAI models (default: gpt-6-astra, medium reasoning, API key required)
 .TP
 .B anthropic
-Claude models by Anthropic (default: claude-opus-4-6, API key required)
+Anthropic models (default: claude-opus-5, high effort, API key required)
 .TP
 .B google
-Gemini models by Google (default: gemini-3-pro-preview, API key required)
+Google models (default: gemini-3.8-flash, API key required)
+.TP
+.B openrouter
+Routed models (default: anthropic/claude-opus-5, API key required)
+.TP
+.B fireworks
+Fireworks models (default: accounts/fireworks/models/deepseek-v4-pro-0813, API key required)
+.PP
+Saved model choices remain unchanged when upgrading. The fast model serves status messages;
+subagents use the primary model unless a subagent model is configured explicitly.
 .SH EXAMPLES
 Generate a commit message:
 .PP
@@ -455,6 +470,12 @@ API key for the Anthropic provider.
 .TP
 .B GOOGLE_API_KEY
 API key for the Google provider.
+.TP
+.B OPENROUTER_API_KEY
+API key for OpenRouter.
+.TP
+.B FIREWORKS_API_KEY
+API key for Fireworks.
 .SH BUGS
 Report bugs to: https://github.com/hyperb1iss/git-iris/issues
 .SH AUTHOR

@@ -77,12 +77,12 @@ Set a custom fast model:
 git-iris config --provider openai --fast-model gpt-5.6-luna
 ```
 
-### Token Limits
+### Context-Window Metadata
 
-Override the default token limit:
+Record the context window for a custom model (this does not set an output budget):
 
 ```bash
-git-iris config --provider openai --token-limit 4000
+git-iris config --provider openai --token-limit 1050000
 ```
 
 ## Customization Options
@@ -141,14 +141,17 @@ Presets are categorized:
 
 ### Custom Instructions
 
-Add saved instructions for PR descriptions:
+Add saved instructions across capabilities:
 
 ```bash
-git-iris config --instructions "Always include a Validation section with exact commands."
+git-iris config --instructions "For PR descriptions, include the validation commands actually run."
 ```
 
-These combine with presets when generating PR descriptions. For one-off instructions on any
-command, pass `--instructions` directly to that command.
+Saved instructions combine with capability-appropriate presets. Phrase artifact-specific rules
+explicitly (for example, "For PR descriptions..."). Earlier versions applied saved instructions
+only to PR descriptions. Review existing settings when upgrading.
+
+For one-off instructions, pass `--instructions` directly to the command.
 
 ### Additional Parameters
 
@@ -181,10 +184,10 @@ Set a model for the project:
 git-iris project-config --model gpt-6-astra
 ```
 
-Set project PR instructions:
+Set project instructions:
 
 ```bash
-git-iris project-config --instructions "Call out migration blast radius explicitly."
+git-iris project-config --instructions "For release notes, describe migration requirements explicitly."
 ```
 
 ### View Project Config
