@@ -104,6 +104,9 @@ missing_safety_doc = { level = "allow", priority = 20 }
 module_name_repetitions = { level = "allow", priority = 21 }
 significant_drop_tightening = { level = "allow", priority = 21 }
 must_use_candidate = { level = "allow", priority = 21 }
+# Rust 1.99 added this to pedantic; its fix trades `assert!(v.is_empty())` for
+# `assert_eq!(v, [] as [Type; 0])`, which reads worse in tests
+assert_is_empty = { level = "allow", priority = 21 }
 
 # Numeric casting and conversion warnings
 cast_precision_loss = { level = "warn", priority = 22 }
